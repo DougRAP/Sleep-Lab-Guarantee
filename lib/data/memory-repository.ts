@@ -10,6 +10,7 @@ import type {
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
+  DealerLocation,
   Guarantee,
   InitialImpressionRecord,
   Journey,
@@ -27,11 +28,17 @@ import {
   sameCalendarDate,
   todayIso,
 } from "./repository";
-import { SEED_GUARANTEES, SEED_INITIAL_IMPRESSIONS, SEED_TIPS } from "./seed";
+import {
+  SEED_DEALER_LOCATIONS,
+  SEED_GUARANTEES,
+  SEED_INITIAL_IMPRESSIONS,
+  SEED_TIPS,
+} from "./seed";
 
 export class MemoryRepository implements GuaranteeRepository {
   private guarantees: Guarantee[];
   private tips: Tip[];
+  private dealerLocations: DealerLocation[];
   private checkIns: CheckIn[] = [];
   private threads: ConciergeThread[] = [];
   private messages: ConciergeMessage[] = [];
@@ -42,10 +49,12 @@ export class MemoryRepository implements GuaranteeRepository {
   constructor(
     guarantees: Guarantee[] = SEED_GUARANTEES,
     tips: Tip[] = SEED_TIPS,
-    impressions: InitialImpressionRecord[] = SEED_INITIAL_IMPRESSIONS
+    impressions: InitialImpressionRecord[] = SEED_INITIAL_IMPRESSIONS,
+    dealerLocations: DealerLocation[] = SEED_DEALER_LOCATIONS
   ) {
     this.guarantees = guarantees;
     this.tips = tips;
+    this.dealerLocations = dealerLocations;
     // Copy so seed data isn't mutated across repository instances (tests).
     this.impressions = impressions.map((i) => ({ ...i }));
   }
@@ -108,6 +117,22 @@ export class MemoryRepository implements GuaranteeRepository {
 
   async listTips(): Promise<Tip[]> {
     return this.tips.filter((t) => t.active);
+  }
+
+  // --- M4: dealer locations ---
+
+  async getDealerLocationById(id: string): Promise<DealerLocation | null> {
+    const needle = id.trim();
+    const found = this.dealerLocations.find((d) => d.id === needle);
+    return found ? { ...found } : null;
+  }
+
+  async getDealerLocationForGuarantee(
+    guaranteeId: string
+  ): Promise<DealerLocation | null> {
+    const g = await this.getGuaranteeById(guaranteeId);
+    if (!g?.dealerLocationId) return null;
+    return this.getDealerLocationById(g.dealerLocationId);
   }
 
   // --- M3: check-ins ---

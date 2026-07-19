@@ -7,6 +7,17 @@
 -- Rivera: mid-journey (~Day 6) with the first impression already recorded, so
 --   the nightly check-in flow is demoable too.
 
+-- PLACEHOLDER dealer — replace with real dealer contact + coupon before launch.
+-- Keyed "101" so both demo guarantees (dealer_location_id '101') resolve to it.
+-- Serves the dealer-triage card (#4) and the shop coupon (#6).
+insert into public.dealer_locations (
+  id, name, phone, email, site_url, coupon_code, coupon_pct
+) values (
+  '101', 'Demo Bedding Co.', '(555) 012-3456', 'care@demobedding.example',
+  'https://example.com/shop', 'SLEEPLAB20', 20
+)
+on conflict (id) do nothing;
+
 insert into public.guarantees (
   sales_order_number, guarantee_number, customer_first_name, customer_last_name,
   customer_email, customer_phone, dealer_name, dealer_location_id,

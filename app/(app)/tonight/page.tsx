@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LivingSky } from "../../components/living-sky";
-import { Logo } from "../../components/Logo";
-import { DayCount } from "../../components/day-count";
-import { ConciergeCard } from "../../components/concierge-card";
-import { CheckIn } from "../../components/tonight/check-in";
-import { InitialImpression } from "../../components/tonight/initial-impression";
-import { buttonVariants } from "../../components/ui/button";
-import { getSession } from "../../lib/session";
-import { getRepository } from "../../lib/data";
-import { timeOfDayFor } from "../../lib/tips";
-import { cn } from "../../lib/utils";
-import type { Guarantee, JourneyPhase } from "../../lib/types";
+import { LivingSky } from "../../../components/living-sky";
+import { Logo } from "../../../components/Logo";
+import { DayCount } from "../../../components/day-count";
+import { ConciergeCard } from "../../../components/concierge-card";
+import { CheckIn } from "../../../components/tonight/check-in";
+import { InitialImpression } from "../../../components/tonight/initial-impression";
+import { buttonVariants } from "../../../components/ui/button";
+import { getSession } from "../../../lib/session";
+import { getRepository } from "../../../lib/data";
+import { timeOfDayFor } from "../../../lib/tips";
+import { cn } from "../../../lib/utils";
+import type { Guarantee, JourneyPhase } from "../../../lib/types";
 
 // Live "Tonight" home. Reads the verified guarantee from the signed session and
 // computes the journey day + phase via the eligibility engine (M2). M3 adds a
@@ -45,7 +45,7 @@ export default async function TonightPage() {
       <LivingSky day={day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
       >
         <div className="flex items-center justify-between">
           <Logo />

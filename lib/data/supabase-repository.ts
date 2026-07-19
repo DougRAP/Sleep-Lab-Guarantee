@@ -8,6 +8,7 @@ import type {
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
+  DealerLocation,
   Guarantee,
   InitialImpressionRecord,
   Journey,
@@ -86,6 +87,19 @@ function toMessage(row: any): ConciergeMessage {
     createdAt: row.created_at,
   };
 }
+
+function toDealerLocation(row: any): DealerLocation {
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    email: row.email,
+    siteUrl: row.site_url,
+    couponCode: row.coupon_code,
+    couponPct: row.coupon_pct,
+    createdAt: row.created_at,
+  };
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export class SupabaseRepository implements GuaranteeRepository {
@@ -154,6 +168,25 @@ export class SupabaseRepository implements GuaranteeRepository {
   async listTips(): Promise<Tip[]> {
     const { data } = await this.db.from("tips").select("*").eq("active", true);
     return (data ?? []).map(toTip);
+  }
+
+  // --- M4: dealer locations ---
+
+  async getDealerLocationById(id: string): Promise<DealerLocation | null> {
+    const { data } = await this.db
+      .from("dealer_locations")
+      .select("*")
+      .eq("id", id.trim())
+      .maybeSingle();
+    return data ? toDealerLocation(data) : null;
+  }
+
+  async getDealerLocationForGuarantee(
+    guaranteeId: string
+  ): Promise<DealerLocation | null> {
+    const g = await this.getGuaranteeById(guaranteeId);
+    if (!g?.dealerLocationId) return null;
+    return this.getDealerLocationById(g.dealerLocationId);
   }
 
   // --- M3: check-ins ---

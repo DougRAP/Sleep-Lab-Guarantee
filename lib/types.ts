@@ -181,3 +181,20 @@ export interface Profile {
   phone?: string | null;
   createdAt?: string;
 }
+
+/**
+ * A dealer/retail location. Serves the dealer-triage card (non-comfort issues)
+ * and the shop coupon (v2 expansion). Keyed by the same text id that
+ * `guarantees.dealer_location_id` and `profiles.dealer_location_id` reference.
+ */
+export interface DealerLocation {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  siteUrl?: string | null;
+  couponCode?: string | null;
+  /** Whole-percent discount for the coupon (e.g. 20 = 20% off). */
+  couponPct?: number | null;
+  createdAt?: string;
+}

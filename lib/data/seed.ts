@@ -2,7 +2,12 @@
 // In-memory demo data — mirrors supabase/seed.sql. Backs the local fallback
 // repository so the app runs and both entry flows work with NO real keys.
 
-import type { Guarantee, InitialImpressionRecord, Tip } from "../types";
+import type {
+  DealerLocation,
+  Guarantee,
+  InitialImpressionRecord,
+  Tip,
+} from "../types";
 
 /** ISO date (YYYY-MM-DD) `n` whole days before today (local). */
 function isoDaysAgo(n: number): string {
@@ -53,6 +58,21 @@ export const SEED_GUARANTEES: Guarantee[] = [
     purchasePrice: 1299.99,
     deliveryDate: isoDaysAgo(6),
     accessToken: "demo-rivera-token",
+  },
+];
+
+// PLACEHOLDER dealer — real dealer contact/coupon replaces this before launch.
+// Keyed by "101" so both demo guarantees (dealerLocationId "101") resolve to it.
+// Serves the dealer-triage card (#4) and the shop coupon (#6).
+export const SEED_DEALER_LOCATIONS: DealerLocation[] = [
+  {
+    id: "101",
+    name: "Demo Bedding Co.",
+    phone: "(555) 012-3456",
+    email: "care@demobedding.example",
+    siteUrl: "https://example.com/shop",
+    couponCode: "SLEEPLAB20",
+    couponPct: 20,
   },
 ];
 

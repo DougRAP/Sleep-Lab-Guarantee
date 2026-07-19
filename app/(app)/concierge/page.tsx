@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LivingSky } from "../../components/living-sky";
-import { Logo } from "../../components/Logo";
-import { DayCount } from "../../components/day-count";
-import { ConciergeChat } from "../../components/concierge/concierge-chat";
-import { getSession } from "../../lib/session";
-import { getRepository } from "../../lib/data";
-import { conciergeGreeting } from "../../lib/concierge";
+import { LivingSky } from "../../../components/living-sky";
+import { Logo } from "../../../components/Logo";
+import { DayCount } from "../../../components/day-count";
+import { ConciergeChat } from "../../../components/concierge/concierge-chat";
+import { getSession } from "../../../lib/session";
+import { getRepository } from "../../../lib/data";
+import { conciergeGreeting } from "../../../lib/concierge";
 
 // The AI sleep concierge. Session-guarded like /tonight (redirect to / if no
 // session). The conversation is server-authoritative: threads/messages persist
@@ -38,7 +38,7 @@ export default async function ConciergePage() {
       <LivingSky day={day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
       >
         <div className="flex items-center justify-between">
           <Logo />

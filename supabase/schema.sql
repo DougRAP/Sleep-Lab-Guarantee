@@ -36,6 +36,23 @@ returns text language sql stable security definer set search_path = public as $$
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Dealer locations (dealer triage #4 + shop coupon #6)
+-- Keyed by the same text id that guarantees.dealer_location_id and
+-- profiles.dealer_location_id reference (a loose text scope, like the columns
+-- above — no FK, consistent with the existing convention).
+-- ---------------------------------------------------------------------------
+create table if not exists public.dealer_locations (
+  id text primary key,                     -- matches guarantees.dealer_location_id
+  name text not null,
+  phone text,
+  email text,
+  site_url text,
+  coupon_code text,
+  coupon_pct numeric,                       -- whole-percent discount (e.g. 20)
+  created_at timestamptz default now()
+);
+
+-- ---------------------------------------------------------------------------
 -- Guarantees (seeded from CRM export)
 -- ---------------------------------------------------------------------------
 create table if not exists public.guarantees (
@@ -210,6 +227,7 @@ create trigger claims_set_updated_at before update on public.claims
 -- Row Level Security
 -- ---------------------------------------------------------------------------
 alter table public.profiles           enable row level security;
+alter table public.dealer_locations   enable row level security;
 alter table public.guarantees         enable row level security;
 alter table public.claims             enable row level security;
 alter table public.claim_photos       enable row level security;
@@ -227,6 +245,22 @@ create policy profiles_self_select on public.profiles
   for select using (id = auth.uid() or public.is_rap_admin());
 create policy profiles_self_update on public.profiles
   for update using (id = auth.uid());
+
+-- dealer_locations: admin all · dealer own location · consumer via own guarantee.
+-- (Server-authoritative reads use the service role, which bypasses RLS; these
+--  policies harden any future client/anon access, consistent with the others.)
+create policy dealer_locations_read on public.dealer_locations
+  for select using (
+    public.is_rap_admin()
+    or id = public.current_dealer_location()
+    or exists (
+      select 1 from public.guarantees g
+      where g.dealer_location_id = dealer_locations.id
+        and g.consumer_id = auth.uid()
+    )
+  );
+create policy dealer_locations_admin_write on public.dealer_locations
+  for all using (public.is_rap_admin()) with check (public.is_rap_admin());
 
 -- guarantees: consumer own · admin all · dealer by location
 create policy guarantees_read on public.guarantees

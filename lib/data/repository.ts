@@ -8,6 +8,7 @@ import type {
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
+  DealerLocation,
   Feeling,
   Guarantee,
   InitialImpression,
@@ -53,6 +54,15 @@ export interface GuaranteeRepository {
   /** True if a prior comfort exchange is approved/completed (one-time rule). */
   hasResolvedExchange(guaranteeId: string): Promise<boolean>;
   listTips(): Promise<Tip[]>;
+
+  // --- M4: dealer locations (dealer triage #4 + shop coupon #6) ---
+  /** A dealer location by its text id, or null if none. */
+  getDealerLocationById(id: string): Promise<DealerLocation | null>;
+  /**
+   * The dealer location for a guarantee, resolved via its `dealerLocationId`.
+   * Returns null when the guarantee has no location or no matching row (fallback).
+   */
+  getDealerLocationForGuarantee(guaranteeId: string): Promise<DealerLocation | null>;
 
   // --- M3: check-in persistence (PRD §2a) ---
   /** Today's check-in for this guarantee, or null if none logged yet. */
