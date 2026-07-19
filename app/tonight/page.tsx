@@ -1,16 +1,21 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { LivingSky } from "../../components/living-sky";
 import { Logo } from "../../components/Logo";
 import { DayCount } from "../../components/day-count";
 import { ConciergeCard } from "../../components/concierge-card";
 import { CheckIn } from "../../components/tonight/check-in";
+import { buttonVariants } from "../../components/ui/button";
 import { getSession } from "../../lib/session";
 import { getRepository } from "../../lib/data";
+import { timeOfDayFor } from "../../lib/tips";
+import { cn } from "../../lib/utils";
 import type { Guarantee, JourneyPhase } from "../../lib/types";
 
 // Live "Tonight" home. Reads the verified guarantee from the signed session and
-// computes the journey day + phase via the eligibility engine (M2). Design is
-// unchanged from M1 — only the data is now live.
+// computes the journey day + phase via the eligibility engine (M2). M3 adds a
+// persisted check-in, tonight's tip, and a quiet path to the concierge — the
+// poster design is unchanged.
 export default async function TonightPage() {
   const session = await getSession();
   if (!session) redirect("/");
@@ -22,6 +27,11 @@ export default async function TonightPage() {
   const journey = await repo.getJourney(guarantee.id);
   const day = journey?.currentDay ?? 0;
   const phase = journey?.phase ?? "settle_in";
+
+  const [todayCheckIn, tip] = await Promise.all([
+    repo.getTodayCheckIn(guarantee.id),
+    repo.getTip({ day, phase, timeOfDay: timeOfDayFor() }),
+  ]);
 
   return (
     <>
@@ -43,7 +53,23 @@ export default async function TonightPage() {
 
           <ConciergeCard>{conciergeLine(day, phase, guarantee)}</ConciergeCard>
 
-          <CheckIn />
+          <CheckIn initialFeeling={todayCheckIn?.feeling ?? null} />
+
+          {tip && (
+            <div className="space-y-1.5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+                Tonight&apos;s note
+              </p>
+              <p className="text-[15px] leading-relaxed text-mist">{tip.body}</p>
+            </div>
+          )}
+
+          <Link
+            href="/concierge"
+            className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
+          >
+            Talk to your guide
+          </Link>
         </div>
       </main>
     </>

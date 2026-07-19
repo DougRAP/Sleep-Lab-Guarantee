@@ -1,0 +1,62 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { LivingSky } from "../../components/living-sky";
+import { Logo } from "../../components/Logo";
+import { DayCount } from "../../components/day-count";
+import { ConciergeChat } from "../../components/concierge/concierge-chat";
+import { getSession } from "../../lib/session";
+import { getRepository } from "../../lib/data";
+import { conciergeGreeting } from "../../lib/concierge";
+
+// The AI sleep concierge. Session-guarded like /tonight (redirect to / if no
+// session). The conversation is server-authoritative: threads/messages persist
+// via the repository, and the guide's replies come from the concierge action
+// (Anthropic when a key is set, scripted fallback otherwise).
+export default async function ConciergePage() {
+  const session = await getSession();
+  if (!session) redirect("/");
+
+  const repo = getRepository();
+  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
+  if (!guarantee) redirect("/");
+
+  const journey = await repo.getJourney(guarantee.id);
+  const day = journey?.currentDay ?? 0;
+  const phase = journey?.phase ?? "settle_in";
+
+  const thread = await repo.getOrCreateConciergeThread(guarantee.id);
+  const stored = await repo.listConciergeMessages(thread.id);
+
+  const greeting = conciergeGreeting({
+    firstName: guarantee.customerFirstName?.trim() || null,
+    day,
+    phase,
+  });
+
+  return (
+    <>
+      <LivingSky day={day} />
+      <main
+        id="main"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+      >
+        <div className="flex items-center justify-between">
+          <Logo />
+          <DayCount day={day} />
+        </div>
+
+        <Link
+          href="/tonight"
+          className="mt-3 inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
+        >
+          &lsaquo; Tonight
+        </Link>
+
+        <ConciergeChat
+          greeting={greeting}
+          initial={stored.map((m) => ({ role: m.role, body: m.body }))}
+        />
+      </main>
+    </>
+  );
+}
