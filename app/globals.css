@@ -1,0 +1,24 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #0B1D36;
+  --cream: #F8F5F0;
+  --gold: #E8D5A3;
+}
+
+body {
+  background-color: var(--cream);
+  color: var(--navy);
+}
+
+/* Soft animations for logo stars */
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}

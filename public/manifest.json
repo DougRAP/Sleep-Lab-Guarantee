@@ -1,0 +1,17 @@
+
+{
+  "name": "RAP Sleep Lab",
+  "short_name": "Sleep Lab",
+  "description": "Comfort Guarantee claims and better sleep support",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F5F0",
+  "theme_color": "#0B1D36",
+  "icons": [
+    {
+      "src": "/next.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
