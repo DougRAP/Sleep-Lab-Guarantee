@@ -3,13 +3,13 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { MOCK_GUARANTEES } from "../../lib/mock-data";
 import { calculateDaysSince, getEligibilityStatus, RESTOCKING_FEE, FAST_INSPECTION_FEE, FRIENDLY_REMINDERS } from "../../lib/eligibility";
 import { Logo } from "../../components/Logo";
 import Link from "next/link";
 
-export default function ClaimPage() {
+function ClaimContent() {
   const searchParams = useSearchParams();
   const transId = searchParams.get("trans_id");
   
@@ -123,5 +123,13 @@ export default function ClaimPage() {
         <p className="mt-2">Support: 1-800-RAP-SLEEP · support@rapsleeplab.com</p>
       </div>
     </div>
+  );
+}
+
+export default function ClaimPage() {
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto p-6 text-slate-500">Loading…</div>}>
+      <ClaimContent />
+    </Suspense>
   );
 }
