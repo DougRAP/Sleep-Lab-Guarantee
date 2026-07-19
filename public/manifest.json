@@ -1,17 +1,18 @@
-
 {
   "name": "RAP Sleep Lab",
   "short_name": "Sleep Lab",
-  "description": "Comfort Guarantee claims and better sleep support",
+  "description": "A calmer path to better sleep — your 90-night companion.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F8F5F0",
-  "theme_color": "#0B1D36",
+  "orientation": "portrait",
+  "background_color": "#0E1420",
+  "theme_color": "#0E1420",
   "icons": [
     {
-      "src": "/next.svg",
+      "src": "/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

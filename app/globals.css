@@ -1,24 +1,44 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --navy: #0B1D36;
-  --cream: #F8F5F0;
-  --gold: #E8D5A3;
+  color-scheme: dark;
+  --night: #0E1420;
+  --surface: #182236;
+  --surface-2: #1E2A42;
+  --cloud: #EDEFF4;
+  --mist: #8A94A6;
+  --dawn: #E9B384;
+  --dawn-deep: #C98B6B;
+  --line: rgba(237, 239, 244, 0.1);
 }
 
-body {
-  background-color: var(--cream);
-  color: var(--navy);
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    background-color: var(--night);
+    color: var(--cloud);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Calm text selection */
+  ::selection {
+    background: rgba(233, 179, 132, 0.25);
+  }
 }
 
-/* Soft animations for logo stars */
-@keyframes twinkle {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-.animate-twinkle {
-  animation: twinkle 3s ease-in-out infinite;
+/* Respect users who ask for less motion (DESIGN.md) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

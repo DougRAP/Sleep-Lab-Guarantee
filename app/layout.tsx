@@ -1,18 +1,42 @@
-
-// app/layout.tsx
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Fraunces, Hanken_Grotesk, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
-import { Logo } from "../components/Logo";
-import Link from "next/link";
 
-const inter = Inter({ subsets: ["latin"] });
+const serif = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
+  style: ["normal", "italic"],
+});
+const sans = Hanken_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+const mono = Spline_Sans_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "RAP Sleep Lab",
-  description: "Comfort Guarantee claims, warranty service, and better sleep support",
+  description: "A calmer path to better sleep — your 90-night companion.",
   manifest: "/manifest.json",
-  themeColor: "#0B1D36",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Sleep Lab",
+  },
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0E1420",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -21,29 +45,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-[#F8F5F0] text-[#0B1D36] min-h-screen`}>
-        <header className="border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-50">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-            <Link href="/">
-              <Logo size={40} />
-            </Link>
-            <nav className="flex items-center gap-4 text-sm font-medium">
-              <Link href="/claim" className="hover:text-blue-800">Start Claim</Link>
-              <Link href="/claims" className="hover:text-blue-800">My Claims</Link>
-              <Link href="/care" className="hover:text-blue-800">Care Tips</Link>
-              <Link href="/admin" className="text-slate-500 hover:text-blue-800">Admin</Link>
-            </nav>
-          </div>
-        </header>
-        <main className="max-w-5xl mx-auto px-4 py-8">
-          {children}
-        </main>
-        <footer className="border-t border-slate-200 mt-16 py-8 text-center text-sm text-slate-500">
-          <p>RAP Sleep Lab · Support: 1-800-RAP-SLEEP · support@rapsleeplab.com</p>
-          <p className="mt-1">$99 restocking fee applies to comfort exchanges. <a href="/terms" className="underline">View full 90-Night Comfort Guarantee</a></p>
-        </footer>
-      </body>
+    <html
+      lang="en"
+      className={`${serif.variable} ${sans.variable} ${mono.variable}`}
+    >
+      <body className="min-h-[100dvh] font-sans antialiased">{children}</body>
     </html>
   );
 }
