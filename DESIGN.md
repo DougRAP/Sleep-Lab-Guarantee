@@ -61,3 +61,12 @@ Purple→blue diagonal gradients · glowing/pulsing orb or avatar face · neon-o
 
 ## Accessibility
 Dark-first with contrast ≥ 4.5:1 for text (off-white on indigo passes); reduced-motion honored; dynamic type friendly; capture guidance never relies on color alone.
+
+## Bottom navigation (v2 expansion)
+The app becomes navigable without breaking the poster-first, printed-light calm.
+- A persistent **bottom bar**: frosted/translucent (`backdrop-blur`, `bg-surface2/60`), a single hairline top border (`--line`), safe-area inset padding. No FAB, no orb, no heavy icon set.
+- **Four utility destinations:** Tonight · Guarantee · Requests · Shop. Small label + a quiet line icon; the **active destination uses `--dawn`** (text), inactive `--mist`. One active at a time.
+- **The Coach is set apart, not a peer tab** — the guide's presence, a serif/`--dawn` affordance divided from the utility tabs by a hairline (e.g. a trailing segment). It reads as "your guide," never a menu item.
+- **Hidden during focused flows** (the fitting, entry/verify) — those stay full-bleed, one-breath screens.
+- Motion: cross-fade route transitions, no bounce; honor `prefers-reduced-motion`.
+
