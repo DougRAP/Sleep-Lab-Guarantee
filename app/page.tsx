@@ -41,7 +41,7 @@ export default async function WelcomePage({
             </p>
           )}
 
-          <Entry hasToken={hasToken} />
+          <Entry token={token} />
 
           {!hasToken && (
             <p className="text-[13px] text-mist">

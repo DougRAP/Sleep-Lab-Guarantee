@@ -1,22 +1,25 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition, type FormEvent } from "react";
 import { Field } from "../ui/field";
 import { Button } from "../ui/button";
+import { verifyEntry } from "../../lib/actions/verify";
 
 /**
- * Two entry paths:
- *  - hasToken: arrived pre-identified from the retailer dashboard -> light verify
- *  - else: self-serve "find your purchase" lookup
- * M1: front-end only. M2 (handoff) wires verify/lookup to Supabase.
+ * Two entry paths (PRD §3.1):
+ *  - token present: arrived pre-identified from the retailer link -> light verify
+ *    (last name + delivery date).
+ *  - else: self-serve "find your purchase" lookup (sales order + last name).
+ * Verify/lookup runs server-side; on success the action sets a signed session
+ * cookie and redirects to /tonight. On failure it returns a calm message (no red).
  */
-export function Entry({ hasToken }: { hasToken: boolean }) {
-  const router = useRouter();
+export function Entry({ token }: { token?: string }) {
+  const hasToken = Boolean(token);
   const [order, setOrder] = useState("");
   const [last, setLast] = useState("");
   const [delivery, setDelivery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -30,8 +33,13 @@ export function Entry({ hasToken }: { hasToken: boolean }) {
       return;
     }
     setError(null);
-    // M2: verify/lookup against Supabase, then route. For now, continue.
-    router.push("/tonight");
+    startTransition(async () => {
+      // On success the action redirects; only a failure returns a result.
+      const result = hasToken
+        ? await verifyEntry({ mode: "token", token, lastName: last, deliveryDate: delivery })
+        : await verifyEntry({ mode: "lookup", salesOrderNumber: order, lastName: last });
+      if (result && !result.ok) setError(result.error);
+    });
   }
 
   return (
@@ -75,7 +83,9 @@ export function Entry({ hasToken }: { hasToken: boolean }) {
         {error && <p className="text-[13px] text-dawn">{error}</p>}
       </div>
 
-      <Button type="submit">{hasToken ? "Continue" : "Find my purchase"}</Button>
+      <Button type="submit" disabled={pending}>
+        {hasToken ? "Continue" : "Find my purchase"}
+      </Button>
     </form>
   );
 }
