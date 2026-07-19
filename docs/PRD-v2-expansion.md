@@ -19,12 +19,14 @@ Persistent bottom bar: **Tonight · Guarantee · Requests · Shop**, with **Coac
 
 ## The exchange "fitting" — Request exchange → claim triage (M5)
 Trigger: a **"Request exchange"** button, shown/eligible day 31–90.
-1. **Agent intro** (friendly): asks about the experience + why they want to exchange.
+1. **Agent intake** — the Exchange button is what kicks off the claim. The agent (or a form when no AI key) captures, as structured JSON → DB: (a) **why** they want to exchange / *tell us about your experience*, and (b) **what they'd rather have** — describe the preferred replacement. Both go onto the RA shared with the dealer.
 2. **Item(s):** enter the **model number** (from the tag on the mattress or on the receipt). Add another via a **+** button if there's more than one; **max 2 items per request**. Per item, confirm it is **not soiled, has no odors, and is not otherwise damaged**.
 3. **Tap-to-confirm statements** (all required, from the 90-Night terms): mattress clean/sanitary; law tag attached; model tag attached; like-new condition; both partners present to select; within day 31–90; still the original owner; still in possession + household use only; US/original dealer.
 4. **Photos (required)** (tap a labeled photo icon each): **Law tag** · **Model tag** · **5 uncovered mattress shots** (foot, both sides, head, top-down) · **Receipt photo** ONLY if the sales order was not pre-verified (didn't arrive from the dashboard).
 5. **Verify:** phone (+ type) and/or email correct; mattress still at the delivery address OR capture a new address; still personally owns the mattress.
-6. **Submit** → creates the exchange request + `tracking_number` → status flow (Requests).
+6. **Submit** → creates the exchange request and generates the **RA (Return Authorization)** — customer, item model number(s), reason/experience, preferred replacement, condition confirmations, photos, `ra_number` + `tracking_number` — **shared with the dealer** (the dealer seam) → status flow (Requests).
+
+**Navigation / resume:** customers move freely (bottom nav) and can **resume** an in-progress exchange (saved as a draft) rather than being forced through a linear script. Plus a "skip to a different day" affordance (see the open decision below).
 
 **Coupon mechanic (#6, built with M5):** on the Shop, a "Get your coupon" action generates a unique code locally with a 4-week expiry, shows "subject to dealer conditions and rules of acceptance," and displays it to the customer (optionally persisted for the record).
 
@@ -32,7 +34,7 @@ Guided-first: scripted warm copy + labeled capture now; AI agent + photo-legibil
 
 ## Data additions
 - `dealer_locations` (name, phone, email, site_url, coupon_code, coupon_pct) — serves dealer triage (#4) + shop coupon (#6). Seed with a placeholder dealer until real data is provided.
-- `claims`: add `tracking_number`; single-type. Exchange requests recorded here.
+- `claims`: add `tracking_number`, `ra_number`, `reason_experience` (text), `preferred_replacement` (text); single-type. Exchange requests recorded here; the RA is the dealer-facing view. Support a **draft** state so an in-progress request can be resumed.
 - Content files: `content/guarantee-terms.*` (the 90-Night terms) and `content/shop.*` (accessories catalog: item, blurb, link, dealer coupon).
 
 ## Build sequence
