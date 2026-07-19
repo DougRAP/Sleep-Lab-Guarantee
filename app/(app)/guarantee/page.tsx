@@ -7,6 +7,7 @@ import { ConciergeCard } from "../../../components/concierge-card";
 import { buttonVariants } from "../../../components/ui/button";
 import { getSession } from "../../../lib/session";
 import { getRepository } from "../../../lib/data";
+import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { evaluateEligibility } from "../../../lib/eligibility";
 import { cn } from "../../../lib/utils";
 import { GUARANTEE_ESSENTIALS, GUARANTEE_META } from "../../../content/guarantee-terms";
@@ -25,8 +26,11 @@ export default async function GuaranteePage() {
   if (!guarantee) redirect("/");
 
   const resolved = await repo.hasResolvedExchange(guarantee.id);
+  // The effective reference date is real "now" unless the demo day-jumper has
+  // set a preview day, so /tonight, /guarantee and the fitting gate all agree.
   const elig = evaluateEligibility({
     deliveryDate: guarantee.deliveryDate,
+    referenceDate: await effectiveReferenceDate(guarantee.deliveryDate),
     exchangeResolved: resolved,
   });
 

@@ -84,11 +84,30 @@ create table if not exists public.claims (
   id uuid primary key default uuid_generate_v4(),
   guarantee_id uuid not null references public.guarantees(id) on delete cascade,
   consumer_id uuid references public.profiles(id) on delete set null,
+  -- 'draft' (M5) precedes 'submitted': an in-progress fitting is persisted so
+  -- the customer can leave and resume rather than being held in a linear script.
   status text not null default 'submitted' check (status in (
-    'submitted','in_review','approved','dealer_scheduled','completed',
+    'draft','submitted','in_review','approved','dealer_scheduled','completed',
     'denied','expired','withdrawn'
   )),
   ra_number text,
+  tracking_number text,
+  -- Structured intake (agent or guided form) — both land on the RA.
+  reason_experience text,
+  preferred_replacement text,
+  -- Resume point + the tap-to-confirm set from the 90-Night terms.
+  step text not null default 'intake'
+    check (step in ('intake','items','confirmations','photos','verify','submitted')),
+  confirmations jsonb not null default '[]'::jsonb,
+  -- True when the sales order arrived pre-verified (dashboard/CRM token link).
+  -- Drives the receipt-photo rule: a receipt is only asked for when false.
+  pre_verified boolean not null default false,
+  contact_phone text,
+  contact_phone_kind text check (contact_phone_kind in ('mobile','home','work')),
+  contact_email text,
+  at_delivery_address boolean,
+  new_address text,
+  still_owns boolean,
   denial_reason text,
   restocking_fee numeric,
   price_difference numeric,
@@ -100,16 +119,76 @@ create table if not exists public.claims (
   updated_at timestamptz default now()
 );
 create index if not exists claims_guarantee_idx on public.claims (guarantee_id);
+create index if not exists claims_draft_idx on public.claims (guarantee_id, status);
+
+-- Idempotent migration for existing deployments (columns added in M5).
+alter table public.claims add column if not exists tracking_number text;
+alter table public.claims add column if not exists reason_experience text;
+alter table public.claims add column if not exists preferred_replacement text;
+alter table public.claims add column if not exists step text not null default 'intake';
+alter table public.claims add column if not exists confirmations jsonb not null default '[]'::jsonb;
+alter table public.claims add column if not exists pre_verified boolean not null default false;
+alter table public.claims add column if not exists contact_phone text;
+alter table public.claims add column if not exists contact_phone_kind text;
+alter table public.claims add column if not exists contact_email text;
+alter table public.claims add column if not exists at_delivery_address boolean;
+alter table public.claims add column if not exists new_address text;
+alter table public.claims add column if not exists still_owns boolean;
+
+-- Widen the status check to admit 'draft' on pre-M5 deployments.
+do $$ begin
+  alter table public.claims drop constraint if exists claims_status_check;
+  alter table public.claims add constraint claims_status_check check (status in (
+    'draft','submitted','in_review','approved','dealer_scheduled','completed',
+    'denied','expired','withdrawn'
+  ));
+end $$;
+
+-- One mattress per row; max 2 per request is enforced in the repository layer.
+create table if not exists public.claim_items (
+  id uuid primary key default uuid_generate_v4(),
+  claim_id uuid not null references public.claims(id) on delete cascade,
+  model_number text not null,          -- from the mattress tag or the receipt
+  not_soiled boolean not null default false,
+  no_odors boolean not null default false,
+  not_damaged boolean not null default false,
+  position int not null default 0,
+  created_at timestamptz default now()
+);
+create index if not exists claim_items_claim_idx on public.claim_items (claim_id);
 
 create table if not exists public.claim_photos (
   id uuid primary key default uuid_generate_v4(),
   claim_id uuid not null references public.claims(id) on delete cascade,
-  angle text not null check (angle in ('law_tag','model_tag','overall','protector')),
-  storage_path text not null,
+  angle text not null check (angle in (
+    'law_tag','model_tag','overall','protector',
+    'foot','left_side','right_side','head','top_down','receipt'
+  )),
+  -- Nullable on purpose: with no Supabase Storage configured the capture is
+  -- recorded as metadata only so the request is never blocked (see lib/storage.ts).
+  storage_path text,
+  label text,
+  file_name text,
+  captured boolean not null default true,
+  captured_at timestamptz default now(),
   ai_coach jsonb,
   created_at timestamptz default now()
 );
 create index if not exists claim_photos_claim_idx on public.claim_photos (claim_id);
+
+-- Idempotent migration for existing deployments (M5).
+alter table public.claim_photos alter column storage_path drop not null;
+alter table public.claim_photos add column if not exists label text;
+alter table public.claim_photos add column if not exists file_name text;
+alter table public.claim_photos add column if not exists captured boolean not null default true;
+alter table public.claim_photos add column if not exists captured_at timestamptz default now();
+do $$ begin
+  alter table public.claim_photos drop constraint if exists claim_photos_angle_check;
+  alter table public.claim_photos add constraint claim_photos_angle_check check (angle in (
+    'law_tag','model_tag','overall','protector',
+    'foot','left_side','right_side','head','top_down','receipt'
+  ));
+end $$;
 
 create table if not exists public.claim_notes (
   id uuid primary key default uuid_generate_v4(),
@@ -230,6 +309,7 @@ alter table public.profiles           enable row level security;
 alter table public.dealer_locations   enable row level security;
 alter table public.guarantees         enable row level security;
 alter table public.claims             enable row level security;
+alter table public.claim_items        enable row level security;
 alter table public.claim_photos       enable row level security;
 alter table public.claim_notes        enable row level security;
 alter table public.payments           enable row level security;
@@ -287,6 +367,19 @@ create policy claims_consumer_insert on public.claims
   for insert with check (consumer_id = auth.uid());
 create policy claims_admin_write on public.claims
   for all using (public.is_rap_admin()) with check (public.is_rap_admin());
+
+-- claim_items: follow the parent claim's scope (same shape as claim_photos)
+create policy claim_items_read on public.claim_items
+  for select using (
+    public.is_rap_admin()
+    or exists (
+      select 1 from public.claims c
+      join public.guarantees g on g.id = c.guarantee_id
+      where c.id = claim_items.claim_id
+        and (c.consumer_id = auth.uid()
+             or g.dealer_location_id = public.current_dealer_location())
+    )
+  );
 
 -- claim_photos: follow the parent claim's scope
 create policy claim_photos_read on public.claim_photos

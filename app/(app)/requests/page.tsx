@@ -7,6 +7,7 @@ import { ConciergeCard } from "../../../components/concierge-card";
 import { buttonVariants } from "../../../components/ui/button";
 import { getSession } from "../../../lib/session";
 import { getRepository } from "../../../lib/data";
+import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { cn } from "../../../lib/utils";
 
 // Requests (v2 #3). Session-guarded. A calm empty state for M4 — full exchange-
@@ -19,7 +20,10 @@ export default async function RequestsPage() {
   const guarantee = await repo.getGuaranteeById(session.guaranteeId);
   if (!guarantee) redirect("/");
 
-  const journey = await repo.getJourney(guarantee.id);
+  const journey = await repo.getJourney(
+    guarantee.id,
+    await effectiveReferenceDate(guarantee.deliveryDate)
+  );
   const day = journey?.currentDay ?? 0;
 
   return (

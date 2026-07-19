@@ -6,6 +6,7 @@ import { DayCount } from "../../../components/day-count";
 import { ConciergeChat } from "../../../components/concierge/concierge-chat";
 import { getSession } from "../../../lib/session";
 import { getRepository } from "../../../lib/data";
+import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { conciergeGreeting } from "../../../lib/concierge";
 
 // The AI sleep concierge. Session-guarded like /tonight (redirect to / if no
@@ -20,7 +21,10 @@ export default async function ConciergePage() {
   const guarantee = await repo.getGuaranteeById(session.guaranteeId);
   if (!guarantee) redirect("/");
 
-  const journey = await repo.getJourney(guarantee.id);
+  const journey = await repo.getJourney(
+    guarantee.id,
+    await effectiveReferenceDate(guarantee.deliveryDate)
+  );
   const day = journey?.currentDay ?? 0;
   const phase = journey?.phase ?? "settle_in";
 

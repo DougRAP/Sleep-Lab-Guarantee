@@ -7,6 +7,9 @@
 
 import type {
   CheckIn,
+  Claim,
+  ClaimItem,
+  ClaimPhoto,
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
@@ -17,12 +20,19 @@ import type {
   Tip,
 } from "../types";
 import { journeyDay, journeyPhase } from "../eligibility";
+import { generateRaNumber, generateTrackingNumber } from "../ra";
+import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import {
+  type ClaimItemInput,
+  type CreateDraftClaimInput,
   type GuaranteeRepository,
+  type RecordClaimPhotoInput,
   type SaveCheckInInput,
   type SaveConcernInput,
   type SaveInitialImpressionInput,
+  type SubmitClaimResult,
+  type UpdateClaimInput,
   type VerifyInput,
   lastNameMatches,
   sameCalendarDate,
@@ -44,6 +54,9 @@ export class MemoryRepository implements GuaranteeRepository {
   private messages: ConciergeMessage[] = [];
   private impressions: InitialImpressionRecord[];
   private concerns: { guaranteeId: string; body: string; createdAt: string }[] = [];
+  private claims: Claim[] = [];
+  private claimItems: ClaimItem[] = [];
+  private claimPhotos: ClaimPhoto[] = [];
   private seq = 0;
 
   constructor(
@@ -109,10 +122,14 @@ export class MemoryRepository implements GuaranteeRepository {
     };
   }
 
-  async hasResolvedExchange(_guaranteeId: string): Promise<boolean> {
-    // No claims in the seed; the demo journey is always live/unresolved.
-    void _guaranteeId;
-    return false;
+  async hasResolvedExchange(guaranteeId: string): Promise<boolean> {
+    // Nothing is seeded, so a demo journey starts live/unresolved; a claim only
+    // resolves the journey once it has actually been approved or completed.
+    return this.claims.some(
+      (c) =>
+        c.guaranteeId === guaranteeId &&
+        ["approved", "dealer_scheduled", "completed"].includes(c.status)
+    );
   }
 
   async listTips(): Promise<Tip[]> {
@@ -213,6 +230,139 @@ export class MemoryRepository implements GuaranteeRepository {
       body: input.body,
       createdAt: new Date().toISOString(),
     });
+  }
+
+  // --- M5: the fitting ---
+
+  async getDraftClaim(guaranteeId: string): Promise<Claim | null> {
+    const found = this.claims.find(
+      (c) => c.guaranteeId === guaranteeId && c.status === "draft"
+    );
+    return found ? { ...found } : null;
+  }
+
+  async createDraftClaim(input: CreateDraftClaimInput): Promise<Claim> {
+    const existing = await this.getDraftClaim(input.guaranteeId);
+    if (existing) return existing;
+    const now = new Date().toISOString();
+    const row: Claim = {
+      id: this.nextId("claim"),
+      guaranteeId: input.guaranteeId,
+      status: "draft",
+      step: "intake",
+      confirmations: [],
+      preVerified: input.preVerified,
+      reasonExperience: null,
+      preferredReplacement: null,
+      contactPhone: null,
+      contactPhoneKind: null,
+      contactEmail: null,
+      atDeliveryAddress: null,
+      newAddress: null,
+      stillOwns: null,
+      raNumber: null,
+      trackingNumber: null,
+      submittedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.claims.push(row);
+    return { ...row };
+  }
+
+  async getClaimById(claimId: string): Promise<Claim | null> {
+    const found = this.claims.find((c) => c.id === claimId);
+    return found ? { ...found } : null;
+  }
+
+  async updateClaim(claimId: string, patch: UpdateClaimInput): Promise<Claim> {
+    const row = this.claims.find((c) => c.id === claimId);
+    if (!row) throw new Error(`No claim ${claimId}`);
+    if (patch.step !== undefined) row.step = patch.step;
+    if (patch.reasonExperience !== undefined) row.reasonExperience = patch.reasonExperience;
+    if (patch.preferredReplacement !== undefined) {
+      row.preferredReplacement = patch.preferredReplacement;
+    }
+    if (patch.confirmations !== undefined) {
+      row.confirmations = normalizeConfirmations(patch.confirmations);
+    }
+    if (patch.contactPhone !== undefined) row.contactPhone = patch.contactPhone;
+    if (patch.contactPhoneKind !== undefined) row.contactPhoneKind = patch.contactPhoneKind;
+    if (patch.contactEmail !== undefined) row.contactEmail = patch.contactEmail;
+    if (patch.atDeliveryAddress !== undefined) row.atDeliveryAddress = patch.atDeliveryAddress;
+    if (patch.newAddress !== undefined) row.newAddress = patch.newAddress;
+    if (patch.stillOwns !== undefined) row.stillOwns = patch.stillOwns;
+    row.updatedAt = new Date().toISOString();
+    return { ...row };
+  }
+
+  async listClaimItems(claimId: string): Promise<ClaimItem[]> {
+    return this.claimItems
+      .filter((i) => i.claimId === claimId)
+      .sort((a, b) => a.position - b.position)
+      .map((i) => ({ ...i }));
+  }
+
+  async saveClaimItems(claimId: string, items: ClaimItemInput[]): Promise<ClaimItem[]> {
+    this.claimItems = this.claimItems.filter((i) => i.claimId !== claimId);
+    const now = new Date().toISOString();
+    items.slice(0, MAX_ITEMS).forEach((input, position) => {
+      this.claimItems.push({
+        id: this.nextId("claim-item"),
+        claimId,
+        modelNumber: input.modelNumber.trim(),
+        notSoiled: Boolean(input.notSoiled),
+        noOdors: Boolean(input.noOdors),
+        notDamaged: Boolean(input.notDamaged),
+        position,
+        createdAt: now,
+      });
+    });
+    return this.listClaimItems(claimId);
+  }
+
+  async listClaimPhotos(claimId: string): Promise<ClaimPhoto[]> {
+    return this.claimPhotos.filter((p) => p.claimId === claimId).map((p) => ({ ...p }));
+  }
+
+  async recordClaimPhoto(input: RecordClaimPhotoInput): Promise<ClaimPhoto> {
+    // A retake replaces the angle rather than stacking rows.
+    this.claimPhotos = this.claimPhotos.filter(
+      (p) => !(p.claimId === input.claimId && p.angle === input.angle)
+    );
+    const now = new Date().toISOString();
+    const row: ClaimPhoto = {
+      id: this.nextId("claim-photo"),
+      claimId: input.claimId,
+      angle: input.angle,
+      label: input.label,
+      storagePath: input.storagePath ?? null,
+      fileName: input.fileName ?? null,
+      captured: true,
+      capturedAt: now,
+      createdAt: now,
+    };
+    this.claimPhotos.push(row);
+    return { ...row };
+  }
+
+  async submitClaim(claimId: string): Promise<SubmitClaimResult> {
+    const row = this.claims.find((c) => c.id === claimId);
+    if (!row) throw new Error(`No claim ${claimId}`);
+    // Idempotent: a second submit returns the numbers already issued.
+    if (row.raNumber && row.trackingNumber) {
+      return { claim: { ...row }, raNumber: row.raNumber, trackingNumber: row.trackingNumber };
+    }
+    const raNumber = generateRaNumber();
+    const trackingNumber = generateTrackingNumber();
+    const now = new Date().toISOString();
+    row.raNumber = raNumber;
+    row.trackingNumber = trackingNumber;
+    row.status = "submitted";
+    row.step = "submitted";
+    row.submittedAt = now;
+    row.updatedAt = now;
+    return { claim: { ...row }, raNumber, trackingNumber };
   }
 
   // --- M3: tips ---

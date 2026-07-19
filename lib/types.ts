@@ -7,8 +7,12 @@ export type Role = "consumer" | "rap_admin" | "dealer";
 /** The 90-night journey phase (see PRD §2a / §6). */
 export type JourneyPhase = "settle_in" | "safety_net" | "expired" | "resolved";
 
-/** Comfort-exchange status machine (PRD §4). */
+/**
+ * Comfort-exchange status machine (PRD §4). `draft` (M5) precedes `submitted` —
+ * an in-progress fitting is persisted so the customer can leave and resume.
+ */
 export type ClaimStatus =
+  | "draft"
   | "submitted"
   | "in_review"
   | "approved"
@@ -18,7 +22,45 @@ export type ClaimStatus =
   | "expired"
   | "withdrawn";
 
-export type PhotoAngle = "law_tag" | "model_tag" | "overall" | "protector";
+/**
+ * Photo targets. The first four are the original M2 set (kept for existing
+ * rows); M5 adds the five uncovered mattress angles plus the receipt.
+ */
+export type PhotoAngle =
+  | "law_tag"
+  | "model_tag"
+  | "overall"
+  | "protector"
+  | "foot"
+  | "left_side"
+  | "right_side"
+  | "head"
+  | "top_down"
+  | "receipt";
+
+/** One calm screen of the fitting. Persisted on the draft so we can resume. */
+export type FittingStep =
+  | "intake"
+  | "items"
+  | "confirmations"
+  | "photos"
+  | "verify"
+  | "submitted";
+
+/** The 90-Night terms the customer taps to confirm (all required). */
+export type ConfirmationKey =
+  | "clean_sanitary"
+  | "law_tag_attached"
+  | "model_tag_attached"
+  | "like_new"
+  | "both_partners_present"
+  | "within_window"
+  | "original_owner"
+  | "in_possession_household"
+  | "us_original_dealer";
+
+/** How the customer prefers to be reached about the request. */
+export type PhoneKind = "mobile" | "home" | "work";
 
 export type Feeling = "better" | "same" | "rougher";
 
@@ -115,7 +157,32 @@ export interface Claim {
   guaranteeId: string;
   consumerId?: string | null;
   status: ClaimStatus;
+  /** Return Authorization number — generated on submit, shared with the dealer. */
   raNumber?: string | null;
+  /** Customer-facing tracking number for the request (M5). */
+  trackingNumber?: string | null;
+  /** Why they want to exchange, in their own words (structured intake). */
+  reasonExperience?: string | null;
+  /** What they'd rather have — the preferred replacement, in their own words. */
+  preferredReplacement?: string | null;
+  /** Which fitting screen to resume on. */
+  step?: FittingStep;
+  /** Tap-to-confirm terms the customer has affirmed. */
+  confirmations?: ConfirmationKey[];
+  /**
+   * True when the sales order arrived pre-verified (dashboard/CRM token link).
+   * Drives the receipt-photo rule: a receipt is only asked for when false.
+   */
+  preVerified?: boolean;
+  contactPhone?: string | null;
+  contactPhoneKind?: PhoneKind | null;
+  contactEmail?: string | null;
+  /** Null until asked; true = still at the delivery address. */
+  atDeliveryAddress?: boolean | null;
+  /** Captured only when the mattress has moved. */
+  newAddress?: string | null;
+  /** Confirms they still personally own the mattress. */
+  stillOwns?: boolean | null;
   denialReason?: string | null;
   restockingFee?: number | null;
   priceDifference?: number | null;
@@ -127,11 +194,36 @@ export interface Claim {
   updatedAt?: string;
 }
 
+/** One mattress on the request. Max 2 per request (PRD). */
+export interface ClaimItem {
+  id: string;
+  claimId: string;
+  /** From the tag on the mattress or on the receipt. */
+  modelNumber: string;
+  notSoiled: boolean;
+  noOdors: boolean;
+  notDamaged: boolean;
+  /** 0-based order on the request. */
+  position: number;
+  createdAt?: string;
+}
+
 export interface ClaimPhoto {
   id: string;
   claimId: string;
   angle: PhotoAngle;
-  storagePath: string;
+  /**
+   * Path in Supabase Storage. Null when storage isn't configured — the capture
+   * is recorded as metadata only so the flow still completes (graceful degrade).
+   */
+  storagePath?: string | null;
+  /** Human label shown in the flow and on the RA ("Law tag", "Foot", …). */
+  label?: string | null;
+  /** Original file name, when the browser provided one. */
+  fileName?: string | null;
+  /** True once the customer has captured this angle. */
+  captured: boolean;
+  capturedAt?: string | null;
   aiCoach?: Record<string, unknown> | null;
   createdAt?: string;
 }

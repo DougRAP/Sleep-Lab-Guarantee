@@ -5,15 +5,22 @@
 
 import type {
   CheckIn,
+  Claim,
+  ClaimItem,
+  ClaimPhoto,
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
+  ConfirmationKey,
   DealerLocation,
   Feeling,
+  FittingStep,
   Guarantee,
   InitialImpression,
   InitialImpressionRecord,
   Journey,
+  PhoneKind,
+  PhotoAngle,
   Tip,
 } from "../types";
 import type { TipQuery } from "../tips";
@@ -41,6 +48,55 @@ export interface SaveInitialImpressionInput {
 export interface SaveConcernInput {
   guaranteeId: string;
   body: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* M5 — the fitting (exchange request)                                        */
+/* -------------------------------------------------------------------------- */
+
+/** Opening a draft. `preVerified` drives the receipt-photo rule. */
+export interface CreateDraftClaimInput {
+  guaranteeId: string;
+  /** True when the order arrived pre-verified (dashboard/CRM token link). */
+  preVerified: boolean;
+}
+
+/** Everything the fitting can patch onto a draft, one step at a time. */
+export interface UpdateClaimInput {
+  step?: FittingStep;
+  reasonExperience?: string | null;
+  preferredReplacement?: string | null;
+  confirmations?: ConfirmationKey[];
+  contactPhone?: string | null;
+  contactPhoneKind?: PhoneKind | null;
+  contactEmail?: string | null;
+  atDeliveryAddress?: boolean | null;
+  newAddress?: string | null;
+  stillOwns?: boolean | null;
+}
+
+/** One mattress on the request (max 2). Replaces the stored set wholesale. */
+export interface ClaimItemInput {
+  modelNumber: string;
+  notSoiled: boolean;
+  noOdors: boolean;
+  notDamaged: boolean;
+}
+
+/** A recorded capture. `storagePath` is null in the no-storage fallback. */
+export interface RecordClaimPhotoInput {
+  claimId: string;
+  angle: PhotoAngle;
+  label: string;
+  storagePath?: string | null;
+  fileName?: string | null;
+}
+
+/** The result of submitting — the RA is the dealer-facing view of the claim. */
+export interface SubmitClaimResult {
+  claim: Claim;
+  raNumber: string;
+  trackingNumber: string;
 }
 
 export interface GuaranteeRepository {
@@ -83,6 +139,26 @@ export interface GuaranteeRepository {
   // --- M3: tunable tips (PRD §2a) ---
   /** Select the best on-brand tip for the current journey day + phase (+ time-of-day). */
   getTip(query: TipQuery): Promise<Tip | null>;
+
+  // --- M5: the fitting (draft → submitted exchange request) ---
+  /** The resumable in-progress request for this guarantee, or null. */
+  getDraftClaim(guaranteeId: string): Promise<Claim | null>;
+  /** Open a draft. Idempotent — returns the existing draft when one is open. */
+  createDraftClaim(input: CreateDraftClaimInput): Promise<Claim>;
+  getClaimById(claimId: string): Promise<Claim | null>;
+  /** Patch a draft after a step. Unspecified fields are left untouched. */
+  updateClaim(claimId: string, patch: UpdateClaimInput): Promise<Claim>;
+  listClaimItems(claimId: string): Promise<ClaimItem[]>;
+  /** Replace the request's items wholesale (max 2 are kept). */
+  saveClaimItems(claimId: string, items: ClaimItemInput[]): Promise<ClaimItem[]>;
+  listClaimPhotos(claimId: string): Promise<ClaimPhoto[]>;
+  /** Record a capture. Re-capturing the same angle replaces the row (retake). */
+  recordClaimPhoto(input: RecordClaimPhotoInput): Promise<ClaimPhoto>;
+  /**
+   * Finalize: generate the RA + tracking number and move the claim to
+   * `submitted`. Idempotent — re-submitting returns the existing numbers.
+   */
+  submitClaim(claimId: string): Promise<SubmitClaimResult>;
 
   // --- M3: AI concierge threads/messages (PRD §6) ---
   getOrCreateConciergeThread(guaranteeId: string): Promise<ConciergeThread>;

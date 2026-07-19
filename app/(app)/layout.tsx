@@ -1,4 +1,5 @@
 import { BottomNav } from "../../components/nav/bottom-nav";
+import { DemoControls } from "../../components/demo/demo-controls";
 
 // Route group for the navigable consumer app (v2 expansion). Renders the
 // persistent bottom nav beneath each page. The group folder "(app)" does NOT
@@ -13,6 +14,8 @@ export default function AppShellLayout({
   return (
     <>
       {children}
+      {/* Demo-only; renders nothing unless NEXT_PUBLIC_DEMO_MODE is on. */}
+      <DemoControls aboveNav />
       <BottomNav />
     </>
   );

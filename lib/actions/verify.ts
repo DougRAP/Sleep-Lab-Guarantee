@@ -41,7 +41,9 @@ export async function verifyEntry(input: EntryInput): Promise<VerifyResult> {
     }
     const guarantee = await repo.verifyGuarantee({ mode: "token", token, lastName, deliveryDate });
     if (!guarantee) return { ok: false, error: NO_MATCH };
-    await setSession(guarantee.id);
+    // Arriving on the CRM/dashboard link = the sales order is pre-verified, so
+    // the fitting won't ask for a receipt photo later.
+    await setSession(guarantee.id, "token");
     redirect("/tonight");
   }
 
@@ -51,6 +53,7 @@ export async function verifyEntry(input: EntryInput): Promise<VerifyResult> {
   }
   const guarantee = await repo.verifyGuarantee({ mode: "lookup", salesOrderNumber, lastName });
   if (!guarantee) return { ok: false, error: NO_MATCH };
-  await setSession(guarantee.id);
+  // Self-serve lookup — not pre-verified, so the fitting asks for the receipt.
+  await setSession(guarantee.id, "lookup");
   redirect("/tonight");
 }

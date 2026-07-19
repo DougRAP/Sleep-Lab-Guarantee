@@ -9,6 +9,7 @@ import { InitialImpression } from "../../../components/tonight/initial-impressio
 import { buttonVariants } from "../../../components/ui/button";
 import { getSession } from "../../../lib/session";
 import { getRepository } from "../../../lib/data";
+import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { timeOfDayFor } from "../../../lib/tips";
 import { cn } from "../../../lib/utils";
 import type { Guarantee, JourneyPhase } from "../../../lib/types";
@@ -25,7 +26,11 @@ export default async function TonightPage() {
   const guarantee = await repo.getGuaranteeById(session.guaranteeId);
   if (!guarantee) redirect("/");
 
-  const journey = await repo.getJourney(guarantee.id);
+  // Real "now" unless the demo day-jumper has set a preview day.
+  const journey = await repo.getJourney(
+    guarantee.id,
+    await effectiveReferenceDate(guarantee.deliveryDate)
+  );
   const day = journey?.currentDay ?? 0;
   const phase = journey?.phase ?? "settle_in";
 
