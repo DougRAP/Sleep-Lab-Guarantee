@@ -1,34 +1,54 @@
 import { LivingSky } from "../components/living-sky";
 import { Logo } from "../components/Logo";
-import { DayCount } from "../components/day-count";
-import { ConciergeCard } from "../components/concierge-card";
-import { CheckIn } from "../components/tonight/check-in";
+import { Entry } from "../components/welcome/entry";
 
-// M1: static "Tonight" home. Journey day + greeting become live data in M2/M3.
-export default function TonightPage() {
-  const day = 12;
+// The front door. Path A: pre-identified via ?token= from the retailer dashboard.
+// Path B: self-serve "find your purchase". Verify/lookup wired to Supabase in M2.
+export default async function WelcomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>;
+}) {
+  const { token } = await searchParams;
+  const hasToken = Boolean(token);
 
   return (
     <>
-      <LivingSky day={day} />
-      <main className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
-        <header className="flex items-center justify-between">
+      <LivingSky day={0} />
+      <main
+        id="main"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
+      >
+        <div>
           <Logo />
-          <DayCount day={day} />
-        </header>
+        </div>
 
-        <div className="flex flex-1 flex-col justify-end gap-6">
-          <div className="font-mono text-[52px] font-medium leading-none tracking-tight text-cloud">
-            {day}
-            <span className="text-[20px] text-mist"> / 90 nights</span>
+        <div className="flex flex-1 flex-col justify-center gap-6 py-8">
+          <div className="space-y-3">
+            <h1 className="font-serif text-[30px] leading-[1.15] tracking-[-0.01em] text-cloud">
+              Welcome. Let&apos;s help your new mattress feel like home.
+            </h1>
+            <p className="text-[15px] leading-relaxed text-mist">
+              Your purchase includes a 90-Night Comfort Guarantee. This is your
+              companion for settling in — a little guidance each night, and a
+              simple way to make it right if it never feels like the one.
+            </p>
           </div>
 
-          <ConciergeCard>
-            You&apos;re twelve nights in. Bodies take about six weeks to settle
-            — how did last night feel?
-          </ConciergeCard>
+          {hasToken && (
+            <p className="font-serif text-[17px] italic text-dawn">
+              Welcome back — let&apos;s confirm it&apos;s you.
+            </p>
+          )}
 
-          <CheckIn />
+          <Entry hasToken={hasToken} />
+
+          {!hasToken && (
+            <p className="text-[13px] text-mist">
+              Came from your retailer&apos;s dashboard? Your link signs you in
+              automatically.
+            </p>
+          )}
         </div>
       </main>
     </>

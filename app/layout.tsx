@@ -49,7 +49,15 @@ export default function RootLayout({
       lang="en"
       className={`${serif.variable} ${sans.variable} ${mono.variable}`}
     >
-      <body className="min-h-[100dvh] font-sans antialiased">{children}</body>
+      <body className="min-h-[100dvh] font-sans antialiased">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-dawn focus:px-4 focus:py-2 focus:text-[#241a12]"
+        >
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }
