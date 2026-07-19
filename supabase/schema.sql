@@ -128,8 +128,35 @@ create table if not exists public.journey (
   current_day int,                          -- computed snapshot; source of truth is delivery_date
   phase text not null default 'settle_in'
     check (phase in ('settle_in','safety_net','expired','resolved')),
+  -- One-time out-of-the-box first impression (captured day 0–1).
+  initial_impression text
+    check (initial_impression in ('firmer','just_right','softer')),
+  initial_impression_note text,
+  initial_impression_at timestamptz,
   created_at timestamptz default now()
 );
+
+-- Idempotent migration for existing deployments (columns added after M3).
+alter table public.journey add column if not exists initial_impression text;
+alter table public.journey add column if not exists initial_impression_note text;
+alter table public.journey add column if not exists initial_impression_at timestamptz;
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'journey_initial_impression_check'
+  ) then
+    alter table public.journey add constraint journey_initial_impression_check
+      check (initial_impression in ('firmer','just_right','softer'));
+  end if;
+end $$;
+
+-- Concerns quietly recorded by the concierge chat (optional tool-use capture).
+create table if not exists public.concerns (
+  id uuid primary key default uuid_generate_v4(),
+  guarantee_id uuid not null references public.guarantees(id) on delete cascade,
+  body text not null,
+  created_at timestamptz default now()
+);
+create index if not exists concerns_guarantee_idx on public.concerns (guarantee_id);
 
 create table if not exists public.check_ins (
   id uuid primary key default uuid_generate_v4(),
@@ -190,6 +217,7 @@ alter table public.claim_notes        enable row level security;
 alter table public.payments           enable row level security;
 alter table public.journey            enable row level security;
 alter table public.check_ins          enable row level security;
+alter table public.concerns           enable row level security;
 alter table public.tips               enable row level security;
 alter table public.concierge_threads  enable row level security;
 alter table public.concierge_messages enable row level security;
@@ -288,6 +316,16 @@ create policy check_ins_consumer_insert on public.check_ins
     exists (
       select 1 from public.guarantees g
       where g.id = check_ins.guarantee_id and g.consumer_id = auth.uid()
+    )
+  );
+
+-- concerns: consumer own · admin all (writes are server-authoritative via service role)
+create policy concerns_read on public.concerns
+  for select using (
+    public.is_rap_admin()
+    or exists (
+      select 1 from public.guarantees g
+      where g.id = concerns.guarantee_id and g.consumer_id = auth.uid()
     )
   );
 

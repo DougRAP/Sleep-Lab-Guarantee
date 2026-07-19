@@ -9,6 +9,7 @@ import type {
   ConciergeRole,
   ConciergeThread,
   Guarantee,
+  InitialImpressionRecord,
   Journey,
   Tip,
 } from "../types";
@@ -18,6 +19,8 @@ import { createServiceClient } from "../supabase/server";
 import {
   type GuaranteeRepository,
   type SaveCheckInInput,
+  type SaveConcernInput,
+  type SaveInitialImpressionInput,
   type VerifyInput,
   lastNameMatches,
   sameCalendarDate,
@@ -196,6 +199,62 @@ export class SupabaseRepository implements GuaranteeRepository {
       .select("*")
       .maybeSingle();
     return toCheckIn(data);
+  }
+
+  // --- Initial impression (one-time) — stored on the journey row ---
+
+  async getInitialImpression(
+    guaranteeId: string
+  ): Promise<InitialImpressionRecord | null> {
+    const { data } = await this.db
+      .from("journey")
+      .select("initial_impression, initial_impression_note, initial_impression_at")
+      .eq("guarantee_id", guaranteeId)
+      .maybeSingle();
+    if (!data || !data.initial_impression) return null;
+    return {
+      guaranteeId,
+      impression: data.initial_impression,
+      note: data.initial_impression_note,
+      at: data.initial_impression_at,
+    };
+  }
+
+  async saveInitialImpression(
+    input: SaveInitialImpressionInput
+  ): Promise<InitialImpressionRecord> {
+    const g = await this.getGuaranteeById(input.guaranteeId);
+    const at = new Date().toISOString();
+    const startDate = g?.deliveryDate ?? todayIso();
+    const currentDay = g ? journeyDay(g.deliveryDate) : 0;
+    const phase = journeyPhase(currentDay, false);
+    // Upsert the journey row so the impression columns are always present.
+    await this.db.from("journey").upsert(
+      {
+        guarantee_id: input.guaranteeId,
+        start_date: startDate,
+        current_day: currentDay,
+        phase,
+        initial_impression: input.impression,
+        initial_impression_note: input.note ?? null,
+        initial_impression_at: at,
+      },
+      { onConflict: "guarantee_id" }
+    );
+    return {
+      guaranteeId: input.guaranteeId,
+      impression: input.impression,
+      note: input.note ?? null,
+      at,
+    };
+  }
+
+  // --- Concierge concerns (optional) ---
+
+  async saveConcern(input: SaveConcernInput): Promise<void> {
+    await this.db
+      .from("concerns")
+      .insert({ guarantee_id: input.guaranteeId, body: input.body });
   }
 
   // --- M3: tips ---

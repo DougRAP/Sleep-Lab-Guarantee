@@ -2,7 +2,7 @@
 // In-memory demo data — mirrors supabase/seed.sql. Backs the local fallback
 // repository so the app runs and both entry flows work with NO real keys.
 
-import type { Guarantee, Tip } from "../types";
+import type { Guarantee, InitialImpressionRecord, Tip } from "../types";
 
 /** ISO date (YYYY-MM-DD) `n` whole days before today (local). */
 function isoDaysAgo(n: number): string {
@@ -14,7 +14,11 @@ function isoDaysAgo(n: number): string {
   return `${y}-${m}-${day}`;
 }
 
-// One demo guarantee — delivery ~12 days ago so Tonight shows ~Day 12/90.
+// Two demo guarantees:
+//  - Turnbull: a FRESH purchase (delivery = today, Day 0) so the journey helps
+//    from night one — the initial-impression prompt shows first.
+//  - Rivera: mid-journey (~Day 6) with the first impression already recorded, so
+//    the nightly check-in flow is also demoable.
 export const SEED_GUARANTEES: Guarantee[] = [
   {
     id: "seed-guarantee-turnbull",
@@ -30,8 +34,35 @@ export const SEED_GUARANTEES: Guarantee[] = [
     oemModel: "1234",
     productDescription: "Sealy Pillow Top — Queen",
     purchasePrice: 599.99,
-    deliveryDate: isoDaysAgo(12),
+    deliveryDate: isoDaysAgo(0),
     accessToken: "demo-turnbull-token",
+  },
+  {
+    id: "seed-guarantee-rivera",
+    salesOrderNumber: "1011099326B",
+    guaranteeNumber: "RAP-90-1011099326B",
+    customerFirstName: "Maya",
+    customerLastName: "Rivera",
+    customerEmail: "mrivera@example.com",
+    customerPhone: "7045551987",
+    dealerName: "RAP Furniture — Shelby",
+    dealerLocationId: "101",
+    manufacturer: "Stearns & Foster",
+    oemModel: "5678",
+    productDescription: "Stearns & Foster Luxury Firm — King",
+    purchasePrice: 1299.99,
+    deliveryDate: isoDaysAgo(6),
+    accessToken: "demo-rivera-token",
+  },
+];
+
+// Rivera has already shared a first impression (mid-journey demo).
+export const SEED_INITIAL_IMPRESSIONS: InitialImpressionRecord[] = [
+  {
+    guaranteeId: "seed-guarantee-rivera",
+    impression: "firmer",
+    note: "Firmer than the floor model felt.",
+    at: `${isoDaysAgo(6)}T09:00:00.000Z`,
   },
 ];
 

@@ -11,6 +11,7 @@ import type {
   ConciergeRole,
   ConciergeThread,
   Guarantee,
+  InitialImpressionRecord,
   Journey,
   Tip,
 } from "../types";
@@ -19,12 +20,14 @@ import { selectTip, type TipQuery } from "../tips";
 import {
   type GuaranteeRepository,
   type SaveCheckInInput,
+  type SaveConcernInput,
+  type SaveInitialImpressionInput,
   type VerifyInput,
   lastNameMatches,
   sameCalendarDate,
   todayIso,
 } from "./repository";
-import { SEED_GUARANTEES, SEED_TIPS } from "./seed";
+import { SEED_GUARANTEES, SEED_INITIAL_IMPRESSIONS, SEED_TIPS } from "./seed";
 
 export class MemoryRepository implements GuaranteeRepository {
   private guarantees: Guarantee[];
@@ -32,11 +35,19 @@ export class MemoryRepository implements GuaranteeRepository {
   private checkIns: CheckIn[] = [];
   private threads: ConciergeThread[] = [];
   private messages: ConciergeMessage[] = [];
+  private impressions: InitialImpressionRecord[];
+  private concerns: { guaranteeId: string; body: string; createdAt: string }[] = [];
   private seq = 0;
 
-  constructor(guarantees: Guarantee[] = SEED_GUARANTEES, tips: Tip[] = SEED_TIPS) {
+  constructor(
+    guarantees: Guarantee[] = SEED_GUARANTEES,
+    tips: Tip[] = SEED_TIPS,
+    impressions: InitialImpressionRecord[] = SEED_INITIAL_IMPRESSIONS
+  ) {
     this.guarantees = guarantees;
     this.tips = tips;
+    // Copy so seed data isn't mutated across repository instances (tests).
+    this.impressions = impressions.map((i) => ({ ...i }));
   }
 
   private nextId(prefix: string): string {
@@ -136,6 +147,47 @@ export class MemoryRepository implements GuaranteeRepository {
     };
     this.checkIns.push(row);
     return row;
+  }
+
+  // --- Initial impression (one-time) ---
+
+  async getInitialImpression(
+    guaranteeId: string
+  ): Promise<InitialImpressionRecord | null> {
+    const found = this.impressions.find((i) => i.guaranteeId === guaranteeId);
+    return found ? { ...found } : null;
+  }
+
+  async saveInitialImpression(
+    input: SaveInitialImpressionInput
+  ): Promise<InitialImpressionRecord> {
+    const existing = this.impressions.find(
+      (i) => i.guaranteeId === input.guaranteeId
+    );
+    if (existing) {
+      existing.impression = input.impression;
+      existing.note = input.note ?? null;
+      existing.at = new Date().toISOString();
+      return { ...existing };
+    }
+    const row: InitialImpressionRecord = {
+      guaranteeId: input.guaranteeId,
+      impression: input.impression,
+      note: input.note ?? null,
+      at: new Date().toISOString(),
+    };
+    this.impressions.push(row);
+    return { ...row };
+  }
+
+  // --- Concierge concerns (optional) ---
+
+  async saveConcern(input: SaveConcernInput): Promise<void> {
+    this.concerns.push({
+      guaranteeId: input.guaranteeId,
+      body: input.body,
+      createdAt: new Date().toISOString(),
+    });
   }
 
   // --- M3: tips ---

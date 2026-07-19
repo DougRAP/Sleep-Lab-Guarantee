@@ -4,7 +4,9 @@
 // concierge still works, returning scripted, on-persona replies derived from the
 // journey day/phase + tonight's tip. The key is read server-side only.
 
+import type Anthropic from "@anthropic-ai/sdk";
 import type { ConciergeRole, JourneyPhase } from "./types";
+import type { ConciergeToolDef, ToolDispatch } from "./concierge-tools";
 
 /** Default model; overridable via ANTHROPIC_MODEL. */
 export const DEFAULT_MODEL = "claude-sonnet-5";
@@ -45,7 +47,10 @@ function phaseLabel(phase: JourneyPhase): string {
 }
 
 /** The persona system prompt, given non-sensitive journey context. */
-export function buildSystemPrompt(ctx: ConciergeContext): string {
+export function buildSystemPrompt(
+  ctx: ConciergeContext,
+  opts: { withTools?: boolean } = {}
+): string {
   const lines: string[] = [
     "You are the sleep concierge for RAP Sleep Lab — a calm bedside guide for someone who recently bought a new mattress and is settling into it over a 90-night period. The 90-Night Comfort Guarantee is a safety net inside this journey, not the headline.",
     "Voice: warm, literary, and spare — a trusted presence at bedtime, one thought at a time. Warmth comes from restraint, not enthusiasm.",
@@ -81,10 +86,26 @@ export function buildSystemPrompt(ctx: ConciergeContext): string {
       break;
   }
 
+  if (ctx.day <= 1) {
+    lines.push(
+      "This is their very first night or two, so they may not have slept on the mattress yet. Do not ask how last night felt. Ask instead how it feels out of the box, or how the first night went."
+    );
+  }
+
   if (ctx.firstName) lines.push(`The customer's first name is ${ctx.firstName}. Use it sparingly and naturally.`);
   if (ctx.product) lines.push(`Their mattress: ${ctx.product}.`);
   if (ctx.dealer) lines.push(`Purchased from: ${ctx.dealer}.`);
   if (ctx.tip?.body) lines.push(`Tonight's tip you may weave in if it helps: "${ctx.tip.body}"`);
+
+  if (opts.withTools) {
+    lines.push(
+      "You can quietly record structured notes as you talk, using your tools — the customer never sees a form and you never announce that you are saving anything:",
+      "- log_nightly_check_in when they tell you how a night felt (better / same / rougher).",
+      "- record_initial_impression for their first out-of-the-box impression (firmer / just_right / softer).",
+      "- note_concern for a specific worry worth following up on.",
+      "Call a tool only when clearly warranted by what the customer just said, and never ask for order numbers or other identifiers to do so."
+    );
+  }
 
   return lines.join("\n");
 }
@@ -94,6 +115,9 @@ export function conciergeGreeting(
   ctx: Pick<ConciergeContext, "firstName" | "day" | "phase">
 ): string {
   const hello = ctx.firstName ? `${ctx.firstName}, ` : "";
+  if (ctx.phase === "settle_in" && ctx.day <= 0) {
+    return `${hello}your mattress has arrived. Tonight is the first night — settle in, and tell me how it feels out of the box.`;
+  }
   const nights = `${ctx.day} ${ctx.day === 1 ? "night" : "nights"} in`;
   switch (ctx.phase) {
     case "safety_net":
@@ -159,12 +183,25 @@ export interface GenerateParams {
   system: string;
   history: { role: ConciergeRole; body: string }[];
   fallback: FallbackContext;
+  /**
+   * When present with a key, the chat runs a tool-use loop: the model may call
+   * these tools, each `tool_use` is dispatched to persist structured JSON, and
+   * the loop continues until the model returns final text. Both must be set for
+   * tools to run; missing/either → plain text reply (still key-gated).
+   */
+  tools?: ConciergeToolDef[];
+  dispatch?: ToolDispatch;
 }
+
+/** Cap on tool-use round trips per reply (defensive; normal replies use 0–2). */
+const MAX_TOOL_ITERATIONS = 6;
 
 /**
  * Produce the guide's next reply. Branches on key presence:
  *  - no key → scripted fallback (never touches the network).
  *  - key    → Anthropic via @anthropic-ai/sdk, with the same fallback on any error.
+ *             When tools + dispatch are provided, runs a tool-use loop that
+ *             converts the conversation into structured DB writes (session-scoped).
  * The route/action must never crash or leak errors when the key is missing.
  */
 export async function generateConciergeReply(params: GenerateParams): Promise<string> {
@@ -175,7 +212,7 @@ export async function generateConciergeReply(params: GenerateParams): Promise<st
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic({ apiKey: key });
 
-    const messages = params.history
+    const messages: Anthropic.MessageParam[] = params.history
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({
         role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
@@ -187,22 +224,69 @@ export async function generateConciergeReply(params: GenerateParams): Promise<st
       return fallbackReply(params.fallback);
     }
 
-    const res = await client.messages.create({
-      model: params.model,
-      max_tokens: 400,
-      thinking: { type: "disabled" },
-      system: params.system,
-      messages,
-    });
+    const useTools = Boolean(params.tools?.length && params.dispatch);
 
-    let text = "";
-    for (const block of res.content) {
-      if (block.type === "text") text += block.text;
+    if (!useTools) {
+      const res = await client.messages.create({
+        model: params.model,
+        max_tokens: 400,
+        thinking: { type: "disabled" },
+        system: params.system,
+        messages,
+      });
+      return collectText(res) || fallbackReply(params.fallback);
     }
-    text = text.trim();
-    return text || fallbackReply(params.fallback);
+
+    // Tool-use loop. On a `tool_use` stop, dispatch each call to the repository
+    // (JSON → DB), feed the tool_result back, and continue until final text.
+    const convo: Anthropic.MessageParam[] = messages;
+    const tools = params.tools as unknown as Anthropic.ToolUnion[];
+    const dispatch = params.dispatch!;
+
+    for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+      const res = await client.messages.create({
+        model: params.model,
+        max_tokens: 400,
+        thinking: { type: "disabled" },
+        system: params.system,
+        tools,
+        messages: convo,
+      });
+
+      if (res.stop_reason !== "tool_use") {
+        return collectText(res) || fallbackReply(params.fallback);
+      }
+
+      convo.push({ role: "assistant", content: res.content });
+
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      for (const block of res.content) {
+        if (block.type === "tool_use") {
+          const result = await dispatch(block.name, block.input);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: result.message,
+            is_error: !result.ok,
+          });
+        }
+      }
+      convo.push({ role: "user", content: toolResults });
+    }
+
+    // Loop bound reached without final text — degrade calmly.
+    return fallbackReply(params.fallback);
   } catch {
     // Missing/invalid key, network error, unsupported param, etc. — degrade calmly.
     return fallbackReply(params.fallback);
   }
+}
+
+/** Concatenate the text blocks of a model response. */
+function collectText(res: Anthropic.Message): string {
+  let text = "";
+  for (const block of res.content) {
+    if (block.type === "text") text += block.text;
+  }
+  return text.trim();
 }

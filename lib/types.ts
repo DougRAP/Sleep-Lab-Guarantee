@@ -22,6 +22,9 @@ export type PhotoAngle = "law_tag" | "model_tag" | "overall" | "protector";
 
 export type Feeling = "better" | "same" | "rougher";
 
+/** First out-of-the-box impression of a new mattress (one-time, days 0–1). */
+export type InitialImpression = "firmer" | "just_right" | "softer";
+
 export type TimeOfDay = "morning" | "day" | "evening" | "night" | "any";
 
 export type PaymentKind = "restocking_fee" | "price_difference";
@@ -65,7 +68,25 @@ export interface Journey {
   startDate: string;
   currentDay: number;
   phase: JourneyPhase;
+  /** One-time first impression, captured on day 0–1. Null until recorded. */
+  initialImpression?: InitialImpression | null;
+  initialImpressionNote?: string | null;
+  /** ISO timestamp the first impression was recorded. */
+  initialImpressionAt?: string | null;
   createdAt?: string;
+}
+
+/**
+ * The one-time first impression of the mattress, out of the box. Stored on the
+ * journey (Supabase) / a session-scoped store (memory). Separate from the
+ * nightly check-in, which is per-day.
+ */
+export interface InitialImpressionRecord {
+  guaranteeId: string;
+  impression: InitialImpression;
+  note?: string | null;
+  /** ISO timestamp recorded. */
+  at?: string | null;
 }
 
 export interface CheckIn {

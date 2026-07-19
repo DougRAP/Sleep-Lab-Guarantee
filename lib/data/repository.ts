@@ -10,6 +10,8 @@ import type {
   ConciergeThread,
   Feeling,
   Guarantee,
+  InitialImpression,
+  InitialImpressionRecord,
   Journey,
   Tip,
 } from "../types";
@@ -25,6 +27,19 @@ export interface SaveCheckInInput {
   guaranteeId: string;
   feeling: Feeling;
   note?: string | null;
+}
+
+/** Payload for the one-time out-of-the-box first impression (day 0–1). */
+export interface SaveInitialImpressionInput {
+  guaranteeId: string;
+  impression: InitialImpression;
+  note?: string | null;
+}
+
+/** Payload for a quietly-recorded concierge concern (optional tool). */
+export interface SaveConcernInput {
+  guaranteeId: string;
+  body: string;
 }
 
 export interface GuaranteeRepository {
@@ -44,6 +59,16 @@ export interface GuaranteeRepository {
   getTodayCheckIn(guaranteeId: string, referenceDate?: Date): Promise<CheckIn | null>;
   /** Persist tonight's check-in. Idempotent per day — re-logging updates today's entry. */
   saveCheckIn(input: SaveCheckInInput, referenceDate?: Date): Promise<CheckIn>;
+
+  // --- Initial impression (one-time, day 0–1) ---
+  /** The recorded first impression for this guarantee, or null if none yet. */
+  getInitialImpression(guaranteeId: string): Promise<InitialImpressionRecord | null>;
+  /** Persist the one-time first impression. Idempotent — re-recording updates it. */
+  saveInitialImpression(input: SaveInitialImpressionInput): Promise<InitialImpressionRecord>;
+
+  // --- Concierge concerns (optional, from chat tool-use) ---
+  /** Quietly record a concern raised in the concierge chat (session-scoped). */
+  saveConcern(input: SaveConcernInput): Promise<void>;
 
   // --- M3: tunable tips (PRD §2a) ---
   /** Select the best on-brand tip for the current journey day + phase (+ time-of-day). */

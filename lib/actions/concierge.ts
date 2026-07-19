@@ -13,8 +13,10 @@ import {
   buildSystemPrompt,
   conciergeModel,
   generateConciergeReply,
+  hasAnthropicKey,
   type ConciergeContext,
 } from "../concierge";
+import { CONCIERGE_TOOLS, createToolDispatch } from "../concierge-tools";
 
 export type SendResult = { ok: true; reply: string } | { ok: false; error: string };
 
@@ -48,12 +50,18 @@ export async function sendConciergeMessage(body: string): Promise<SendResult> {
     tip: tip ? { title: tip.title, body: tip.body } : null,
   };
 
+  // Tool-use only runs when a key is present. Structured writes are scoped to the
+  // session's verified guarantee — the model's tool args never choose the target.
+  const withTools = hasAnthropicKey();
+
   const reply = await generateConciergeReply({
     apiKey: process.env.ANTHROPIC_API_KEY,
     model: conciergeModel(),
-    system: buildSystemPrompt(ctx),
+    system: buildSystemPrompt(ctx, { withTools }),
     history: history.map((m) => ({ role: m.role, body: m.body })),
     fallback: { ...ctx, userText: text },
+    tools: withTools ? CONCIERGE_TOOLS : undefined,
+    dispatch: withTools ? createToolDispatch(repo, guarantee.id) : undefined,
   });
 
   await repo.addConciergeMessage(thread.id, "assistant", reply);

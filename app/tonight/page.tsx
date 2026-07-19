@@ -5,6 +5,7 @@ import { Logo } from "../../components/Logo";
 import { DayCount } from "../../components/day-count";
 import { ConciergeCard } from "../../components/concierge-card";
 import { CheckIn } from "../../components/tonight/check-in";
+import { InitialImpression } from "../../components/tonight/initial-impression";
 import { buttonVariants } from "../../components/ui/button";
 import { getSession } from "../../lib/session";
 import { getRepository } from "../../lib/data";
@@ -28,10 +29,16 @@ export default async function TonightPage() {
   const day = journey?.currentDay ?? 0;
   const phase = journey?.phase ?? "settle_in";
 
-  const [todayCheckIn, tip] = await Promise.all([
+  const [todayCheckIn, impression, tip] = await Promise.all([
     repo.getTodayCheckIn(guarantee.id),
+    repo.getInitialImpression(guarantee.id),
     repo.getTip({ day, phase, timeOfDay: timeOfDayFor() }),
   ]);
+
+  // Help from night one: on the very first day or two, capture the out-of-the-box
+  // first impression before any nightly check-in. Once recorded (or from day 2),
+  // fall through to the existing nightly check-in.
+  const needsImpression = !impression && day <= 1;
 
   return (
     <>
@@ -51,9 +58,13 @@ export default async function TonightPage() {
             <span className="text-[20px] text-mist"> / 90 nights</span>
           </div>
 
-          <ConciergeCard>{conciergeLine(day, phase, guarantee)}</ConciergeCard>
+          <ConciergeCard>{conciergeLine(day, phase, guarantee, needsImpression)}</ConciergeCard>
 
-          <CheckIn initialFeeling={todayCheckIn?.feeling ?? null} />
+          {needsImpression ? (
+            <InitialImpression />
+          ) : (
+            <CheckIn initialFeeling={todayCheckIn?.feeling ?? null} />
+          )}
 
           {tip && (
             <div className="space-y-1.5">
@@ -77,10 +88,23 @@ export default async function TonightPage() {
 }
 
 /** One quiet line from the guide, tied to journey-day + phase (PRD §2a). */
-function conciergeLine(day: number, phase: JourneyPhase, guarantee: Guarantee): string {
+function conciergeLine(
+  day: number,
+  phase: JourneyPhase,
+  guarantee: Guarantee,
+  needsImpression = false
+): string {
   const nights = `${day} ${day === 1 ? "night" : "nights"} in`;
   const first = guarantee.customerFirstName?.trim();
   const hello = first ? `${first}, ` : "";
+
+  // Day 0–1, first impression not yet shared: greet the arrival, don't ask about
+  // "last night" before they've slept on it.
+  if (needsImpression) {
+    return day <= 0
+      ? `${hello}your mattress has arrived. Tonight is the first night — let's start with how it feels out of the box.`
+      : `${hello}you're settling in. Before we track your nights, tell me how it felt out of the box.`;
+  }
 
   switch (phase) {
     case "safety_net":

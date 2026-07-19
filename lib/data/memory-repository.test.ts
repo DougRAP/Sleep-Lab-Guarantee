@@ -71,9 +71,9 @@ describe("MemoryRepository — verify (Path A: token)", () => {
 describe("MemoryRepository — journey", () => {
   const repo = new MemoryRepository();
 
-  it("computes ~day 12 in the settle_in phase for the demo guarantee", async () => {
+  it("computes day 0 (fresh purchase) in the settle_in phase for the demo guarantee", async () => {
     const j = await repo.getJourney(g.id);
-    expect(j?.currentDay).toBe(12);
+    expect(j?.currentDay).toBe(0);
     expect(j?.phase).toBe("settle_in");
   });
 
