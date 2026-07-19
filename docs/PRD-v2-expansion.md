@@ -11,8 +11,8 @@ Turns the linear companion into a navigable app: view the guarantee, request an 
 - **Accessories:** lead-gen link-out + coupon (no Stripe now).
 - **Auth:** consumers stay password-less (signed session). Supabase Auth for admin/dealer deferred to M6 (roles + RLS already exist).
 - **Claims:** reuse existing `claims` + status machine; add `tracking_number`; single claim type.
-- **Content:** guarantee terms + shop catalog as versioned content files first.
-- **Coupon:** static per-dealer code (default 20%); click-log later if attribution wanted.
+- **Guarantee (#1):** full terms are served from an **EXTERNAL hosted link** (no in-app signing). In-app shows a short "essentials" summary + a "Read the full guarantee" link-out (`GUARANTEE_META.fullTermsUrl` — placeholder until Doug provides the hosted URL). Shop catalog stays a content file.
+- **Coupon (#6):** generated **locally on customer request** — a unique code with a **4-week expiry**, marked "subject to dealer conditions and rules of acceptance," shown to the customer (not a static always-on code).
 
 ## Information architecture (bottom nav — see DESIGN.md "Bottom navigation")
 Persistent bottom bar: **Tonight · Guarantee · Requests · Shop**, with **Coach** set apart as the guide. The fitting and admin live outside the tabs.
@@ -20,10 +20,13 @@ Persistent bottom bar: **Tonight · Guarantee · Requests · Shop**, with **Coac
 ## The exchange "fitting" — Request exchange → claim triage (M5)
 Trigger: a **"Request exchange"** button, shown/eligible day 31–90.
 1. **Agent intro** (friendly): asks about the experience + why they want to exchange.
-2. **Tap-to-confirm statements** (all required, from the 90-Night terms): mattress clean/sanitary; law tag attached; model tag attached; like-new condition; both partners present to select; within day 31–90; still the original owner; US/original dealer.
-3. **Photos** (tap a labeled photo icon each): **Law tag** · **Model tag** · **5 uncovered mattress shots** (foot, both sides, head, top-down — CONFIRM exact 5) · **Receipt photo** ONLY if the sales order was not pre-verified (didn't arrive from the dashboard).
-4. **Verify:** phone (+ type) and/or email correct; mattress still at the delivery address OR capture a new address; still personally owns the mattress.
-5. **Submit** → creates the exchange request + `tracking_number` → status flow (Requests).
+2. **Item(s):** enter the **model number** (from the tag on the mattress or on the receipt). Add another via a **+** button if there's more than one; **max 2 items per request**. Per item, confirm it is **not soiled, has no odors, and is not otherwise damaged**.
+3. **Tap-to-confirm statements** (all required, from the 90-Night terms): mattress clean/sanitary; law tag attached; model tag attached; like-new condition; both partners present to select; within day 31–90; still the original owner; still in possession + household use only; US/original dealer.
+4. **Photos (required)** (tap a labeled photo icon each): **Law tag** · **Model tag** · **5 uncovered mattress shots** (foot, both sides, head, top-down) · **Receipt photo** ONLY if the sales order was not pre-verified (didn't arrive from the dashboard).
+5. **Verify:** phone (+ type) and/or email correct; mattress still at the delivery address OR capture a new address; still personally owns the mattress.
+6. **Submit** → creates the exchange request + `tracking_number` → status flow (Requests).
+
+**Coupon mechanic (#6, built with M5):** on the Shop, a "Get your coupon" action generates a unique code locally with a 4-week expiry, shows "subject to dealer conditions and rules of acceptance," and displays it to the customer (optionally persisted for the record).
 
 Guided-first: scripted warm copy + labeled capture now; AI agent + photo-legibility coach fast-follow. Photos → Supabase Storage (M5).
 

@@ -9,13 +9,13 @@ import { getSession } from "../../../lib/session";
 import { getRepository } from "../../../lib/data";
 import { evaluateEligibility } from "../../../lib/eligibility";
 import { cn } from "../../../lib/utils";
-import { GUARANTEE_TERMS, GUARANTEE_META } from "../../../content/guarantee-terms";
+import { GUARANTEE_ESSENTIALS, GUARANTEE_META } from "../../../content/guarantee-terms";
 
 // The Guarantee view (v2 #1). Session-guarded. Shows the customer's eligibility
 // state (from the eligibility engine + the session's guarantee), a Request-
 // exchange affordance (enabled only in the day 31–90 window; the fitting itself
-// is M5), the 90-Night terms, and a quiet path to dealer triage for non-comfort
-// issues. Poster-first, printed-light — no claims-form treatment.
+// is M5), a short plain-language "essentials" summary, and a link OUT to the full
+// externally-hosted guarantee (no in-app signing). Poster-first, printed-light.
 export default async function GuaranteePage() {
   const session = await getSession();
   if (!session) redirect("/");
@@ -71,40 +71,37 @@ export default async function GuaranteePage() {
           )}
         </div>
 
-        <div className="mt-10 divide-y divide-[var(--line)]">
-          {GUARANTEE_TERMS.map((section) => (
-            <section key={section.id} className="space-y-2.5 py-6 first:pt-0">
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
-                {section.heading}
-              </h2>
-              {section.body?.map((p, i) => (
-                <p key={i} className="text-[15px] leading-relaxed text-cloud/90">
-                  {p}
-                </p>
-              ))}
-              {section.items && (
-                <ul className="space-y-1.5 pt-0.5">
-                  {section.items.map((item, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-2.5 text-[15px] leading-relaxed text-cloud/90"
-                    >
-                      <span aria-hidden className="mt-[2px] text-dawn">
-                        &middot;
-                      </span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          ))}
+        <div className="mt-10 space-y-3">
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+            The essentials
+          </h2>
+          <ul className="space-y-2">
+            {GUARANTEE_ESSENTIALS.map((item, i) => (
+              <li
+                key={i}
+                className="flex gap-2.5 text-[15px] leading-relaxed text-cloud/90"
+              >
+                <span aria-hidden className="mt-[2px] text-dawn">
+                  &middot;
+                </span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <a
+            href={GUARANTEE_META.fullTermsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "mt-3")}
+          >
+            Read the full 90-Night Guarantee
+          </a>
         </div>
 
         <div className="mt-8 space-y-4 border-t border-[var(--line)] pt-6">
           <p className="text-[13px] leading-relaxed text-mist">
-            This is a plain-language summary of the {GUARANTEE_META.name}. The
-            signed agreement governs.
+            The essentials above are a summary; the full {GUARANTEE_META.name}{" "}
+            is linked above.
           </p>
           <Link
             href="/guarantee/help"

@@ -22,14 +22,29 @@ export interface GuaranteeSection {
 
 /** Program-level facts referenced across the terms and the eligibility copy. */
 export const GUARANTEE_META = {
-  version: "draft-2026-07",
+  version: "2026-07",
   name: "RAP 90-Night Comfort Guarantee",
   restockingFee: RESTOCKING_FEE,
   windowOpenDay: WINDOW_OPEN_DAY,
   windowCloseDay: WINDOW_CLOSE_DAY,
   governingState: "Florida",
   governingCounty: "Palm Beach County",
+  // The authoritative guarantee is hosted externally and served via this link
+  // (no in-app signing). Replace with the real hosted URL before launch.
+  fullTermsUrl: "https://example.com/rap-90-night-comfort-guarantee",
 } as const;
+
+/** Short plain-language essentials shown in-app; the full terms live at fullTermsUrl. */
+export const GUARANTEE_ESSENTIALS: string[] = [
+  `A one-time comfort exchange, available days ${WINDOW_OPEN_DAY}–${WINDOW_CLOSE_DAY} of your 90 nights.`,
+  "Give your new mattress four to six weeks to settle in before deciding.",
+  "Exchange for a set of equal or greater value; you pay any price difference at the dealer.",
+  `A $${RESTOCKING_FEE} restocking fee applies. No refunds or cash back.`,
+  "Both sleep partners choose the replacement together, in-store.",
+  "The mattress must be clean and undamaged, with the law and model tags attached.",
+  "Covers comfort only — damage or defects are handled separately by your dealer.",
+  "Valid in the US, through your original dealer.",
+];
 
 export const GUARANTEE_TERMS: GuaranteeSection[] = [
   {
