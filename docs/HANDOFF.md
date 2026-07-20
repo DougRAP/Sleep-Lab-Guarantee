@@ -62,8 +62,11 @@ Rollback option if ever needed: `main` → `cee4086` (the last successfully depl
 ### Built and working
 v1 companion (welcome/entry, Tonight with day-0 initial impression + nightly check-ins + tips, AI concierge with tool-use JSON→DB) · navigable shell (bottom nav: Tonight/Guarantee/Requests/Shop + Coach) · Guarantee view (eligibility + essentials + external terms link) · dealer triage · Shop · **demo day-jumper** · **the fitting** (intake → items → confirmations → photos → verify → RA + tracking number, resumable draft) · **real auth** (Supabase Auth accounts, purchase linking, role-gated `/admin`) — *auth is written and merged but not yet deployed, see blocker*.
 
+**M5b (built 2026-07-19, commit `8b5174c`, spec `docs/SPEC-M5b.md`):** `/requests` tracking list + `/requests/[id]` detail · Shop **coupon-on-request** (unique `SLP-XXXXXX` code, 4-week expiry, idempotent, `pct` snapshotted at issue). 243 tests pass (was 198) · `tsc` clean · build green.
+
+> ⚠️ **`supabase/schema.sql` gained a `coupons` table.** Whoever runs the Supabase setup must apply the current schema, not an earlier copy — otherwise the Shop coupon breaks on the Supabase backend while working fine on the in-memory fallback.
+
 ### Not built yet
-- **M5b** — `/requests` tracking list + detail, and the Shop **coupon-on-request** (unique code, 4-week expiry, "subject to dealer conditions and rules of acceptance"). This is the next feature work.
 - Full admin (approve/deny, stats, ticketing) — deliberately deferred; RAP adjudicates in its own systems.
 - AI photo-coach (Claude-vision legibility check) — fast-follow after guided capture.
 - PWA offline/service worker · notifications · Stripe (only a `payments` seam exists).
