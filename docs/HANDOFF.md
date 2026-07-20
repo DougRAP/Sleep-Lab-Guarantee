@@ -10,14 +10,41 @@ For architecture, conventions, and the full "what's open" list, read **`docs/DEV
 
 **The auth build is merged to `main` (`86fc1b1`) but the Netlify deploy FAILED. Production is still serving the previous build (`cee4086`).**
 
-- Production is **healthy and unbroken** — Netlify keeps the last good deploy live. Nothing is down.
-- Evidence of the failure: `https://rap-sleeplab.netlify.app/login` and `/signup` return **404** (they exist only in `86fc1b1`), and the build-chunk signature never changed across ~8 minutes of polling.
-- **Ruled out:** a clean local production build passes (`rm -rf .next && npm run build` → exit 0, emits Middleware 91.1 kB) with *and* without Supabase env. `middleware.ts` imports **only constants** from `lib/auth/config.ts` (pure env checks + strings) — it never pulls in `lib/session.ts`, the sole `node:crypto` user — so the edge bundle is clean.
-- **Not yet known:** the actual Netlify build error. Nobody has read the deploy log.
+Production is **healthy and unbroken** — Netlify keeps the last good deploy live. Nothing is down.
 
-**Next action:** get the error from **Netlify → Deploys → the failed (red) deploy → log**, then fix from evidence. Do *not* guess-fix against production.
+### Diagnosed 2026-07-19 — it is NOT the code
 
-**Prime suspect + the cheap fix:** this deploy introduced `middleware.ts` — the app's **first ever middleware**, which makes Netlify build an Edge Function. If the log implicates it, **delete `middleware.ts`**: it is only a cheap first line, and `requireGuarantee()` in `lib/auth/app-session.ts` is the authoritative gate on every page and server action. Removing it costs **nothing in security**.
+The deploy log was read. The failure is a **Netlify↔GitHub repo-access problem**, not a build error:
+
+```
+Failed during stage 'preparing repo': Unable to access repository.
+User git error while checking for ref refs/heads/main
+Failing build: Failed to prepare repo
+Finished processing build request in 578ms
+```
+
+It died in the **`preparing repo` stage in 578 ms** — before checkout, before `npm install`, before any compilation. No application code was ever fetched.
+
+**Verified against the actual repo:**
+- `refs/heads/main` **exists** on origin at exactly `86fc1b1` (`git ls-remote --heads origin`).
+- The repo is **public**, default branch `main` — readable with zero credentials.
+- So "branch deleted or renamed" is definitively ruled out. It is the Netlify GitHub App install or a transient provider glitch.
+
+**Next action — all of it is in Doug's dashboards, nothing to change in the repo:**
+1. **Netlify → Trigger deploy → Clear cache and deploy site.** Sub-second prepare-stage failures are often transient; the log shows it was building with cache. Try this first.
+2. **GitHub → Settings → Applications → Netlify → Repository access** — confirm `RAP-SleepLab` is still granted. A public repo still deploys via the App install; a revoked install fails exactly this way.
+3. Re-link the provider: Site configuration → Build & deploy → Continuous deployment.
+
+### ⚠️ Dead end — do not repeat
+
+An earlier version of this file named `middleware.ts` (the app's first middleware, which makes Netlify build an Edge Function) as prime suspect and recommended deleting it. **The log exonerates it** — the build never reached bundling. Do not delete or edit `middleware.ts` for this.
+
+For the record, that recommendation was also wrong on its own terms. `middleware.ts` does three jobs and only one is redundant:
+- **Gating** — genuinely redundant; `requireGuarantee()` in `lib/auth/app-session.ts` is authoritative on every page and server action.
+- **Parking the dashboard `?token=`** — `middleware.ts:71` is the **only writer** of `PENDING_TOKEN_COOKIE`; `app/signup/page.tsx`, `app/link/page.tsx`, and `lib/actions/auth.ts:192` all read it. Deleting the middleware silently breaks purchase pre-association from dashboard deep links.
+- **Supabase session refresh** — `lib/supabase/server.ts:29` swallows its cookie write with the comment *"refreshed elsewhere"*; **elsewhere is the middleware**. Server components can't set cookies, so removing it leaves no server-side refresh path and sessions die at token expiry.
+
+If a future change ever *does* implicate the edge bundle, the fix is to strip `middleware.ts` to the token-parking job only (dropping the `@supabase/ssr` import and the `getUser()` call) and relocate the refresh — not to delete the file.
 
 Rollback option if ever needed: `main` → `cee4086` (the last successfully deployed commit).
 
