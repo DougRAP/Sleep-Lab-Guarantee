@@ -63,6 +63,9 @@ update public.profiles set role = 'dealer', dealer_location_id = '101'
 `rap_admin` sees every exchange request at `/admin`; a `dealer` sees only their own location's. Consumers who wander to `/admin` are redirected calmly.
 
 ## 7. Redeploy and verify
+
+> ⚠️ **Read before starting step 7.** As of 2026-07-19 the Netlify deploy is broken for an unrelated reason — a repo-access failure at the "preparing repo" stage, nothing to do with Supabase (see `docs/HANDOFF.md`). If the deploy here fails, **that is the pre-existing blocker, not a mistake in this runbook.** Fix Netlify first, or expect step 7 to fail and don't go re-checking your Supabase work looking for the cause.
+
 1. Netlify → **Deploys → Trigger deploy → Deploy site** (env vars only apply to new builds).
 2. Open the site: you should now be asked to **create an account** (not to look up a sales order). Sign up, then link the demo purchase — sales order `123`, last name `demo`.
 3. Confirm in Supabase: **Table Editor** → a row appears in `claims` (and `claim_items` / `claim_photos`), and objects land in the `claim-photos` bucket.

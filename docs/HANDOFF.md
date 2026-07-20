@@ -6,6 +6,20 @@ For architecture, conventions, and the full "what's open" list, read **`docs/DEV
 
 ---
 
+## ▶ NEXT SESSION: Supabase setup
+
+Doug is doing the Supabase connection to unblock persistence. **Runbook: `docs/SUPABASE-SETUP.md`** — follow it start to finish; it is current and re-runnable.
+
+Three things to know going in:
+
+1. **Two independent blockers are open** — Supabase (this) and the failed Netlify deploy (below). They are unrelated. Don't let one mask the other.
+2. **Runbook step 7 will fail** while the Netlify blocker stands, because it ends in "trigger a deploy." That failure is *expected and not a Supabase problem*. Either fix Netlify first or read past it.
+3. **Paste the current `supabase/schema.sql`**, not an older copy — it gained a `coupons` table in `8b5174c`. A stale schema breaks the Shop coupon on the Supabase backend while it keeps working on the in-memory fallback, which is a confusing way to discover the mistake.
+
+Everything else in the runbook (keys, seed, `claim-photos` bucket, Email provider, Site/redirect URLs, promoting `dwright@raptns.com` to `rap_admin`) is unchanged.
+
+---
+
 ## 🔴 ACTIVE BLOCKER — start here
 
 **The auth build is merged to `main` (`86fc1b1`) but the Netlify deploy FAILED. Production is still serving the previous build (`cee4086`).**
