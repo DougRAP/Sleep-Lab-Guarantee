@@ -290,6 +290,30 @@ export interface Profile {
 }
 
 /**
+ * A shop coupon, issued to one guarantee on request with a four-week expiry
+ * (PRD #6 — never a static always-on code). Persisted, so the code a customer
+ * comes back to is the same code they were given.
+ */
+export interface Coupon {
+  id: string;
+  guaranteeId: string;
+  /** Whose counter honors it. Copied from the guarantee at issue time. */
+  dealerLocationId?: string | null;
+  /** `SLP-XXXXXX` — spoken-safe, distinct from the RA and tracking prefixes. */
+  code: string;
+  /**
+   * Whole-percent discount, snapshotted from the dealer's `couponPct` at issue
+   * time so a later dealer change can't silently alter a code already in a
+   * customer's hands. Null when the dealer has no percentage on file.
+   */
+  pct?: number | null;
+  /** ISO timestamp issued. */
+  issuedAt: string;
+  /** ISO timestamp it stops being good (issuedAt + COUPON_VALID_DAYS). */
+  expiresAt: string;
+}
+
+/**
  * A dealer/retail location. Serves the dealer-triage card (non-comfort issues)
  * and the shop coupon (v2 expansion). Keyed by the same text id that
  * `guarantees.dealer_location_id` and `profiles.dealer_location_id` reference.

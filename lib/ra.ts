@@ -7,8 +7,12 @@
 // the phone, so the alphabet excludes characters that get confused when spoken
 // or written (I/O/0/1/U).
 
-/** Crockford-ish alphabet minus easily-confused glyphs. */
-const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTVWXYZ";
+/**
+ * Crockford-ish alphabet minus easily-confused glyphs. Exported because every
+ * code this product reads aloud must draw from the same set — the shop coupon
+ * (lib/coupon.ts) included.
+ */
+export const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTVWXYZ";
 
 export const RA_PREFIX = "RA";
 export const TRACKING_PREFIX = "RAP";
@@ -16,11 +20,11 @@ export const TRACKING_PREFIX = "RAP";
 /** Source of randomness; injectable for deterministic tests. */
 export type RandomSource = () => number;
 
-function code(length: number, random: RandomSource): string {
+export function code(length: number, random: RandomSource): string {
   let out = "";
   for (let i = 0; i < length; i++) {
-    const idx = Math.floor(random() * ALPHABET.length) % ALPHABET.length;
-    out += ALPHABET[idx];
+    const idx = Math.floor(random() * CODE_ALPHABET.length) % CODE_ALPHABET.length;
+    out += CODE_ALPHABET[idx];
   }
   return out;
 }
@@ -49,8 +53,8 @@ export function generateTrackingNumber(random: RandomSource = Math.random): stri
   return `${TRACKING_PREFIX}-${code(8, random)}`;
 }
 
-const RA_RE = new RegExp(`^${RA_PREFIX}-\\d{6}-[${ALPHABET}]{4}$`);
-const TRACKING_RE = new RegExp(`^${TRACKING_PREFIX}-[${ALPHABET}]{8}$`);
+const RA_RE = new RegExp(`^${RA_PREFIX}-\\d{6}-[${CODE_ALPHABET}]{4}$`);
+const TRACKING_RE = new RegExp(`^${TRACKING_PREFIX}-[${CODE_ALPHABET}]{8}$`);
 
 export function isRaNumber(value: string): boolean {
   return RA_RE.test(value);

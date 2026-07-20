@@ -13,6 +13,7 @@ import type {
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
+  Coupon,
   DealerLocation,
   Guarantee,
   InitialImpressionRecord,
@@ -22,6 +23,7 @@ import type {
 } from "../types";
 import { journeyDay, journeyPhase } from "../eligibility";
 import { generateRaNumber, generateTrackingNumber } from "../ra";
+import { couponExpiresAt, generateCouponCode, isCouponExpired } from "../coupon";
 import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import {
@@ -62,6 +64,7 @@ export class MemoryRepository implements GuaranteeRepository {
   private claims: Claim[] = [];
   private claimItems: ClaimItem[] = [];
   private claimPhotos: ClaimPhoto[] = [];
+  private coupons: Coupon[] = [];
   private seq = 0;
 
   constructor(
@@ -282,6 +285,13 @@ export class MemoryRepository implements GuaranteeRepository {
     return found ? { ...found } : null;
   }
 
+  async listClaimsForGuarantee(guaranteeId: string): Promise<Claim[]> {
+    return this.claims
+      .filter((c) => c.guaranteeId === guaranteeId)
+      .map((c) => ({ ...c }))
+      .sort(byMostRecent);
+  }
+
   async updateClaim(claimId: string, patch: UpdateClaimInput): Promise<Claim> {
     const row = this.claims.find((c) => c.id === claimId);
     if (!row) throw new Error(`No claim ${claimId}`);
@@ -370,6 +380,39 @@ export class MemoryRepository implements GuaranteeRepository {
     row.submittedAt = now;
     row.updatedAt = now;
     return { claim: { ...row }, raNumber, trackingNumber };
+  }
+
+  // --- M5b: the shop coupon ---
+
+  async getActiveCoupon(guaranteeId: string): Promise<Coupon | null> {
+    const newest = this.coupons
+      .filter((c) => c.guaranteeId === guaranteeId)
+      .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt))[0];
+    if (!newest) return null;
+    return isCouponExpired(newest) ? null : { ...newest };
+  }
+
+  async issueCoupon(guaranteeId: string): Promise<Coupon> {
+    // Idempotent: an unexpired code is already in the customer's hands.
+    const active = await this.getActiveCoupon(guaranteeId);
+    if (active) return active;
+
+    const guarantee = await this.getGuaranteeById(guaranteeId);
+    const dealer = await this.getDealerLocationForGuarantee(guaranteeId);
+    const issuedAt = new Date().toISOString();
+    const row: Coupon = {
+      id: this.nextId("coupon"),
+      guaranteeId,
+      dealerLocationId: guarantee?.dealerLocationId ?? null,
+      code: generateCouponCode(),
+      // Snapshot, not a live read — a later dealer change must not alter a
+      // code already handed out.
+      pct: dealer?.couponPct ?? null,
+      issuedAt,
+      expiresAt: couponExpiresAt(issuedAt),
+    };
+    this.coupons.push(row);
+    return { ...row };
   }
 
   // --- M6: the user <-> guarantee link ---

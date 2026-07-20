@@ -9,9 +9,9 @@ import { isAuthConfigured } from "../../lib/auth/config";
 import { getViewer } from "../../lib/auth/user";
 import { getRepository } from "../../lib/data";
 import { guardAdminRoute } from "../../lib/auth/routing";
+import { statusLabel } from "../../lib/claim-status";
 import { cn } from "../../lib/utils";
 import type { ClaimRecord, ClaimRecordScope } from "../../lib/data/repository";
-import type { ClaimStatus } from "../../lib/types";
 
 // Never prerender: what this screen shows depends on the visitor's session and
 // role, so it must be resolved per request regardless of build-time env.
@@ -139,22 +139,6 @@ function Cell({ label, value }: { label: string; value: string | null }) {
       </dd>
     </div>
   );
-}
-
-/** The status machine in plain language — no ticket-speak. */
-function statusLabel(status: ClaimStatus): string {
-  const labels: Record<ClaimStatus, string> = {
-    draft: "In progress",
-    submitted: "Submitted",
-    in_review: "In review",
-    approved: "Approved",
-    dealer_scheduled: "Scheduled",
-    completed: "Completed",
-    denied: "Declined",
-    expired: "Expired",
-    withdrawn: "Withdrawn",
-  };
-  return labels[status] ?? status;
 }
 
 /** Shown when Supabase (and therefore sign-in) isn't configured yet. */

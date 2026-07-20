@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ConciergeCard } from "../concierge-card";
 import { FrostedCard } from "../ui/frosted-card";
+import { Stat } from "../ui/stat";
 import { buttonVariants } from "../ui/button";
 import { cn } from "../../lib/utils";
 
@@ -49,15 +50,6 @@ export function SubmittedStep({
       >
         Back to tonight
       </Link>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1">
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">{label}</p>
-      <p className="font-mono text-[22px] leading-none text-dawn">{value}</p>
     </div>
   );
 }

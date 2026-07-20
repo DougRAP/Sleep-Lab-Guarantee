@@ -11,6 +11,7 @@ import type {
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
+  Coupon,
   DealerLocation,
   Guarantee,
   InitialImpressionRecord,
@@ -20,6 +21,7 @@ import type {
 } from "../types";
 import { journeyDay, journeyPhase } from "../eligibility";
 import { generateRaNumber, generateTrackingNumber } from "../ra";
+import { couponExpiresAt, generateCouponCode, isCouponExpired } from "../coupon";
 import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import { createServiceClient } from "../supabase/server";
@@ -161,6 +163,18 @@ function toClaimPhoto(row: any): ClaimPhoto {
     capturedAt: row.captured_at,
     aiCoach: row.ai_coach,
     createdAt: row.created_at,
+  };
+}
+
+function toCoupon(row: any): Coupon {
+  return {
+    id: row.id,
+    guaranteeId: row.guarantee_id,
+    dealerLocationId: row.dealer_location_id ?? null,
+    code: row.code,
+    pct: row.pct ?? null,
+    issuedAt: row.issued_at,
+    expiresAt: row.expires_at,
   };
 }
 
@@ -410,6 +424,17 @@ export class SupabaseRepository implements GuaranteeRepository {
     return data ? toClaim(data) : null;
   }
 
+  async listClaimsForGuarantee(guaranteeId: string): Promise<Claim[]> {
+    // Scoped to the one guarantee, drafts included — the opposite of the
+    // admin read, on purpose (see the interface comment).
+    const { data } = await this.db
+      .from("claims")
+      .select("*")
+      .eq("guarantee_id", guaranteeId)
+      .order("updated_at", { ascending: false });
+    return (data ?? []).map(toClaim).sort(byMostRecent);
+  }
+
   async updateClaim(claimId: string, patch: UpdateClaimInput): Promise<Claim> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: Record<string, any> = {};
@@ -516,6 +541,45 @@ export class SupabaseRepository implements GuaranteeRepository {
       .select("*")
       .maybeSingle();
     return { claim: toClaim(data), raNumber, trackingNumber };
+  }
+
+  // --- M5b: the shop coupon ---
+
+  async getActiveCoupon(guaranteeId: string): Promise<Coupon | null> {
+    const { data } = await this.db
+      .from("coupons")
+      .select("*")
+      .eq("guarantee_id", guaranteeId)
+      .order("issued_at", { ascending: false })
+      .limit(1);
+    if (!data || !data[0]) return null;
+    const coupon = toCoupon(data[0]);
+    return isCouponExpired(coupon) ? null : coupon;
+  }
+
+  async issueCoupon(guaranteeId: string): Promise<Coupon> {
+    // Idempotent: an unexpired code is already in the customer's hands.
+    const active = await this.getActiveCoupon(guaranteeId);
+    if (active) return active;
+
+    const guarantee = await this.getGuaranteeById(guaranteeId);
+    const dealer = await this.getDealerLocationForGuarantee(guaranteeId);
+    const issuedAt = new Date().toISOString();
+    const { data } = await this.db
+      .from("coupons")
+      .insert({
+        guarantee_id: guaranteeId,
+        dealer_location_id: guarantee?.dealerLocationId ?? null,
+        code: generateCouponCode(),
+        // Snapshot, not a live read — a later dealer change must not alter a
+        // code already handed out.
+        pct: dealer?.couponPct ?? null,
+        issued_at: issuedAt,
+        expires_at: couponExpiresAt(issuedAt),
+      })
+      .select("*")
+      .maybeSingle();
+    return toCoupon(data);
   }
 
   // --- M6: the user <-> guarantee link ---

@@ -13,6 +13,7 @@ import type {
   ConciergeRole,
   ConciergeThread,
   ConfirmationKey,
+  Coupon,
   DealerLocation,
   Feeling,
   FittingStep,
@@ -154,8 +155,18 @@ export function toClaimRecord(
   };
 }
 
-/** Newest activity first — the only ordering the thin admin needs. */
-export function byMostRecent(a: ClaimRecord, b: ClaimRecord): number {
+/** One row's activity timestamps — all `byMostRecent` needs to sort. */
+interface Timestamped {
+  updatedAt?: string | null;
+  submittedAt?: string | null;
+}
+
+/**
+ * Newest activity first. Structural on purpose: the admin sorts `ClaimRecord`s
+ * and the consumer's own list sorts `Claim`s, and the two must agree on what
+ * "most recent" means.
+ */
+export function byMostRecent(a: Timestamped, b: Timestamped): number {
   const at = a.updatedAt ?? a.submittedAt ?? "";
   const bt = b.updatedAt ?? b.submittedAt ?? "";
   return bt.localeCompare(at);
@@ -208,6 +219,15 @@ export interface GuaranteeRepository {
   /** Open a draft. Idempotent — returns the existing draft when one is open. */
   createDraftClaim(input: CreateDraftClaimInput): Promise<Claim>;
   getClaimById(claimId: string): Promise<Claim | null>;
+  /**
+   * Every claim for one guarantee, newest first. Includes drafts — the
+   * consumer's own in-progress request is a thing they should see.
+   *
+   * Deliberately NOT the same read as `listClaimRecords`: that one is the
+   * admin/dealer view (no per-guarantee scope, drafts excluded). Consumer and
+   * staff reads have different rules and must not share a code path.
+   */
+  listClaimsForGuarantee(guaranteeId: string): Promise<Claim[]>;
   /** Patch a draft after a step. Unspecified fields are left untouched. */
   updateClaim(claimId: string, patch: UpdateClaimInput): Promise<Claim>;
   listClaimItems(claimId: string): Promise<ClaimItem[]>;
@@ -221,6 +241,16 @@ export interface GuaranteeRepository {
    * `submitted`. Idempotent — re-submitting returns the existing numbers.
    */
   submitClaim(claimId: string): Promise<SubmitClaimResult>;
+
+  // --- M5b: the shop coupon (issued on request, four-week expiry) ---
+  /** The guarantee's current coupon, or null when there is none or it expired. */
+  getActiveCoupon(guaranteeId: string): Promise<Coupon | null>;
+  /**
+   * Issue a coupon for this guarantee. Idempotent — an unexpired coupon is
+   * returned as-is, never reissued, so the code a customer wrote down keeps
+   * working. `pct` is snapshotted from the dealer's `couponPct` at issue time.
+   */
+  issueCoupon(guaranteeId: string): Promise<Coupon>;
 
   // --- M6: real auth — the user <-> guarantee link ---
   /**

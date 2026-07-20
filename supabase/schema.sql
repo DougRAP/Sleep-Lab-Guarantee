@@ -256,6 +256,26 @@ create table if not exists public.payments (
 create index if not exists payments_claim_idx on public.payments (claim_id);
 
 -- ---------------------------------------------------------------------------
+-- Shop coupons (v2 expansion #6, M5b)
+-- Issued to one guarantee ON REQUEST with a four-week expiry — never a static
+-- always-on code. Persisted so the code a customer comes back to is the same
+-- code they were given. pct is SNAPSHOTTED from dealer_locations.coupon_pct at
+-- issue time: changing the dealer's percentage later must not silently alter a
+-- code already in a customer's hands.
+-- ---------------------------------------------------------------------------
+create table if not exists public.coupons (
+  id uuid primary key default uuid_generate_v4(),
+  guarantee_id uuid not null references public.guarantees(id) on delete cascade,
+  dealer_location_id text,                  -- whose counter honors it (snapshot)
+  code text not null unique,                -- SLP-XXXXXX
+  pct numeric,                              -- whole-percent discount (snapshot)
+  issued_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  created_at timestamptz default now()
+);
+create index if not exists coupons_guarantee_idx on public.coupons (guarantee_id);
+
+-- ---------------------------------------------------------------------------
 -- Sleep-companion tables
 -- ---------------------------------------------------------------------------
 create table if not exists public.journey (
@@ -354,6 +374,7 @@ alter table public.claim_items        enable row level security;
 alter table public.claim_photos       enable row level security;
 alter table public.claim_notes        enable row level security;
 alter table public.payments           enable row level security;
+alter table public.coupons            enable row level security;
 alter table public.journey            enable row level security;
 alter table public.check_ins          enable row level security;
 alter table public.concerns           enable row level security;
@@ -468,6 +489,20 @@ create policy payments_read on public.payments
     or exists (
       select 1 from public.claims c
       where c.id = payments.claim_id and c.consumer_id = auth.uid()
+    )
+  );
+
+-- coupons: consumer own guarantee · admin all · dealer by guarantee location
+-- (issuing is server-authoritative via the service role, which bypasses RLS)
+drop policy if exists coupons_read on public.coupons;
+create policy coupons_read on public.coupons
+  for select using (
+    public.is_rap_admin()
+    or exists (
+      select 1 from public.guarantees g
+      where g.id = coupons.guarantee_id
+        and (g.consumer_id = auth.uid()
+             or g.dealer_location_id = public.current_dealer_location())
     )
   );
 

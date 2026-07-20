@@ -4,10 +4,16 @@ import { DayCount } from "../../../components/day-count";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { FrostedCard } from "../../../components/ui/frosted-card";
 import { buttonVariants } from "../../../components/ui/button";
+import { GetCouponButton } from "../../../components/shop/get-coupon-button";
 import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
+import { formatDayMonth } from "../../../lib/dates";
 import { cn } from "../../../lib/utils";
 import { SHOP_ITEMS } from "../../../content/shop";
+import type { Coupon, DealerLocation } from "../../../lib/types";
+
+/** The dealer's terms travel with the code, wherever it is shown. */
+const COUPON_TERMS = "Subject to dealer conditions and rules of acceptance.";
 
 // Shop (v2 #6). Session-guarded. A calm, curated set of accessories — the
 // waterproof protector the guarantee recommends comes first. Lead-gen only:
@@ -20,6 +26,9 @@ export default async function ShopPage() {
   const journey = await repo.getJourney(guarantee.id);
   const day = journey?.currentDay ?? 0;
   const dealer = await repo.getDealerLocationForGuarantee(guarantee.id);
+  // Issued on request, never always-on (PRD #6) — so the card either offers one
+  // or shows the code the customer already holds.
+  const coupon = await repo.getActiveCoupon(guarantee.id);
 
   return (
     <>
@@ -44,22 +53,10 @@ export default async function ShopPage() {
             guarantee intact.
           </ConciergeCard>
 
-          {dealer?.couponCode && (
-            <FrostedCard className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
-                  Your dealer coupon
-                </p>
-                <p className="text-[14px] leading-relaxed text-mist">
-                  {dealer.couponPct
-                    ? `${dealer.couponPct}% off at checkout`
-                    : "Applied at checkout"}
-                </p>
-              </div>
-              <span className="rounded-full border border-[var(--line)] bg-white/[0.03] px-4 py-2 font-mono text-[13px] tracking-[0.08em] text-dawn">
-                {dealer.couponCode}
-              </span>
-            </FrostedCard>
+          {coupon ? (
+            <ActiveCoupon coupon={coupon} />
+          ) : (
+            dealer?.couponCode && <CouponOffer dealer={dealer} />
           )}
 
           <div className="space-y-4">
@@ -95,5 +92,56 @@ export default async function ShopPage() {
         </div>
       </main>
     </>
+  );
+}
+
+/** No code yet — explain the offer and let the customer ask for one. */
+function CouponOffer({ dealer }: { dealer: DealerLocation }) {
+  return (
+    <FrostedCard className="space-y-4">
+      <div className="space-y-1">
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+          Your dealer coupon
+        </p>
+        <p className="text-[15px] leading-relaxed text-mist">
+          {dealer.couponPct
+            ? `${dealer.couponPct}% off at ${dealer.name}, on a code that's yours alone. It's good for four weeks once you ask for it.`
+            : `A discount at ${dealer.name}, on a code that's yours alone. It's good for four weeks once you ask for it.`}
+        </p>
+      </div>
+
+      <GetCouponButton />
+
+      <p className="text-[13px] leading-relaxed text-mist/80">{COUPON_TERMS}</p>
+    </FrostedCard>
+  );
+}
+
+/** The code they already hold. Same quiet treatment it has always had. */
+function ActiveCoupon({ coupon }: { coupon: Coupon }) {
+  return (
+    <FrostedCard className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+            Your coupon
+          </p>
+          <p className="text-[14px] leading-relaxed text-mist">
+            {coupon.pct
+              ? `${coupon.pct}% off at checkout`
+              : "Applied at checkout"}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full border border-[var(--line)] bg-white/[0.03] px-4 py-2 font-mono text-[13px] tracking-[0.08em] text-dawn">
+          {coupon.code}
+        </span>
+      </div>
+
+      <p className="text-[13px] leading-relaxed text-mist">
+        Good through {formatDayMonth(coupon.expiresAt)}.
+      </p>
+
+      <p className="text-[13px] leading-relaxed text-mist/80">{COUPON_TERMS}</p>
+    </FrostedCard>
   );
 }
