@@ -2,7 +2,7 @@
 -- Run after schema.sql. Delivery dates are relative so the journey helps from
 -- night one. The in-memory fallback (lib/data/seed.ts) mirrors this data.
 --
--- Turnbull: a FRESH purchase (delivery = today, Day 0) — the initial-impression
+-- Demo (order 123 / last name "demo"): a FRESH purchase (delivery = today, Day 0) — the initial-impression
 --   prompt shows first, before any nightly check-in.
 -- Rivera: mid-journey (~Day 6) with the first impression already recorded, so
 --   the nightly check-in flow is demoable too.
@@ -25,10 +25,10 @@ insert into public.guarantees (
   delivery_date, access_token
 ) values
   (
-    '1011099325A', 'RAP-90-1011099325A', 'Andrew', 'Turnbull',
-    'ajturnbull@example.com', '3365086052', 'RAP Furniture — Shelby', '101',
+    '123', 'RAP-90-123', 'Andrew', 'Demo',
+    'andrew.demo@example.com', '3365086052', 'RAP Furniture — Shelby', '101',
     'Sealy', '1234', 'Sealy Pillow Top — Queen', 599.99,
-    current_date, 'demo-turnbull-token'
+    current_date, 'demo-primary-token'
   ),
   (
     '1011099326B', 'RAP-90-1011099326B', 'Maya', 'Rivera',
@@ -41,7 +41,7 @@ on conflict (sales_order_number) do nothing;
 -- Journey snapshot for each demo guarantee (source of truth is delivery_date).
 insert into public.journey (guarantee_id, start_date, current_day, phase)
 select id, delivery_date, (current_date - delivery_date), 'settle_in'
-from public.guarantees where sales_order_number in ('1011099325A', '1011099326B')
+from public.guarantees where sales_order_number in ('123', '1011099326B')
 on conflict (guarantee_id) do nothing;
 
 -- Rivera has already shared a first impression (mid-journey demo).

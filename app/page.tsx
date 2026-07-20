@@ -1,9 +1,22 @@
+import Link from "next/link";
 import { LivingSky } from "../components/living-sky";
 import { Logo } from "../components/Logo";
 import { Entry } from "../components/welcome/entry";
+import { AccountForm } from "../components/auth/account-form";
+import { isAuthConfigured } from "../lib/auth/config";
 
-// The front door. Path A: pre-identified via ?token= from the retailer dashboard.
-// Path B: self-serve "find your purchase". Verify/lookup wired to Supabase in M2.
+/**
+ * The front door. Two worlds, one poster:
+ *
+ *  - Supabase configured (real auth): the first thing a customer does is CREATE
+ *    AN ACCOUNT. Arriving on a dashboard link (`?token=…`) does not skip this —
+ *    the middleware parks the token and it links the purchase automatically the
+ *    moment the account exists. Returning customers log in.
+ *
+ *  - Supabase absent (production today): falls back to the original light-verify
+ *    entry — sales order + last name — so the app and the demo keep working
+ *    before the keys land.
+ */
 export default async function WelcomePage({
   searchParams,
 }: {
@@ -11,6 +24,7 @@ export default async function WelcomePage({
 }) {
   const { token } = await searchParams;
   const hasToken = Boolean(token);
+  const realAuth = isAuthConfigured();
 
   return (
     <>
@@ -37,17 +51,35 @@ export default async function WelcomePage({
 
           {hasToken && (
             <p className="font-serif text-[17px] italic text-dawn">
-              Welcome back — let&apos;s confirm it&apos;s you.
+              {realAuth
+                ? "We have your purchase — let's make it yours."
+                : "Welcome back — let's confirm it's you."}
             </p>
           )}
 
-          <Entry token={token} />
-
-          {!hasToken && (
-            <p className="text-[13px] text-mist">
-              Came from your retailer&apos;s dashboard? Your link signs you in
-              automatically.
-            </p>
+          {realAuth ? (
+            <>
+              <AccountForm mode="signup" />
+              <p className="text-[13px] text-mist">
+                Already have an account?{" "}
+                <Link
+                  href="/login"
+                  className="text-dawn underline-offset-4 transition-colors hover:underline"
+                >
+                  Log in
+                </Link>
+              </p>
+            </>
+          ) : (
+            <>
+              <Entry token={token} />
+              {!hasToken && (
+                <p className="text-[13px] text-mist">
+                  Came from your retailer&apos;s dashboard? Your link signs you in
+                  automatically.
+                </p>
+              )}
+            </>
           )}
         </div>
       </main>

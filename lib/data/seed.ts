@@ -20,18 +20,19 @@ function isoDaysAgo(n: number): string {
 }
 
 // Two demo guarantees:
-//  - Turnbull: a FRESH purchase (delivery = today, Day 0) so the journey helps
-//    from night one — the initial-impression prompt shows first.
+//  - Demo (order 123 / last name "demo"): a FRESH purchase (delivery = today,
+//    Day 0) so the journey helps from night one — the initial-impression
+//    prompt shows first. These are the credentials used for demos.
 //  - Rivera: mid-journey (~Day 6) with the first impression already recorded, so
 //    the nightly check-in flow is also demoable.
 export const SEED_GUARANTEES: Guarantee[] = [
   {
-    id: "seed-guarantee-turnbull",
-    salesOrderNumber: "1011099325A",
-    guaranteeNumber: "RAP-90-1011099325A",
+    id: "seed-guarantee-demo",
+    salesOrderNumber: "123",
+    guaranteeNumber: "RAP-90-123",
     customerFirstName: "Andrew",
-    customerLastName: "Turnbull",
-    customerEmail: "ajturnbull@example.com",
+    customerLastName: "Demo",
+    customerEmail: "andrew.demo@example.com",
     customerPhone: "3365086052",
     dealerName: "RAP Furniture — Shelby",
     dealerLocationId: "101",
@@ -40,7 +41,7 @@ export const SEED_GUARANTEES: Guarantee[] = [
     productDescription: "Sealy Pillow Top — Queen",
     purchasePrice: 599.99,
     deliveryDate: isoDaysAgo(0),
-    accessToken: "demo-turnbull-token",
+    accessToken: "demo-primary-token",
   },
   {
     id: "seed-guarantee-rivera",

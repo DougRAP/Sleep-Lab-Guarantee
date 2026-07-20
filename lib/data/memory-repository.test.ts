@@ -10,8 +10,8 @@ describe("MemoryRepository — verify (Path B: lookup)", () => {
   it("verifies with correct sales order + last name (case-insensitive)", async () => {
     const r = await repo.verifyGuarantee({
       mode: "lookup",
-      salesOrderNumber: "1011099325a",
-      lastName: "turnbull",
+      salesOrderNumber: "123",
+      lastName: "DEMO",
     });
     expect(r?.id).toBe(g.id);
   });
@@ -20,7 +20,7 @@ describe("MemoryRepository — verify (Path B: lookup)", () => {
     const r = await repo.verifyGuarantee({
       mode: "lookup",
       salesOrderNumber: g.salesOrderNumber,
-      lastName: "Andrew Turnbull",
+      lastName: "Andrew Demo",
     });
     expect(r?.id).toBe(g.id);
   });
@@ -38,7 +38,7 @@ describe("MemoryRepository — verify (Path B: lookup)", () => {
     const r = await repo.verifyGuarantee({
       mode: "lookup",
       salesOrderNumber: "does-not-exist",
-      lastName: "Turnbull",
+      lastName: "Demo",
     });
     expect(r).toBeNull();
   });
@@ -51,7 +51,7 @@ describe("MemoryRepository — verify (Path A: token)", () => {
     const r = await repo.verifyGuarantee({
       mode: "token",
       token: g.accessToken!,
-      lastName: "Turnbull",
+      lastName: "Demo",
       deliveryDate: g.deliveryDate,
     });
     expect(r?.id).toBe(g.id);
@@ -61,7 +61,7 @@ describe("MemoryRepository — verify (Path A: token)", () => {
     const r = await repo.verifyGuarantee({
       mode: "token",
       token: g.accessToken!,
-      lastName: "Turnbull",
+      lastName: "Demo",
       deliveryDate: "2000-01-01",
     });
     expect(r).toBeNull();

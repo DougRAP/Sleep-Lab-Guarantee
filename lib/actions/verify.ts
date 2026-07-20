@@ -1,15 +1,20 @@
 // lib/actions/verify.ts
-// Server action for the front door (PRD §3.1). Two paths:
+// The LIGHT-VERIFY FALLBACK front door, used only when Supabase isn't
+// configured (see lib/auth/config.ts). Two paths:
 //  - lookup: sales order number + last name (self-serve).
 //  - token:  pre-filled-link token + last name + delivery date (from the CRM link).
 // On success: set the signed session cookie and redirect to /tonight.
 // On failure: return a calm message for the existing entry UI (no red).
+//
+// When Supabase IS configured this action refuses outright: real accounts are
+// the authentication then, and a sales order number must not be a way in.
 
 "use server";
 
 import { redirect } from "next/navigation";
 import { getRepository } from "../data";
 import { setSession } from "../session";
+import { isAuthConfigured } from "../auth/config";
 
 export type EntryMode = "lookup" | "token";
 
@@ -29,7 +34,14 @@ const MISSING_LOOKUP =
   "Enter your sales order number and last name to find your purchase.";
 const MISSING_TOKEN = "Please confirm both details so we know it's you.";
 
+const USE_ACCOUNTS =
+  "Create an account to continue — it keeps your nights and your guarantee together.";
+
 export async function verifyEntry(input: EntryInput): Promise<VerifyResult> {
+  // Real auth is live: this path is closed, so a guessed sales order number
+  // can never stand in for an account.
+  if (isAuthConfigured()) return { ok: false, error: USE_ACCOUNTS };
+
   const repo = getRepository();
   const lastName = (input.lastName ?? "").trim();
 

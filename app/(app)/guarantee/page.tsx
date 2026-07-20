@@ -1,11 +1,11 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
 import { Logo } from "../../../components/Logo";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { buttonVariants } from "../../../components/ui/button";
-import { getSession } from "../../../lib/session";
+import { SignOut } from "../../../components/auth/sign-out";
+import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { evaluateEligibility } from "../../../lib/eligibility";
@@ -18,12 +18,8 @@ import { GUARANTEE_ESSENTIALS, GUARANTEE_META } from "../../../content/guarantee
 // is M5), a short plain-language "essentials" summary, and a link OUT to the full
 // externally-hosted guarantee (no in-app signing). Poster-first, printed-light.
 export default async function GuaranteePage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
+  const { guarantee } = await requireGuarantee();
   const repo = getRepository();
-  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
-  if (!guarantee) redirect("/");
 
   const resolved = await repo.hasResolvedExchange(guarantee.id);
   // The effective reference date is real "now" unless the demo day-jumper has
@@ -113,6 +109,12 @@ export default async function GuaranteePage() {
           >
             Something else? (e.g. a damaged mattress)
           </Link>
+
+          {/* The one quiet way out of the account. Same whisper as the back
+              links elsewhere — never a peer of the primary action. */}
+          <div className="pt-2">
+            <SignOut />
+          </div>
         </div>
       </main>
     </>

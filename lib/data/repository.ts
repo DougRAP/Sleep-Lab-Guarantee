@@ -8,6 +8,7 @@ import type {
   Claim,
   ClaimItem,
   ClaimPhoto,
+  ClaimStatus,
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
@@ -19,11 +20,13 @@ import type {
   InitialImpression,
   InitialImpressionRecord,
   Journey,
+  LinkVia,
   PhoneKind,
   PhotoAngle,
   Tip,
 } from "../types";
 import type { TipQuery } from "../tips";
+import { journeyDay } from "../eligibility";
 
 /** Verify inputs for the two entry paths (PRD §3.1). */
 export type VerifyInput =
@@ -99,6 +102,65 @@ export interface SubmitClaimResult {
   trackingNumber: string;
 }
 
+/* -------------------------------------------------------------------------- */
+/* M6 — real auth: the user <-> guarantee link and the thin admin read        */
+/* -------------------------------------------------------------------------- */
+
+/** Who is asking for the claim list. Dealers only ever see their own location. */
+export type ClaimRecordScope =
+  | { kind: "all" }
+  | { kind: "dealer_location"; dealerLocationId: string };
+
+/**
+ * One row of the read-only admin/dealer list. Deliberately flat and small — the
+ * locked decision is "data seam now, thin admin later", so this is a list, not
+ * a ticketing surface. No approve/deny, no stats.
+ */
+export interface ClaimRecord {
+  claimId: string;
+  raNumber: string | null;
+  trackingNumber: string | null;
+  status: ClaimStatus;
+  customerName: string;
+  salesOrderNumber: string;
+  dealerLocationId: string | null;
+  /** Journey day at the time of the read (delivery date = day 0). */
+  day: number;
+  submittedAt: string | null;
+  updatedAt: string | null;
+}
+
+/** Build an admin row from a claim + its guarantee. Shared by both backends. */
+export function toClaimRecord(
+  claim: Claim,
+  guarantee: Guarantee,
+  referenceDate: Date = new Date()
+): ClaimRecord {
+  const name = [guarantee.customerFirstName, guarantee.customerLastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return {
+    claimId: claim.id,
+    raNumber: claim.raNumber ?? null,
+    trackingNumber: claim.trackingNumber ?? null,
+    status: claim.status,
+    customerName: name || guarantee.customerLastName,
+    salesOrderNumber: guarantee.salesOrderNumber,
+    dealerLocationId: guarantee.dealerLocationId ?? null,
+    day: journeyDay(guarantee.deliveryDate, referenceDate),
+    submittedAt: claim.submittedAt ?? null,
+    updatedAt: claim.updatedAt ?? null,
+  };
+}
+
+/** Newest activity first — the only ordering the thin admin needs. */
+export function byMostRecent(a: ClaimRecord, b: ClaimRecord): number {
+  const at = a.updatedAt ?? a.submittedAt ?? "";
+  const bt = b.updatedAt ?? b.submittedAt ?? "";
+  return bt.localeCompare(at);
+}
+
 export interface GuaranteeRepository {
   getGuaranteeById(id: string): Promise<Guarantee | null>;
   getGuaranteeBySalesOrder(salesOrderNumber: string): Promise<Guarantee | null>;
@@ -160,6 +222,25 @@ export interface GuaranteeRepository {
    */
   submitClaim(claimId: string): Promise<SubmitClaimResult>;
 
+  // --- M6: real auth — the user <-> guarantee link ---
+  /**
+   * The guarantee linked to this Supabase auth user, or null when they haven't
+   * linked a purchase yet (which routes them to the link step).
+   */
+  getGuaranteeForUser(userId: string): Promise<Guarantee | null>;
+  /**
+   * Link an authenticated user to a guarantee (sets `guarantees.consumer_id`).
+   * Server-authoritative. Returns null when the guarantee doesn't exist or is
+   * already linked to a different account — a purchase belongs to one account.
+   */
+  linkGuaranteeToUser(
+    guaranteeId: string,
+    userId: string,
+    via: LinkVia
+  ): Promise<Guarantee | null>;
+  /** Read-only list for the thin admin/dealer surface. Drafts are excluded. */
+  listClaimRecords(scope: ClaimRecordScope): Promise<ClaimRecord[]>;
+
   // --- M3: AI concierge threads/messages (PRD §6) ---
   getOrCreateConciergeThread(guaranteeId: string): Promise<ConciergeThread>;
   listConciergeMessages(threadId: string): Promise<ConciergeMessage[]>;
@@ -176,7 +257,7 @@ export function lastNameMatches(entered: string, actualLast: string): boolean {
   const b = actualLast.trim().toLowerCase();
   if (!a || !b) return false;
   if (a === b) return true;
-  // Accept "Andrew Turnbull" when the record's last name is "Turnbull".
+  // Accept "Andrew Demo" when the record's last name is "Demo".
   const lastToken = a.split(/\s+/).pop();
   return lastToken === b;
 }

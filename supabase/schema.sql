@@ -1,11 +1,19 @@
--- RAP Sleep Lab — Supabase schema (M2)
+-- RAP Sleep Lab — Supabase schema (M2, extended for real auth in M6)
 -- Matches PRD §6 (data model) with RLS by role (§4, §7).
--- Run in the Supabase SQL editor, then run seed.sql.
+-- Run in the Supabase SQL editor, then run seed.sql. Re-runnable: every table,
+-- column, constraint, trigger and policy below is guarded.
 --
 -- Roles: consumer | rap_admin | dealer  (dealer scoped to a location).
--- Consumer light-verify sessions are a signed cookie in v1; server-authoritative
--- reads use the service role. RLS below hardens client/anon access and is the
--- basis for the auth-linked consumer/admin/dealer surfaces in later milestones.
+--
+-- AUTH: customers sign in with Supabase Auth (email + password) and link their
+-- purchase, which sets guarantees.consumer_id. Every consumer policy below
+-- resolves through that column via auth.uid(), so a signed-in customer can only
+-- reach their own rows. Writes still go through the repository's service-role
+-- client (server-authoritative — the client never names a row id), so RLS is the
+-- backstop rather than the only guard.
+--
+-- When Supabase is absent entirely, the app falls back to the older light-verify
+-- signed cookie so nothing dead-ends; none of this schema is involved then.
 
 create extension if not exists "uuid-ossp";
 
@@ -21,6 +29,24 @@ create table if not exists public.profiles (
   phone text,
   created_at timestamptz default now()
 );
+
+-- Every Supabase auth user gets a profile row (role 'consumer' by default).
+-- Promote an account to staff by hand:
+--   update public.profiles set role = 'rap_admin' where email = 'you@raptns.com';
+--   update public.profiles set role = 'dealer', dealer_location_id = '101'
+--     where email = 'store@dealer.example';
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, email, role)
+  values (new.id, new.email, 'consumer')
+  on conflict (id) do nothing;
+  return new;
+end; $$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users
+  for each row execute function public.handle_new_user();
 
 -- SECURITY DEFINER helpers avoid recursive RLS when policies read profiles.
 create or replace function public.is_rap_admin()
@@ -76,6 +102,21 @@ create table if not exists public.guarantees (
 );
 create index if not exists guarantees_sales_order_idx on public.guarantees (sales_order_number);
 create index if not exists guarantees_dealer_location_idx on public.guarantees (dealer_location_id);
+
+-- Idempotent migration (M6 — real auth). consumer_id is THE link between a
+-- Supabase auth user and their purchase: it is set when an authenticated
+-- customer links their sales order, and every consumer RLS policy below keys
+-- off it via auth.uid(). linked_via records how ('token' = arrived on the RAP
+-- dashboard link, so the fitting can skip the receipt photo).
+alter table public.guarantees
+  add column if not exists consumer_id uuid references public.profiles(id) on delete set null;
+alter table public.guarantees add column if not exists linked_via text;
+do $$ begin
+  alter table public.guarantees drop constraint if exists guarantees_linked_via_check;
+  alter table public.guarantees add constraint guarantees_linked_via_check
+    check (linked_via is null or linked_via in ('token','lookup'));
+end $$;
+create index if not exists guarantees_consumer_idx on public.guarantees (consumer_id);
 
 -- ---------------------------------------------------------------------------
 -- Claims (one comfort-exchange request per guarantee)
@@ -321,14 +362,17 @@ alter table public.concierge_threads  enable row level security;
 alter table public.concierge_messages enable row level security;
 
 -- profiles: self + admin
+drop policy if exists profiles_self_select on public.profiles;
 create policy profiles_self_select on public.profiles
   for select using (id = auth.uid() or public.is_rap_admin());
+drop policy if exists profiles_self_update on public.profiles;
 create policy profiles_self_update on public.profiles
   for update using (id = auth.uid());
 
 -- dealer_locations: admin all · dealer own location · consumer via own guarantee.
 -- (Server-authoritative reads use the service role, which bypasses RLS; these
 --  policies harden any future client/anon access, consistent with the others.)
+drop policy if exists dealer_locations_read on public.dealer_locations;
 create policy dealer_locations_read on public.dealer_locations
   for select using (
     public.is_rap_admin()
@@ -339,20 +383,24 @@ create policy dealer_locations_read on public.dealer_locations
         and g.consumer_id = auth.uid()
     )
   );
+drop policy if exists dealer_locations_admin_write on public.dealer_locations;
 create policy dealer_locations_admin_write on public.dealer_locations
   for all using (public.is_rap_admin()) with check (public.is_rap_admin());
 
 -- guarantees: consumer own · admin all · dealer by location
+drop policy if exists guarantees_read on public.guarantees;
 create policy guarantees_read on public.guarantees
   for select using (
     consumer_id = auth.uid()
     or public.is_rap_admin()
     or (dealer_location_id is not null and dealer_location_id = public.current_dealer_location())
   );
+drop policy if exists guarantees_admin_write on public.guarantees;
 create policy guarantees_admin_write on public.guarantees
   for all using (public.is_rap_admin()) with check (public.is_rap_admin());
 
 -- claims: consumer own · admin all · dealer by guarantee location
+drop policy if exists claims_read on public.claims;
 create policy claims_read on public.claims
   for select using (
     consumer_id = auth.uid()
@@ -363,12 +411,15 @@ create policy claims_read on public.claims
         and g.dealer_location_id = public.current_dealer_location()
     )
   );
+drop policy if exists claims_consumer_insert on public.claims;
 create policy claims_consumer_insert on public.claims
   for insert with check (consumer_id = auth.uid());
+drop policy if exists claims_admin_write on public.claims;
 create policy claims_admin_write on public.claims
   for all using (public.is_rap_admin()) with check (public.is_rap_admin());
 
 -- claim_items: follow the parent claim's scope (same shape as claim_photos)
+drop policy if exists claim_items_read on public.claim_items;
 create policy claim_items_read on public.claim_items
   for select using (
     public.is_rap_admin()
@@ -382,6 +433,7 @@ create policy claim_items_read on public.claim_items
   );
 
 -- claim_photos: follow the parent claim's scope
+drop policy if exists claim_photos_read on public.claim_photos;
 create policy claim_photos_read on public.claim_photos
   for select using (
     public.is_rap_admin()
@@ -395,6 +447,7 @@ create policy claim_photos_read on public.claim_photos
   );
 
 -- claim_notes: admin sees all; consumer/dealer see non-internal notes on their claims
+drop policy if exists claim_notes_read on public.claim_notes;
 create policy claim_notes_read on public.claim_notes
   for select using (
     public.is_rap_admin()
@@ -408,6 +461,7 @@ create policy claim_notes_read on public.claim_notes
   );
 
 -- payments: admin all; consumer own claim
+drop policy if exists payments_read on public.payments;
 create policy payments_read on public.payments
   for select using (
     public.is_rap_admin()
@@ -418,6 +472,7 @@ create policy payments_read on public.payments
   );
 
 -- journey: consumer own · admin all · dealer by guarantee location
+drop policy if exists journey_read on public.journey;
 create policy journey_read on public.journey
   for select using (
     public.is_rap_admin()
@@ -430,6 +485,7 @@ create policy journey_read on public.journey
   );
 
 -- check_ins: consumer own · admin all
+drop policy if exists check_ins_read on public.check_ins;
 create policy check_ins_read on public.check_ins
   for select using (
     public.is_rap_admin()
@@ -438,6 +494,7 @@ create policy check_ins_read on public.check_ins
       where g.id = check_ins.guarantee_id and g.consumer_id = auth.uid()
     )
   );
+drop policy if exists check_ins_consumer_insert on public.check_ins;
 create policy check_ins_consumer_insert on public.check_ins
   for insert with check (
     exists (
@@ -447,6 +504,7 @@ create policy check_ins_consumer_insert on public.check_ins
   );
 
 -- concerns: consumer own · admin all (writes are server-authoritative via service role)
+drop policy if exists concerns_read on public.concerns;
 create policy concerns_read on public.concerns
   for select using (
     public.is_rap_admin()
@@ -457,12 +515,15 @@ create policy concerns_read on public.concerns
   );
 
 -- tips: readable by any authenticated user; only admin edits
+drop policy if exists tips_read on public.tips;
 create policy tips_read on public.tips
   for select using (auth.role() = 'authenticated');
+drop policy if exists tips_admin_write on public.tips;
 create policy tips_admin_write on public.tips
   for all using (public.is_rap_admin()) with check (public.is_rap_admin());
 
 -- concierge: consumer own · admin all
+drop policy if exists concierge_threads_read on public.concierge_threads;
 create policy concierge_threads_read on public.concierge_threads
   for select using (
     public.is_rap_admin()
@@ -471,6 +532,7 @@ create policy concierge_threads_read on public.concierge_threads
       where g.id = concierge_threads.guarantee_id and g.consumer_id = auth.uid()
     )
   );
+drop policy if exists concierge_messages_read on public.concierge_messages;
 create policy concierge_messages_read on public.concierge_messages
   for select using (
     public.is_rap_admin()

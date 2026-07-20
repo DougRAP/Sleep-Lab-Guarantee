@@ -13,7 +13,13 @@ import { SupabaseRepository } from "./supabase-repository";
 
 let cached: GuaranteeRepository | null = null;
 
-/** True when Supabase keys are present; false → local in-memory fallback. */
+/**
+ * True when Supabase keys are present; false → local in-memory fallback.
+ *
+ * This is the DATA switch. The AUTH switch is `isAuthConfigured()` in
+ * lib/auth/config.ts, which checks the two public vars (it also has to run in
+ * edge middleware). Set all three env vars together and both flip at once.
+ */
 export function isSupabaseConfigured(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY

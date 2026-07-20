@@ -7,7 +7,7 @@ Mobile-first PWA for filing 90-Night Comfort Guarantee exchanges, OEM warranty i
 
 ## Features in this scaffold
 
-- Prefill support via `?trans_id=1011099325A` (simulates dashboard button injection)
+- Prefill support via `?token=…` (simulates dashboard button injection)
 - Eligibility calculation from purchase date (treated as start date)
 - Guided claim flow with chat-style UI
 - Photo step emphasizing law tag + model tag (or $29 Fast In-Person Inspection)
@@ -30,7 +30,7 @@ npm run dev
 
 Open http://localhost:3000
 
-**Demo prefill:** http://localhost:3000/claim?trans_id=1011099325A
+**Demo purchase:** sales order `123`, last name `demo`.
 
 ## Deploy to Netlify
 

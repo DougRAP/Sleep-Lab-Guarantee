@@ -1,6 +1,13 @@
 // lib/session.ts
-// Minimal signed, httpOnly session identifying the verified guarantee. Full auth
-// (Supabase magic-token) is a later milestone; a signed cookie is sufficient now.
+// The LIGHT-VERIFY FALLBACK session: a signed, httpOnly cookie identifying the
+// verified guarantee.
+//
+// This is no longer the app's authentication. Real accounts (Supabase Auth,
+// email + password) took that over — see lib/auth/. This cookie is only minted
+// and read when Supabase is NOT configured, so production and the demo keep
+// working before the keys land. lib/auth/app-session.ts is what decides which
+// of the two is live; nothing else should read this directly.
+//
 // Server-only (uses next/headers + node:crypto).
 
 import crypto from "node:crypto";
@@ -23,10 +30,9 @@ export interface SessionPayload {
   via?: EntryVia;
 }
 
-/** True when the sales order was pre-verified at entry (dashboard token link). */
-export function isPreVerified(session: SessionPayload | null): boolean {
-  return session?.via === "token";
-}
+// (The pre-verified check now lives on the unified session — see
+//  isPreVerifiedSession() in lib/auth/app-session.ts, which answers for both
+//  the real-auth and the fallback path.)
 
 function secret(): string {
   // Dev fallback keeps the local build/run working with no env. Set SESSION_SECRET

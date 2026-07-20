@@ -65,7 +65,7 @@ export function Entry({ token }: { token?: string }) {
           <Field
             label="Sales order number"
             autoComplete="off"
-            placeholder="e.g. 1011099325A"
+            placeholder="e.g. 123"
             value={order}
             onChange={(e) => setOrder(e.target.value)}
             hint="On your receipt and your guarantee."

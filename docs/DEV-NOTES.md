@@ -52,7 +52,10 @@ Claude with **tool-use** converts conversation into structured JSON written to t
 
 | Route | Notes |
 |---|---|
-| `/` | Front door. Two paths: `?token=…` (arrived pre-identified from the RAP dashboard → light verify) or self-serve lookup (sales order + last name). No nav here. |
+| `/` | Front door. With Supabase: **create an account** (email + password) — a `?token=…` dashboard link does *not* skip this, it only pre-associates the purchase. Without Supabase: the original light-verify lookup. No nav here. |
+| `/signup` · `/login` | Account creation and return. `/forgot-password` → emailed link → `/auth/callback` → `/new-password`. |
+| `/link` | **After** authentication: attach the purchase (sales order + last name), or automatically from a parked dashboard token via `/auth/link-token`. |
+| `/admin` | Thin, **read-only** list of exchange requests. `rap_admin` sees all; `dealer` sees only their location. Outside the nav. |
 | `/tonight` | The journey home — day count, guide's line, initial impression (day 0–1) or nightly check-in, tonight's tip. |
 | `/guarantee` | Eligibility state, gated **Request an exchange**, plain-language essentials, link OUT to the hosted full terms. |
 | `/guarantee/help` | Dealer triage — non-comfort issues (damage/defects) route to the dealer. |
@@ -63,7 +66,14 @@ Claude with **tool-use** converts conversation into structured JSON written to t
 
 `/tonight`, `/guarantee`, `/requests`, `/shop`, `/concierge` live in the `app/(app)/` route group whose layout renders the bottom nav. The group does not affect URLs.
 
-**Auth today:** consumers are **password-less** — a signed HMAC httpOnly cookie (`lib/session.ts`) carrying only `guaranteeId`, set after light verify. Real auth (Supabase Auth) is planned for admin/dealer only.
+**Auth today (M6): real accounts.** Everyone — consumer, RAP admin, dealer — signs in with **Supabase Auth (email + password)**. Email confirmation is **off** for now.
+
+The journey: **create an account → link the purchase → return by logging in.** A dashboard `?token=…` never bypasses account creation; the middleware parks it in a short-lived cookie and it links the purchase automatically the moment the account exists. Linking is an action an *already authenticated* user performs, so a guessed sales order number grants nothing on its own.
+
+- **The link** is `guarantees.consumer_id` (+ `linked_via`, which drives the fitting's receipt-photo rule). Every consumer RLS policy resolves through it via `auth.uid()`.
+- **The switch** is `isAuthConfigured()` (`lib/auth/config.ts`). **With no Supabase keys the app falls back to the old light-verify flow** (`lib/session.ts`) so production and the demo keep working before the keys land — the account routes hide themselves, and `verifyEntry` refuses once real auth is on.
+- **The gate** every page and action shares is `requireGuarantee()` / `getAppSession()` (`lib/auth/app-session.ts`); `middleware.ts` refreshes the Supabase session and turns unauthenticated requests away before anything renders.
+- **Roles** come from `profiles.role`, created for every new auth user by an `on auth.users` trigger. Promote by hand in SQL (see `supabase/schema.sql`).
 
 ---
 
@@ -75,7 +85,7 @@ Claude with **tool-use** converts conversation into structured JSON written to t
 
 Seed: `supabase/seed.sql` (and the mirrored `lib/data/seed.ts` for the in-memory fallback).
 
-**Demo logins:** `1011099325A` / `Turnbull` (day 0) · `1011099326B` / `Rivera` (~day 6).
+**Demo purchases:** `123` / `demo` (day 0) · `1011099326B` / `Rivera` (~day 6). With real auth on, these are what you enter at the **link** step after creating an account; without Supabase they are the light-verify login.
 
 ---
 
@@ -117,7 +127,7 @@ npm run build      # production build
 - **M5b** — `/requests` tracking (list + detail) and the Shop **coupon-on-request** (unique code, 4-week expiry, "subject to dealer conditions and rules of acceptance").
 
 ### Planned, not built
-- **M6 — admin + dealer.** Real auth (Supabase Auth), a thin RAP review queue, dealer status view, stats. Today there is only the **data seam**; RAP adjudicates in its existing systems.
+- **Admin depth.** `/admin` is a **read-only list** today (RA #, tracking #, customer, status, day). No approve/deny workflow, notes, or stats — the locked decision is "data seam now, thin admin later"; RAP adjudicates in its existing systems.
 - **AI photo coach** — Claude-vision legibility check on the law/model tag shots. Guided capture ships first; this is the fast-follow.
 - **PWA offline** — manifest + icon exist and it's installable; **no service worker / offline shell yet**.
 - **Notifications** — no email/SMS.
@@ -126,7 +136,7 @@ npm run build      # production build
 - **No Supabase keys are set in production**, so it runs the in-memory fallback: data is a read-only seed and **writes do not persist** across serverless invocations. Check-ins, chat, and requests won't stick until Supabase is wired.
 - **The concierge is scripted** in production (no Anthropic key) — on-persona, but not live AI.
 - **Placeholder data:** dealer is "Demo Bedding Co." (`SLEEPLAB20`, 20%); the guarantee's full-terms link points at an `example.com` placeholder.
-- **Session hardening:** the signed cookie has no server-side expiry check (browser `maxAge` only) and the lookup has no rate limiting. Acceptable for light verify; revisit with real auth.
+- **Session hardening:** the light-verify signed cookie (fallback path only) has no server-side expiry check and no rate limiting. Once Supabase keys land, real auth supersedes it. **Email confirmation is off** — turn it on in Supabase before launch, and consider rate-limiting the link step.
 - **ESLint is disabled during builds** (`next.config.ts`) because `eslint-config-next@15.0.0` is incompatible with Next 15.5's ESLint runner. Lint separately or bump the package.
 
 ### Decisions / inputs still needed from RAP

@@ -17,6 +17,7 @@ import type {
   Guarantee,
   InitialImpressionRecord,
   Journey,
+  LinkVia,
   Tip,
 } from "../types";
 import { journeyDay, journeyPhase } from "../eligibility";
@@ -25,6 +26,8 @@ import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import {
   type ClaimItemInput,
+  type ClaimRecord,
+  type ClaimRecordScope,
   type CreateDraftClaimInput,
   type GuaranteeRepository,
   type RecordClaimPhotoInput,
@@ -34,8 +37,10 @@ import {
   type SubmitClaimResult,
   type UpdateClaimInput,
   type VerifyInput,
+  byMostRecent,
   lastNameMatches,
   sameCalendarDate,
+  toClaimRecord,
   todayIso,
 } from "./repository";
 import {
@@ -65,7 +70,9 @@ export class MemoryRepository implements GuaranteeRepository {
     impressions: InitialImpressionRecord[] = SEED_INITIAL_IMPRESSIONS,
     dealerLocations: DealerLocation[] = SEED_DEALER_LOCATIONS
   ) {
-    this.guarantees = guarantees;
+    // Copy so linking a user (which writes consumerId onto a row) never leaks
+    // between repository instances — the same guard the impressions have.
+    this.guarantees = guarantees.map((g) => ({ ...g }));
     this.tips = tips;
     this.dealerLocations = dealerLocations;
     // Copy so seed data isn't mutated across repository instances (tests).
@@ -363,6 +370,47 @@ export class MemoryRepository implements GuaranteeRepository {
     row.submittedAt = now;
     row.updatedAt = now;
     return { claim: { ...row }, raNumber, trackingNumber };
+  }
+
+  // --- M6: the user <-> guarantee link ---
+
+  async getGuaranteeForUser(userId: string): Promise<Guarantee | null> {
+    const needle = (userId ?? "").trim();
+    if (!needle) return null;
+    const found = this.guarantees.find((g) => g.consumerId === needle);
+    return found ? { ...found } : null;
+  }
+
+  async linkGuaranteeToUser(
+    guaranteeId: string,
+    userId: string,
+    via: LinkVia
+  ): Promise<Guarantee | null> {
+    const row = this.guarantees.find((g) => g.id === guaranteeId);
+    if (!row) return null;
+    // A purchase belongs to exactly one account.
+    if (row.consumerId && row.consumerId !== userId) return null;
+    row.consumerId = userId;
+    row.linkedVia = via;
+    return { ...row };
+  }
+
+  async listClaimRecords(scope: ClaimRecordScope): Promise<ClaimRecord[]> {
+    const rows: ClaimRecord[] = [];
+    for (const claim of this.claims) {
+      // Drafts aren't requests yet — they're an in-progress fitting.
+      if (claim.status === "draft") continue;
+      const guarantee = this.guarantees.find((g) => g.id === claim.guaranteeId);
+      if (!guarantee) continue;
+      if (
+        scope.kind === "dealer_location" &&
+        guarantee.dealerLocationId !== scope.dealerLocationId
+      ) {
+        continue;
+      }
+      rows.push(toClaimRecord(claim, guarantee));
+    }
+    return rows.sort(byMostRecent);
   }
 
   // --- M3: tips ---

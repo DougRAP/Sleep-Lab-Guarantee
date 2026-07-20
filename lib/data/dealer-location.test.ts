@@ -3,7 +3,7 @@ import { MemoryRepository } from "./memory-repository";
 import { SEED_DEALER_LOCATIONS, SEED_GUARANTEES } from "./seed";
 import type { DealerLocation, Guarantee } from "../types";
 
-const turnbull = SEED_GUARANTEES.find((g) => g.id === "seed-guarantee-turnbull")!;
+const demo = SEED_GUARANTEES.find((g) => g.id === "seed-guarantee-demo")!;
 const rivera = SEED_GUARANTEES.find((g) => g.id === "seed-guarantee-rivera")!;
 
 describe("dealer_locations — placeholder seed", () => {
@@ -22,7 +22,7 @@ describe("dealer_locations — placeholder seed", () => {
   });
 
   it("both demo guarantees point at the seeded location id", () => {
-    expect(turnbull.dealerLocationId).toBe("101");
+    expect(demo.dealerLocationId).toBe("101");
     expect(rivera.dealerLocationId).toBe("101");
   });
 });
@@ -45,8 +45,8 @@ describe("MemoryRepository — dealer locations", () => {
     expect(await repo.getDealerLocationById("nope")).toBeNull();
   });
 
-  it("resolves both demo guarantees to the same dealer (Turnbull + Rivera)", async () => {
-    const a = await repo.getDealerLocationForGuarantee(turnbull.id);
+  it("resolves both demo guarantees to the same dealer (Demo + Rivera)", async () => {
+    const a = await repo.getDealerLocationForGuarantee(demo.id);
     const b = await repo.getDealerLocationForGuarantee(rivera.id);
     expect(a?.name).toBe("Demo Bedding Co.");
     expect(b?.id).toBe("101");
@@ -63,7 +63,7 @@ describe("MemoryRepository — dealer locations", () => {
 
   it("falls back to null when the guarantee has no dealer location on file", async () => {
     const orphan: Guarantee = {
-      ...turnbull,
+      ...demo,
       id: "guarantee-no-location",
       dealerLocationId: null,
     };
@@ -73,7 +73,7 @@ describe("MemoryRepository — dealer locations", () => {
 
   it("falls back to null when the guarantee points at a missing location", async () => {
     const dangling: Guarantee = {
-      ...turnbull,
+      ...demo,
       id: "guarantee-dangling",
       dealerLocationId: "999",
     };
@@ -88,7 +88,7 @@ describe("MemoryRepository — dealer locations", () => {
       { id: "101", name: "Custom Co.", couponCode: "TEST10", couponPct: 10 },
     ];
     const customRepo = new MemoryRepository(SEED_GUARANTEES, undefined, undefined, custom);
-    const d = await customRepo.getDealerLocationForGuarantee(turnbull.id);
+    const d = await customRepo.getDealerLocationForGuarantee(demo.id);
     expect(d?.name).toBe("Custom Co.");
   });
 });

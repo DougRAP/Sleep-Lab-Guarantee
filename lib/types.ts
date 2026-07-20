@@ -4,6 +4,13 @@
 
 export type Role = "consumer" | "rap_admin" | "dealer";
 
+/**
+ * How a purchase reached an account: "token" = arrived on the RAP dashboard
+ * link (pre-verified sales order), "lookup" = the customer entered their sales
+ * order number + last name themselves. Drives the fitting's receipt-photo rule.
+ */
+export type LinkVia = "token" | "lookup";
+
 /** The 90-night journey phase (see PRD §2a / §6). */
 export type JourneyPhase = "settle_in" | "safety_net" | "expired" | "resolved";
 
@@ -100,6 +107,14 @@ export interface Guarantee {
   deliveryDate: string;
   /** Path A pre-filled-link token (light identity verify). */
   accessToken?: string | null;
+  /**
+   * The Supabase auth user this purchase belongs to (`guarantees.consumer_id`).
+   * Null until the customer links it after creating an account. RLS keys every
+   * consumer-facing row off this column via auth.uid().
+   */
+  consumerId?: string | null;
+  /** How the link happened. Null until linked. */
+  linkedVia?: LinkVia | null;
   createdAt?: string;
 }
 

@@ -6,7 +6,7 @@
 "use server";
 
 import { getRepository } from "../data";
-import { getSession } from "../session";
+import { getAppSession } from "../auth/app-session";
 import type { InitialImpression } from "../types";
 
 export type ImpressionResult = { ok: true } | { ok: false; error: string };
@@ -15,7 +15,7 @@ export async function recordInitialImpression(
   impression: InitialImpression,
   note?: string
 ): Promise<ImpressionResult> {
-  const session = await getSession();
+  const session = await getAppSession();
   if (!session) return { ok: false, error: "Your session has ended. Please sign in again." };
 
   const repo = getRepository();

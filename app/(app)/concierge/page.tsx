@@ -1,10 +1,9 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
 import { Logo } from "../../../components/Logo";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeChat } from "../../../components/concierge/concierge-chat";
-import { getSession } from "../../../lib/session";
+import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { conciergeGreeting } from "../../../lib/concierge";
@@ -14,12 +13,8 @@ import { conciergeGreeting } from "../../../lib/concierge";
 // via the repository, and the guide's replies come from the concierge action
 // (Anthropic when a key is set, scripted fallback otherwise).
 export default async function ConciergePage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
+  const { guarantee } = await requireGuarantee();
   const repo = getRepository();
-  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
-  if (!guarantee) redirect("/");
 
   const journey = await repo.getJourney(
     guarantee.id,

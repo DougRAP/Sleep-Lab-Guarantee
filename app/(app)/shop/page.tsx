@@ -1,11 +1,10 @@
-import { redirect } from "next/navigation";
 import { LivingSky } from "../../../components/living-sky";
 import { Logo } from "../../../components/Logo";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { FrostedCard } from "../../../components/ui/frosted-card";
 import { buttonVariants } from "../../../components/ui/button";
-import { getSession } from "../../../lib/session";
+import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { cn } from "../../../lib/utils";
 import { SHOP_ITEMS } from "../../../content/shop";
@@ -15,12 +14,8 @@ import { SHOP_ITEMS } from "../../../content/shop";
 // each item links out to the dealer/store, and the dealer coupon (from
 // dealer_locations) applies at their checkout. No cart, no Stripe.
 export default async function ShopPage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
+  const { guarantee } = await requireGuarantee();
   const repo = getRepository();
-  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
-  if (!guarantee) redirect("/");
 
   const journey = await repo.getJourney(guarantee.id);
   const day = journey?.currentDay ?? 0;

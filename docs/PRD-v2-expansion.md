@@ -9,7 +9,7 @@ Turns the linear companion into a navigable app: view the guarantee, request an 
 - **Non-comfort (damage):** route to dealer (triage card). No in-app warranty/defect claim.
 - **Admin/dealer:** data seam + `tracking_number` now; RAP adjudicates in existing systems; thin `/admin` later. No in-app ticketing yet.
 - **Accessories:** lead-gen link-out + coupon (no Stripe now).
-- **Auth:** consumers stay password-less (signed session). Supabase Auth for admin/dealer deferred to M6 (roles + RLS already exist).
+- **Auth (SUPERSEDED — real accounts, M6):** the password-less decision was overridden by the product owner. **Everyone creates an account (email + password) via Supabase Auth**, including arrivals from the RAP dashboard link, and logs in on return. Admin/dealer use the same auth, gated by `profiles.role`. The dashboard token only pre-associates the purchase; linking (sales order + last name) is a step an already-authenticated user performs. With no Supabase keys the app falls back to the old light-verify entry so nothing dead-ends.
 - **Claims:** reuse existing `claims` + status machine; add `tracking_number`; single claim type.
 - **Guarantee (#1):** full terms are served from an **EXTERNAL hosted link** (no in-app signing). In-app shows a short "essentials" summary + a "Read the full guarantee" link-out (`GUARANTEE_META.fullTermsUrl` — placeholder until Doug provides the hosted URL). Shop catalog stays a content file.
 - **Coupon (#6):** generated **locally on customer request** — a unique code with a **4-week expiry**, marked "subject to dealer conditions and rules of acceptance," shown to the customer (not a static always-on code).
@@ -40,7 +40,7 @@ Guided-first: scripted warm copy + labeled capture now; AI agent + photo-legibil
 ## Build sequence
 - **M4 — Navigable shell (no auth/storage):** bottom nav (#7) + Guarantee view (#1: terms + eligibility state + a Request-exchange affordance stub) + dealer triage (#4) + Shop (#6). `dealer_locations` table + seed.
 - **M5 — Fitting + Tracking:** the triage flow above (#2) + Requests tracking (#3) + Supabase Storage for photos + `tracking_number`.
-- **M6 (deferrable) — Admin + real auth:** Supabase Auth for admin/dealer; thin `/admin` queue + dealer status + stats.
+- **M6 — Real auth + thin admin (BUILT):** Supabase Auth for consumers, admin and dealers; account -> link -> return routing; `guarantees.consumer_id` + RLS via `auth.uid()`; a **read-only** `/admin` list. Approve/deny workflow and stats remain out of scope.
 
 ## Inputs needed
 - **Guarantee terms text:** HAVE (from the signed 90-Night PDF). Restocking fee = $99 (config). Dealer-specific fields are template vars.

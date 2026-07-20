@@ -7,7 +7,7 @@
 "use server";
 
 import { getRepository } from "../data";
-import { getSession } from "../session";
+import { getAppSession } from "../auth/app-session";
 import { timeOfDayFor } from "../tips";
 import {
   buildSystemPrompt,
@@ -24,7 +24,7 @@ export async function sendConciergeMessage(body: string): Promise<SendResult> {
   const text = (body ?? "").trim();
   if (!text) return { ok: false, error: "Say a little more and I'll help." };
 
-  const session = await getSession();
+  const session = await getAppSession();
   if (!session) return { ok: false, error: "Your session has ended. Please sign in again." };
 
   const repo = getRepository();

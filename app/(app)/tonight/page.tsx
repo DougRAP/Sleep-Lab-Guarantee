@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
 import { Logo } from "../../../components/Logo";
@@ -7,7 +6,7 @@ import { ConciergeCard } from "../../../components/concierge-card";
 import { CheckIn } from "../../../components/tonight/check-in";
 import { InitialImpression } from "../../../components/tonight/initial-impression";
 import { buttonVariants } from "../../../components/ui/button";
-import { getSession } from "../../../lib/session";
+import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { timeOfDayFor } from "../../../lib/tips";
@@ -19,12 +18,8 @@ import type { Guarantee, JourneyPhase } from "../../../lib/types";
 // persisted check-in, tonight's tip, and a quiet path to the concierge — the
 // poster design is unchanged.
 export default async function TonightPage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
+  const { guarantee } = await requireGuarantee();
   const repo = getRepository();
-  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
-  if (!guarantee) redirect("/");
 
   // Real "now" unless the demo day-jumper has set a preview day.
   const journey = await repo.getJourney(

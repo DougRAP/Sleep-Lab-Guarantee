@@ -1,11 +1,10 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { LivingSky } from "../../../../components/living-sky";
 import { Logo } from "../../../../components/Logo";
 import { DayCount } from "../../../../components/day-count";
 import { ConciergeCard } from "../../../../components/concierge-card";
 import { FrostedCard } from "../../../../components/ui/frosted-card";
-import { getSession } from "../../../../lib/session";
+import { requireGuarantee } from "../../../../lib/auth/app-session";
 import { getRepository } from "../../../../lib/data";
 
 // Dealer triage (v2 #4). For non-comfort issues — damage, defects, anything
@@ -14,12 +13,8 @@ import { getRepository } from "../../../../lib/data";
 // dealer_locations (via the session's guarantee), with a calm fallback if none
 // is on file.
 export default async function GuaranteeHelpPage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
+  const { guarantee } = await requireGuarantee();
   const repo = getRepository();
-  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
-  if (!guarantee) redirect("/");
 
   const journey = await repo.getJourney(guarantee.id);
   const day = journey?.currentDay ?? 0;

@@ -1,11 +1,10 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
 import { Logo } from "../../../components/Logo";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { buttonVariants } from "../../../components/ui/button";
-import { getSession } from "../../../lib/session";
+import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { cn } from "../../../lib/utils";
@@ -13,12 +12,8 @@ import { cn } from "../../../lib/utils";
 // Requests (v2 #3). Session-guarded. A calm empty state for M4 — full exchange-
 // request tracking arrives with the fitting flow in M5.
 export default async function RequestsPage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
+  const { guarantee } = await requireGuarantee();
   const repo = getRepository();
-  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
-  if (!guarantee) redirect("/");
 
   const journey = await repo.getJourney(
     guarantee.id,

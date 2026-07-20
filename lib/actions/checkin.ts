@@ -5,13 +5,13 @@
 "use server";
 
 import { getRepository } from "../data";
-import { getSession } from "../session";
+import { getAppSession } from "../auth/app-session";
 import type { Feeling } from "../types";
 
 export type CheckInResult = { ok: true } | { ok: false; error: string };
 
 export async function logCheckIn(feeling: Feeling, note?: string): Promise<CheckInResult> {
-  const session = await getSession();
+  const session = await getAppSession();
   if (!session) return { ok: false, error: "Your session has ended. Please sign in again." };
 
   const repo = getRepository();

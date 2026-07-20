@@ -11,7 +11,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getRepository } from "../data";
-import { getSession } from "../session";
+import { getAppSession } from "../auth/app-session";
 import { effectiveReferenceDate } from "../demo-server";
 import {
   MAX_ITEMS,
@@ -62,7 +62,7 @@ type GuaranteeRepositoryLike = ReturnType<typeof getRepository>;
 
 /** Resolve session → guarantee → open draft. The one gate every action shares. */
 async function currentDraft(): Promise<DraftContext> {
-  const session = await getSession();
+  const session = await getAppSession();
   if (!session) return { ok: false, error: NO_SESSION };
 
   const repo = getRepository();

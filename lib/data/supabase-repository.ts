@@ -15,6 +15,7 @@ import type {
   Guarantee,
   InitialImpressionRecord,
   Journey,
+  LinkVia,
   Tip,
 } from "../types";
 import { journeyDay, journeyPhase } from "../eligibility";
@@ -24,6 +25,8 @@ import { selectTip, type TipQuery } from "../tips";
 import { createServiceClient } from "../supabase/server";
 import {
   type ClaimItemInput,
+  type ClaimRecord,
+  type ClaimRecordScope,
   type CreateDraftClaimInput,
   type GuaranteeRepository,
   type RecordClaimPhotoInput,
@@ -33,8 +36,10 @@ import {
   type SubmitClaimResult,
   type UpdateClaimInput,
   type VerifyInput,
+  byMostRecent,
   lastNameMatches,
   sameCalendarDate,
+  toClaimRecord,
   todayIso,
 } from "./repository";
 
@@ -56,6 +61,8 @@ function toGuarantee(row: any): Guarantee {
     purchasePrice: row.purchase_price,
     deliveryDate: String(row.delivery_date).slice(0, 10),
     accessToken: row.access_token,
+    consumerId: row.consumer_id ?? null,
+    linkedVia: row.linked_via ?? null,
     createdAt: row.created_at,
   };
 }
@@ -375,10 +382,14 @@ export class SupabaseRepository implements GuaranteeRepository {
   async createDraftClaim(input: CreateDraftClaimInput): Promise<Claim> {
     const existing = await this.getDraftClaim(input.guaranteeId);
     if (existing) return existing;
+    // Carry the linked account onto the claim so claims RLS (consumer_id =
+    // auth.uid()) resolves without a join.
+    const guarantee = await this.getGuaranteeById(input.guaranteeId);
     const { data } = await this.db
       .from("claims")
       .insert({
         guarantee_id: input.guaranteeId,
+        consumer_id: guarantee?.consumerId ?? null,
         status: "draft",
         step: "intake",
         confirmations: [],
@@ -505,6 +516,62 @@ export class SupabaseRepository implements GuaranteeRepository {
       .select("*")
       .maybeSingle();
     return { claim: toClaim(data), raNumber, trackingNumber };
+  }
+
+  // --- M6: the user <-> guarantee link ---
+
+  async getGuaranteeForUser(userId: string): Promise<Guarantee | null> {
+    const needle = (userId ?? "").trim();
+    if (!needle) return null;
+    const { data } = await this.db
+      .from("guarantees")
+      .select("*")
+      .eq("consumer_id", needle)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    return data && data[0] ? toGuarantee(data[0]) : null;
+  }
+
+  async linkGuaranteeToUser(
+    guaranteeId: string,
+    userId: string,
+    via: LinkVia
+  ): Promise<Guarantee | null> {
+    const existing = await this.getGuaranteeById(guaranteeId);
+    if (!existing) return null;
+    // A purchase belongs to exactly one account.
+    if (existing.consumerId && existing.consumerId !== userId) return null;
+    const { data } = await this.db
+      .from("guarantees")
+      .update({ consumer_id: userId, linked_via: via })
+      .eq("id", guaranteeId)
+      .select("*")
+      .maybeSingle();
+    if (!data) return null;
+    // Backfill any claims opened before the link so claims RLS resolves.
+    await this.db
+      .from("claims")
+      .update({ consumer_id: userId })
+      .eq("guarantee_id", guaranteeId)
+      .is("consumer_id", null);
+    return toGuarantee(data);
+  }
+
+  async listClaimRecords(scope: ClaimRecordScope): Promise<ClaimRecord[]> {
+    let query = this.db
+      .from("claims")
+      .select("*, guarantees!inner(*)")
+      .neq("status", "draft")
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    if (scope.kind === "dealer_location") {
+      query = query.eq("guarantees.dealer_location_id", scope.dealerLocationId);
+    }
+    const { data } = await query;
+    return (data ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((row: any) => toClaimRecord(toClaim(row), toGuarantee(row.guarantees)))
+      .sort(byMostRecent);
   }
 
   // --- M3: tips ---

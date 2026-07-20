@@ -7,7 +7,7 @@ import { ConciergeCard } from "../../components/concierge-card";
 import { DemoControls } from "../../components/demo/demo-controls";
 import { FittingFlow } from "../../components/fitting/fitting-flow";
 import { buttonVariants } from "../../components/ui/button";
-import { getSession, isPreVerified } from "../../lib/session";
+import { isPreVerifiedSession, requireGuarantee } from "../../lib/auth/app-session";
 import { getRepository } from "../../lib/data";
 import { effectiveReferenceDate } from "../../lib/demo-server";
 import { evaluateEligibility } from "../../lib/eligibility";
@@ -26,12 +26,8 @@ import { cn } from "../../lib/utils";
  * reference date, so the demo day-jumper opens the gate exactly as real time would.
  */
 export default async function FittingPage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
+  const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
-  const guarantee = await repo.getGuaranteeById(session.guaranteeId);
-  if (!guarantee) redirect("/");
 
   const referenceDate = await effectiveReferenceDate(guarantee.deliveryDate);
   const resolvedExchange = await repo.hasResolvedExchange(guarantee.id);
@@ -72,7 +68,7 @@ export default async function FittingPage() {
   // Open (or resume) the draft, then read everything back.
   const claim = await repo.createDraftClaim({
     guaranteeId: guarantee.id,
-    preVerified: isPreVerified(session),
+    preVerified: isPreVerifiedSession(session),
   });
   const [items, photos, dealer] = await Promise.all([
     repo.listClaimItems(claim.id),
