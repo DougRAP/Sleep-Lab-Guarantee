@@ -7,6 +7,7 @@ import type {
   CheckIn,
   Claim,
   ClaimItem,
+  ClaimNote,
   ClaimPhoto,
   ClaimStatus,
   ConciergeMessage,
@@ -27,6 +28,7 @@ import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import { createServiceClient } from "../supabase/server";
 import {
+  type AddClaimNoteInput,
   type ClaimItemInput,
   type ClaimRecord,
   type ClaimRecordScope,
@@ -39,6 +41,7 @@ import {
   type SubmitClaimResult,
   type UpdateClaimInput,
   type VerifyInput,
+  CLAIM_SEARCH_LIMIT,
   assertClaimStatusTransition,
   byMostRecent,
   lastNameMatches,
@@ -180,6 +183,21 @@ function toCoupon(row: any): Coupon {
   };
 }
 
+function toClaimNote(row: any): ClaimNote {
+  // `author` is the embedded profiles row (via author_id); the role becomes the
+  // thread byline. There is no role column on claim_notes — it's derived.
+  const role = row.author?.role;
+  return {
+    id: row.id,
+    claimId: row.claim_id,
+    authorId: row.author_id ?? null,
+    author: role === "dealer" || role === "rap_admin" ? role : null,
+    body: row.body,
+    isInternal: Boolean(row.is_internal),
+    createdAt: row.created_at,
+  };
+}
+
 function toDealerLocation(row: any): DealerLocation {
   return {
     id: row.id,
@@ -193,6 +211,19 @@ function toDealerLocation(row: any): DealerLocation {
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
+ * A search box value made safe for a PostgREST `.or(...ilike...)` clause: the
+ * characters that would break the filter grammar (comma, quotes, parens) become
+ * spaces, and the LIKE wildcards are escaped — the query is text, never a
+ * pattern language.
+ */
+function ilikeNeedle(value: string): string {
+  return value
+    .replace(/["',()]/g, " ")
+    .replace(/[%_]/g, (m) => `\\${m}`)
+    .trim();
+}
 
 export class SupabaseRepository implements GuaranteeRepository {
   private db = createServiceClient();
@@ -637,21 +668,100 @@ export class SupabaseRepository implements GuaranteeRepository {
     return toGuarantee(data);
   }
 
-  async listClaimRecords(scope: ClaimRecordScope): Promise<ClaimRecord[]> {
-    let query = this.db
+  async listClaimRecords(
+    scope: ClaimRecordScope,
+    query?: string
+  ): Promise<ClaimRecord[]> {
+    const needle = (query ?? "").trim();
+    let read = this.db
       .from("claims")
       .select("*, guarantees!inner(*)")
       .neq("status", "draft")
       .order("updated_at", { ascending: false })
-      .limit(200);
+      .limit(needle ? CLAIM_SEARCH_LIMIT : 200);
+    // The scope lives inside the read, never in the caller's UI.
     if (scope.kind === "dealer_location") {
-      query = query.eq("guarantees.dealer_location_id", scope.dealerLocationId);
+      read = read.eq("guarantees.dealer_location_id", scope.dealerLocationId);
     }
-    const { data } = await query;
+    if (needle) {
+      // ilike approximation of claimSearchMatches (lib/data/repository.ts):
+      // exact-ish order/guarantee number, plus name partials per column (a
+      // substring spanning "First Last" is the one case ilike can't express).
+      const q = ilikeNeedle(needle);
+      read = read.or(
+        [
+          `sales_order_number.ilike.${q}`,
+          `guarantee_number.ilike.${q}`,
+          `customer_first_name.ilike.%${q}%`,
+          `customer_last_name.ilike.%${q}%`,
+        ].join(","),
+        { referencedTable: "guarantees" }
+      );
+    }
+    const { data } = await read;
     return (data ?? [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((row: any) => toClaimRecord(toClaim(row), toGuarantee(row.guarantees)))
       .sort(byMostRecent);
+  }
+
+  async getClaimRecord(
+    scope: ClaimRecordScope,
+    claimId: string
+  ): Promise<ClaimRecord | null> {
+    let read = this.db
+      .from("claims")
+      .select("*, guarantees!inner(*)")
+      .eq("id", claimId)
+      // A draft is an in-progress fitting, not a request the desk can open.
+      .neq("status", "draft");
+    // Scope applied inside the query, so an out-of-scope claim never leaves
+    // the database — indistinguishable from one that doesn't exist.
+    if (scope.kind === "dealer_location") {
+      read = read.eq("guarantees.dealer_location_id", scope.dealerLocationId);
+    }
+    const { data } = await read.maybeSingle();
+    if (!data) return null;
+    const guarantee = toGuarantee(data.guarantees);
+    // Belt to the query's braces — the same check, in code.
+    if (
+      scope.kind === "dealer_location" &&
+      guarantee.dealerLocationId !== scope.dealerLocationId
+    ) {
+      return null;
+    }
+    return toClaimRecord(toClaim(data), guarantee);
+  }
+
+  // --- Dealer desk: the claim-notes thread ---
+
+  async listClaimNotes(claimId: string): Promise<ClaimNote[]> {
+    const { data } = await this.db
+      .from("claim_notes")
+      .select("*, author:profiles(role)")
+      .eq("claim_id", claimId)
+      .order("created_at", { ascending: true });
+    return (data ?? []).map(toClaimNote);
+  }
+
+  async addClaimNote(claimId: string, input: AddClaimNoteInput): Promise<ClaimNote> {
+    const claim = await this.getClaimById(claimId);
+    if (!claim) throw new Error(`No claim ${claimId}`);
+    const { data } = await this.db
+      .from("claim_notes")
+      .insert({
+        claim_id: claimId,
+        author_id: input.authorId ?? null,
+        body: input.body.trim(),
+        // Part of the shared dealer <-> RAP thread — not an internal-only note
+        // (is_internal=true is admin-only under the claim_notes RLS policy).
+        is_internal: false,
+      })
+      .select("*")
+      .maybeSingle();
+    const note = toClaimNote(data);
+    // The insert can't embed the profile; the resolved role is authoritative.
+    return { ...note, author: input.author };
   }
 
   // --- M3: tips ---

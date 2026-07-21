@@ -243,10 +243,22 @@ export interface ClaimPhoto {
   createdAt?: string;
 }
 
+/**
+ * Who wrote a staff note on the requests desk. Stamped server-side from the
+ * resolved staff role — never taken from a form.
+ */
+export type ClaimNoteAuthor = "dealer" | "rap_admin";
+
 export interface ClaimNote {
   id: string;
   claimId: string;
   authorId?: string | null;
+  /**
+   * The author's staff role, for the thread's byline. DERIVED, not a column:
+   * Supabase resolves it from profiles.role via author_id; the in-memory
+   * fallback stamps it directly. Null when the author can't be resolved.
+   */
+  author?: ClaimNoteAuthor | null;
   body: string;
   isInternal: boolean;
   createdAt?: string;

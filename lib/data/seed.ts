@@ -5,6 +5,7 @@
 import type {
   Claim,
   ClaimItem,
+  ClaimNote,
   DealerLocation,
   Guarantee,
   InitialImpressionRecord,
@@ -419,6 +420,45 @@ export const SEED_CLAIMS: Claim[] = [
     reviewedAt: isoTimestampDaysAgo(8),
     createdAt: isoTimestampDaysAgo(11),
     updatedAt: isoTimestampDaysAgo(8),
+  },
+];
+
+/**
+ * A few staff notes across the seeded requests, so the dealer <-> RAP thread on
+ * the staff detail page isn't empty out of the box. Non-internal (the shared
+ * thread both roles read); authorId null — there are no real accounts in the
+ * fallback, so the role is stamped directly (see ClaimNote.author).
+ */
+export const SEED_CLAIM_NOTES: ClaimNote[] = [
+  {
+    // Boyd is in review — RAP thinking out loud to the dealer.
+    id: "seed-claim-note-boyd-1",
+    claimId: "seed-claim-boyd",
+    authorId: null,
+    author: "rap_admin",
+    body: "Photos look complete and the law tag is legible. Reviewing against the like-new terms.",
+    isInternal: false,
+    createdAt: isoTimestampDaysAgo(4),
+  },
+  {
+    // Natarajan is approved — the adjudication answer, on the record.
+    id: "seed-claim-note-natarajan-1",
+    claimId: "seed-claim-natarajan",
+    authorId: null,
+    author: "rap_admin",
+    body: "Approved — credit $1,499.99 toward the replacement. Dealer to schedule the exchange.",
+    isInternal: false,
+    createdAt: isoTimestampDaysAgo(7),
+  },
+  {
+    // Kowalski is dealer_scheduled — the dealer confirming the calendar.
+    id: "seed-claim-note-kowalski-1",
+    claimId: "seed-claim-kowalski",
+    authorId: null,
+    author: "dealer",
+    body: "Customer called to schedule — exchange set for Thursday morning, both partners present.",
+    isInternal: false,
+    createdAt: isoTimestampDaysAgo(5),
   },
 ];
 

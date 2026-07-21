@@ -7,6 +7,8 @@ import type {
   CheckIn,
   Claim,
   ClaimItem,
+  ClaimNote,
+  ClaimNoteAuthor,
   ClaimPhoto,
   ClaimStatus,
   ConciergeMessage,
@@ -155,6 +157,33 @@ export function toClaimRecord(
   };
 }
 
+/**
+ * The staff-search semantics, shared by both backends so they agree on what a
+ * query means (the Supabase backend approximates the same rules with ilike):
+ *   - sales order number: exact-ish (trimmed, case-insensitive) — no partials,
+ *     so a fragment of one order never surfaces another
+ *   - guarantee number: exact-ish, same rule
+ *   - last name: the existing lastNameMatches rule ("Denise Calloway" finds
+ *     the record whose last name is Calloway)
+ *   - customer name: case-insensitive substring of "First Last"
+ * An empty/blank query matches everything (the unfiltered list).
+ */
+export function claimSearchMatches(query: string, guarantee: Guarantee): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  if (guarantee.salesOrderNumber.trim().toLowerCase() === q) return true;
+  if ((guarantee.guaranteeNumber ?? "").trim().toLowerCase() === q) return true;
+  if (lastNameMatches(query, guarantee.customerLastName)) return true;
+  const fullName = [guarantee.customerFirstName, guarantee.customerLastName]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return fullName.includes(q);
+}
+
+/** Most rows a staff search returns — plenty for a desk, never a dump. */
+export const CLAIM_SEARCH_LIMIT = 50;
+
 /** One row's activity timestamps — all `byMostRecent` needs to sort. */
 interface Timestamped {
   updatedAt?: string | null;
@@ -195,6 +224,46 @@ export function assertClaimStatusTransition(
   if (TERMINAL_CLAIM_STATUSES.has(current)) {
     throw new Error(`Cannot change a ${current} claim`);
   }
+}
+
+/**
+ * Every status adjudication can set (draft is a fitting state, never a target).
+ * The staff status control and the action's allow-list both read this.
+ */
+export const ADJUDICATION_STATUSES: readonly ClaimStatus[] = [
+  "submitted",
+  "in_review",
+  "approved",
+  "dealer_scheduled",
+  "completed",
+  "denied",
+  "expired",
+  "withdrawn",
+];
+
+/**
+ * The moves `assertClaimStatusTransition` would permit from `current` — derived
+ * by asking the guard itself, so the UI's offer can never drift from the rule.
+ * Terminal statuses return [] (the request's story is over).
+ */
+export function permittedClaimStatusTransitions(current: ClaimStatus): ClaimStatus[] {
+  return ADJUDICATION_STATUSES.filter((next) => {
+    if (next === current) return false;
+    try {
+      assertClaimStatusTransition(current, next);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** A staff note being added. `author` is the SERVER-resolved role, never form data. */
+export interface AddClaimNoteInput {
+  author: ClaimNoteAuthor;
+  body: string;
+  /** The real auth user id when one exists; null on the demo fallback. */
+  authorId?: string | null;
 }
 
 export interface GuaranteeRepository {
@@ -300,8 +369,31 @@ export interface GuaranteeRepository {
     userId: string,
     via: LinkVia
   ): Promise<Guarantee | null>;
-  /** Read-only list for the thin admin/dealer surface. Drafts are excluded. */
-  listClaimRecords(scope: ClaimRecordScope): Promise<ClaimRecord[]>;
+  /**
+   * Read-only list for the thin admin/dealer surface. Drafts are excluded.
+   * `query` narrows by the shared `claimSearchMatches` semantics (order #,
+   * guarantee #, last name, partial customer name); empty/absent = the full
+   * list. The scope is applied inside the read, never by the caller's UI.
+   */
+  listClaimRecords(scope: ClaimRecordScope, query?: string): Promise<ClaimRecord[]>;
+  /**
+   * One request for the staff detail page. Scope-aware: a dealer asking about
+   * a claim from another location gets null — indistinguishable from a claim
+   * that doesn't exist, mirroring the consumer detail's ownership rule.
+   * Drafts are null too (an in-progress fitting is not a request yet).
+   */
+  getClaimRecord(scope: ClaimRecordScope, claimId: string): Promise<ClaimRecord | null>;
+
+  // --- Dealer desk: the claim-notes thread (dealer <-> RAP) ---
+  /** Every note on a claim, oldest first. Callers apply the is_internal rule. */
+  listClaimNotes(claimId: string): Promise<ClaimNote[]>;
+  /**
+   * Add a staff note. The author role is stamped from the resolved server-side
+   * view (see AddClaimNoteInput) and the note is part of the shared
+   * dealer <-> RAP thread, so it is stored non-internal. Throws on an unknown
+   * claim id.
+   */
+  addClaimNote(claimId: string, input: AddClaimNoteInput): Promise<ClaimNote>;
 
   // --- M3: AI concierge threads/messages (PRD §6) ---
   getOrCreateConciergeThread(guaranteeId: string): Promise<ConciergeThread>;

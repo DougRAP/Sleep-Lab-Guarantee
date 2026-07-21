@@ -9,6 +9,7 @@ import type {
   CheckIn,
   Claim,
   ClaimItem,
+  ClaimNote,
   ClaimPhoto,
   ClaimStatus,
   ConciergeMessage,
@@ -28,6 +29,7 @@ import { couponExpiresAt, generateCouponCode, isCouponExpired } from "../coupon"
 import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import {
+  type AddClaimNoteInput,
   type ClaimItemInput,
   type ClaimRecord,
   type ClaimRecordScope,
@@ -40,8 +42,10 @@ import {
   type SubmitClaimResult,
   type UpdateClaimInput,
   type VerifyInput,
+  CLAIM_SEARCH_LIMIT,
   assertClaimStatusTransition,
   byMostRecent,
+  claimSearchMatches,
   lastNameMatches,
   sameCalendarDate,
   toClaimRecord,
@@ -49,6 +53,7 @@ import {
 } from "./repository";
 import {
   SEED_CLAIM_ITEMS,
+  SEED_CLAIM_NOTES,
   SEED_CLAIMS,
   SEED_DEALER_LOCATIONS,
   SEED_GUARANTEES,
@@ -68,6 +73,7 @@ export class MemoryRepository implements GuaranteeRepository {
   private claims: Claim[] = [];
   private claimItems: ClaimItem[] = [];
   private claimPhotos: ClaimPhoto[] = [];
+  private claimNotes: ClaimNote[] = [];
   private coupons: Coupon[] = [];
   private seq = 0;
 
@@ -91,6 +97,7 @@ export class MemoryRepository implements GuaranteeRepository {
       confirmations: c.confirmations ? [...c.confirmations] : c.confirmations,
     }));
     this.claimItems = SEED_CLAIM_ITEMS.map((i) => ({ ...i }));
+    this.claimNotes = SEED_CLAIM_NOTES.map((n) => ({ ...n }));
   }
 
   private nextId(prefix: string): string {
@@ -459,22 +466,74 @@ export class MemoryRepository implements GuaranteeRepository {
     return { ...row };
   }
 
-  async listClaimRecords(scope: ClaimRecordScope): Promise<ClaimRecord[]> {
+  async listClaimRecords(
+    scope: ClaimRecordScope,
+    query?: string
+  ): Promise<ClaimRecord[]> {
+    const needle = (query ?? "").trim();
     const rows: ClaimRecord[] = [];
     for (const claim of this.claims) {
       // Drafts aren't requests yet — they're an in-progress fitting.
       if (claim.status === "draft") continue;
       const guarantee = this.guarantees.find((g) => g.id === claim.guaranteeId);
       if (!guarantee) continue;
+      // The scope lives inside the read, never in the caller's UI.
       if (
         scope.kind === "dealer_location" &&
         guarantee.dealerLocationId !== scope.dealerLocationId
       ) {
         continue;
       }
+      if (needle && !claimSearchMatches(needle, guarantee)) continue;
       rows.push(toClaimRecord(claim, guarantee));
     }
-    return rows.sort(byMostRecent);
+    const sorted = rows.sort(byMostRecent);
+    return needle ? sorted.slice(0, CLAIM_SEARCH_LIMIT) : sorted;
+  }
+
+  async getClaimRecord(
+    scope: ClaimRecordScope,
+    claimId: string
+  ): Promise<ClaimRecord | null> {
+    const claim = this.claims.find((c) => c.id === claimId);
+    // A draft is an in-progress fitting, not a request the desk can open.
+    if (!claim || claim.status === "draft") return null;
+    const guarantee = this.guarantees.find((g) => g.id === claim.guaranteeId);
+    if (!guarantee) return null;
+    // Out-of-scope must be indistinguishable from nonexistent (same null).
+    if (
+      scope.kind === "dealer_location" &&
+      guarantee.dealerLocationId !== scope.dealerLocationId
+    ) {
+      return null;
+    }
+    return toClaimRecord(claim, guarantee);
+  }
+
+  // --- Dealer desk: the claim-notes thread ---
+
+  async listClaimNotes(claimId: string): Promise<ClaimNote[]> {
+    return this.claimNotes
+      .filter((n) => n.claimId === claimId)
+      .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
+      .map((n) => ({ ...n }));
+  }
+
+  async addClaimNote(claimId: string, input: AddClaimNoteInput): Promise<ClaimNote> {
+    const claim = this.claims.find((c) => c.id === claimId);
+    if (!claim) throw new Error(`No claim ${claimId}`);
+    const row: ClaimNote = {
+      id: this.nextId("claim-note"),
+      claimId,
+      authorId: input.authorId ?? null,
+      author: input.author,
+      body: input.body.trim(),
+      // Part of the shared dealer <-> RAP thread — not an internal-only note.
+      isInternal: false,
+      createdAt: new Date().toISOString(),
+    };
+    this.claimNotes.push(row);
+    return { ...row };
   }
 
   // --- M3: tips ---
