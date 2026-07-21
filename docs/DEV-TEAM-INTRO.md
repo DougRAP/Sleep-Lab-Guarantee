@@ -13,23 +13,11 @@ Customer-facing claim-intake app for the **RAP 90-Night Comfort Guarantee** prog
 
 ## Your two tasks
 
-### 1. Netlify deploy is failing (production is stale, not down)
+### 1. ~~Netlify deploy is failing~~ — RESOLVED 2026-07-21
 
-`main` is at `86fc1b1` (adds real auth) but its deploy **failed**; Netlify is still serving the last good build (`cee4086`). Deploy log:
+Deploys had been failing at the *prepare-repo* stage ("Unable to access repository", ~578 ms) — a Netlify↔GitHub access glitch, not a code error. **Fixed by Netlify → Trigger deploy → Clear cache and deploy site.** Pushes to `main` now deploy normally.
 
-```
-Failed during stage 'preparing repo': Unable to access repository.
-User git error while checking for ref refs/heads/main
-Finished processing build request in 578ms
-```
-
-It dies in **prepare-repo in ~578 ms** — before checkout or `npm install`. **It is not a build/code error.** Verified: `refs/heads/main` exists on origin at `86fc1b1`, and the repo is public. It's a Netlify↔GitHub App access problem. Fix, in order:
-
-1. Netlify → **Trigger deploy → Clear cache and deploy site** (sub-second prepare failures are often transient).
-2. GitHub → Settings → **Applications → Netlify → Repository access** — confirm `RAP-SleepLab` is granted.
-3. If still failing: Site configuration → Build & deploy → Continuous deployment → **re-link the GitHub provider**.
-
-You'll need a seat on the Netlify team and the GitHub org — ask Doug. **Do not** touch `middleware.ts` for this; an earlier diagnosis blamed it and was wrong (details in `docs/HANDOFF.md`).
+If it ever recurs: same clear-cache retry first, then check GitHub → Settings → Applications → Netlify → Repository access, then re-link the provider. **Do not** touch `middleware.ts` for deploy failures; an earlier diagnosis blamed it and was wrong (details in `docs/HANDOFF.md`).
 
 ### 2. Supabase setup (the big unblock)
 

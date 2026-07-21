@@ -13,18 +13,16 @@ Doug is doing the Supabase connection to unblock persistence. **Runbook: `docs/S
 Three things to know going in:
 
 1. **Two independent blockers are open** — Supabase (this) and the failed Netlify deploy (below). They are unrelated. Don't let one mask the other.
-2. **Runbook step 7 will fail** while the Netlify blocker stands, because it ends in "trigger a deploy." That failure is *expected and not a Supabase problem*. Either fix Netlify first or read past it.
+2. ~~Runbook step 7 will fail while the Netlify blocker stands~~ — **Netlify was fixed 2026-07-21**; step 7's "trigger a deploy" should now succeed.
 3. **Paste the current `supabase/schema.sql`**, not an older copy — it gained a `coupons` table in `8b5174c`. A stale schema breaks the Shop coupon on the Supabase backend while it keeps working on the in-memory fallback, which is a confusing way to discover the mistake.
 
 Everything else in the runbook (keys, seed, `claim-photos` bucket, Email provider, Site/redirect URLs, promoting `dwright@raptns.com` to `rap_admin`) is unchanged.
 
 ---
 
-## 🔴 ACTIVE BLOCKER — start here
+## ✅ RESOLVED 2026-07-21 — Netlify deploy blocker (history kept below)
 
-**The auth build is merged to `main` (`86fc1b1`) but the Netlify deploy FAILED. Production is still serving the previous build (`cee4086`).**
-
-Production is **healthy and unbroken** — Netlify keeps the last good deploy live. Nothing is down.
+**Fixed by fix #1: Netlify → Trigger deploy → Clear cache and deploy site.** It was the transient provider glitch. Deploys from `main` work again; production picks up `86fc1b1`+ normally. Diagnosis below kept because the middleware dead-end warning still matters.
 
 ### Diagnosed 2026-07-19 — it is NOT the code
 
