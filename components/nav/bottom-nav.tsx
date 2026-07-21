@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { cn } from "../../lib/utils";
+import { isClaimsMode } from "../../lib/demo";
 
 // Persistent bottom navigation (DESIGN.md "Bottom navigation").
 // Frosted/translucent bar, one hairline top border, safe-area inset. Four utility
@@ -72,6 +73,13 @@ const TABS: Tab[] = [
 export function BottomNav() {
   const pathname = usePathname() || "";
 
+  // Claims-mode demo cut: only the guarantee/claims destinations exist, and the
+  // Coach is hidden with them. Same bar, same tabs — just fewer of them.
+  const claimsMode = isClaimsMode();
+  const tabs = claimsMode
+    ? TABS.filter((tab) => tab.href === "/guarantee" || tab.href === "/requests")
+    : TABS;
+
   const isActive = (tab: Tab) =>
     tab.match ? tab.match(pathname) : pathname === tab.href;
   const coachActive = pathname.startsWith("/concierge");
@@ -82,7 +90,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-surface2/60 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
     >
       <div className="mx-auto flex w-full max-w-md items-stretch">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = isActive(tab);
           return (
             <Link
@@ -102,22 +110,25 @@ export function BottomNav() {
           );
         })}
 
-        {/* The Coach — set apart by a hairline; the guide's presence, not a tab. */}
-        <Link
-          href="/concierge"
-          aria-current={coachActive ? "page" : undefined}
-          className={cn(
-            "flex flex-col items-center justify-center gap-1 border-l border-[var(--line)] px-5 py-2.5 text-dawn transition-[filter]",
-            coachActive ? "brightness-110" : "hover:brightness-110"
-          )}
-        >
-          <span aria-hidden className="font-serif text-[17px] italic leading-none">
-            Coach
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
-            Your guide
-          </span>
-        </Link>
+        {/* The Coach — set apart by a hairline; the guide's presence, not a tab.
+            Hidden with the rest of the companion layer in claims mode. */}
+        {!claimsMode && (
+          <Link
+            href="/concierge"
+            aria-current={coachActive ? "page" : undefined}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1 border-l border-[var(--line)] px-5 py-2.5 text-dawn transition-[filter]",
+              coachActive ? "brightness-110" : "hover:brightness-110"
+            )}
+          >
+            <span aria-hidden className="font-serif text-[17px] italic leading-none">
+              Coach
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
+              Your guide
+            </span>
+          </Link>
+        )}
       </div>
     </nav>
   );

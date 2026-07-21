@@ -11,7 +11,7 @@ import { getRepository } from "../../../lib/data";
 import { getViewer } from "../../../lib/auth/user";
 import { isAuthConfigured, PENDING_TOKEN_COOKIE } from "../../../lib/auth/config";
 import { linkPurchase } from "../../../lib/auth/link";
-import { HOME_PATH, LINK_PATH, LOGIN_PATH } from "../../../lib/auth/routing";
+import { LINK_PATH, LOGIN_PATH, homePath } from "../../../lib/auth/routing";
 
 export async function GET(req: NextRequest) {
   const to = (path: string) => {
@@ -30,12 +30,12 @@ export async function GET(req: NextRequest) {
   if (!viewer) return to(LOGIN_PATH);
 
   const repo = getRepository();
-  if (await repo.getGuaranteeForUser(viewer.userId)) return to(HOME_PATH);
+  if (await repo.getGuaranteeForUser(viewer.userId)) return to(homePath());
 
   const token = req.cookies.get(PENDING_TOKEN_COOKIE)?.value;
   if (!token) return to(LINK_PATH);
 
   const result = await linkPurchase(repo, viewer.userId, { mode: "token", token });
   // On failure fall through to the manual link step — calm, never an error page.
-  return to(result.ok ? HOME_PATH : LINK_PATH);
+  return to(result.ok ? homePath() : LINK_PATH);
 }

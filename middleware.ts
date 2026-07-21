@@ -22,6 +22,7 @@ import {
   PENDING_TOKEN_COOKIE,
   PENDING_TOKEN_MAX_AGE,
 } from "./lib/auth/config";
+import { isClaimsMode } from "./lib/demo";
 
 /** Consumer app surfaces — everything behind the front door. */
 const APP_PREFIXES = [
@@ -35,6 +36,9 @@ const APP_PREFIXES = [
 
 /** Account routes, meaningless without Supabase. */
 const AUTH_PREFIXES = ["/login", "/signup", "/forgot-password", "/new-password"];
+
+/** Companion surfaces hidden entirely in the claims-mode demo cut. */
+const CLAIMS_HIDDEN_PREFIXES = ["/tonight", "/shop", "/concierge"];
 
 function startsWithAny(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -75,6 +79,12 @@ export async function middleware(req: NextRequest) {
       path: "/",
       maxAge: PENDING_TOKEN_MAX_AGE,
     });
+  }
+
+  // 1b. Claims-mode demo cut: the companion surfaces are hidden; land on the
+  // guarantee instead. Session gating still applies to the /guarantee request.
+  if (isClaimsMode() && startsWithAny(pathname, CLAIMS_HIDDEN_PREFIXES)) {
+    return redirectTo(req, res, "/guarantee");
   }
 
   // 2. No Supabase: the original light-verify flow is the authentication.
@@ -125,8 +135,9 @@ export async function middleware(req: NextRequest) {
 
   // Already signed in? The front door and the account screens have nothing to
   // offer. /tonight re-routes to /link or /admin if that's where they belong.
+  // (In claims mode /tonight is hidden, so land on /guarantee directly.)
   if (userId && (pathname === "/" || startsWithAny(pathname, ["/login", "/signup"]))) {
-    return redirectTo(req, res, "/tonight");
+    return redirectTo(req, res, isClaimsMode() ? "/guarantee" : "/tonight");
   }
 
   return res;

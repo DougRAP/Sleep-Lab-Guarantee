@@ -29,6 +29,18 @@ export function isDemoMode(
   return raw.toLowerCase() === "true";
 }
 
+/**
+ * Claims-mode demo cut: hides the sleep-companion layer (Tonight, Coach, Shop)
+ * so only the guarantee/claims surfaces show. Unlike the demo day-jumper this
+ * defaults OFF — it is on only when NEXT_PUBLIC_CLAIMS_MODE is exactly "true".
+ * No code is removed anywhere; every surface is gated on this flag.
+ */
+export function isClaimsMode(
+  value: string | undefined = process.env.NEXT_PUBLIC_CLAIMS_MODE
+): boolean {
+  return value?.trim() === "true";
+}
+
 /** Parse a cookie/form value into a valid effective day, or null if unusable. */
 export function parseDemoDay(raw: string | number | null | undefined): number | null {
   if (raw === null || raw === undefined || raw === "") return null;

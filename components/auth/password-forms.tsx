@@ -10,6 +10,7 @@ import {
   updatePasswordAction,
 } from "../../lib/actions/auth";
 import { MIN_PASSWORD_LENGTH } from "../../lib/auth/config";
+import { homePath } from "../../lib/auth/routing";
 
 /** Ask for a reset link. Always answers the same way, whoever the email is. */
 export function ForgotPasswordForm() {
@@ -76,7 +77,7 @@ export function NewPasswordForm() {
         return;
       }
       setNote(result.message);
-      router.replace("/tonight");
+      router.replace(homePath());
     });
   }
 

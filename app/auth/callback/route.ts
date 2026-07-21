@@ -6,11 +6,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "../../../lib/supabase/server";
 import { isAuthConfigured } from "../../../lib/auth/config";
-import { LOGIN_PATH } from "../../../lib/auth/routing";
+import { LOGIN_PATH, homePath } from "../../../lib/auth/routing";
 
 /** Only ever continue to an in-app path — never an attacker-supplied origin. */
 function safeNext(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/tonight";
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return homePath();
   return value;
 }
 

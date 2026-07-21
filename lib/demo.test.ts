@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEMO_DAY_MAX,
   DEMO_DAY_PRESETS,
+  isClaimsMode,
   isDemoMode,
   parseDemoDay,
   referenceDateForDay,
@@ -28,6 +29,26 @@ describe("isDemoMode", () => {
     expect(isDemoMode("false")).toBe(false);
     expect(isDemoMode("0")).toBe(false);
     expect(isDemoMode("off")).toBe(false);
+  });
+});
+
+describe("isClaimsMode", () => {
+  it("defaults OFF when the env is unset — the full companion is the product", () => {
+    expect(isClaimsMode(undefined)).toBe(false);
+    expect(isClaimsMode("")).toBe(false);
+  });
+
+  it("is on only when set exactly to 'true'", () => {
+    expect(isClaimsMode("true")).toBe(true);
+    expect(isClaimsMode(" true ")).toBe(true);
+  });
+
+  it("stays off for anything that is not exactly 'true'", () => {
+    expect(isClaimsMode("TRUE")).toBe(false);
+    expect(isClaimsMode("1")).toBe(false);
+    expect(isClaimsMode("on")).toBe(false);
+    expect(isClaimsMode("yes")).toBe(false);
+    expect(isClaimsMode("false")).toBe(false);
   });
 });
 

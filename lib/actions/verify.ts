@@ -15,6 +15,7 @@ import { redirect } from "next/navigation";
 import { getRepository } from "../data";
 import { setSession } from "../session";
 import { isAuthConfigured } from "../auth/config";
+import { homePath } from "../auth/routing";
 
 export type EntryMode = "lookup" | "token";
 
@@ -56,7 +57,7 @@ export async function verifyEntry(input: EntryInput): Promise<VerifyResult> {
     // Arriving on the CRM/dashboard link = the sales order is pre-verified, so
     // the fitting won't ask for a receipt photo later.
     await setSession(guarantee.id, "token");
-    redirect("/tonight");
+    redirect(homePath());
   }
 
   const salesOrderNumber = (input.salesOrderNumber ?? "").trim();
@@ -67,5 +68,5 @@ export async function verifyEntry(input: EntryInput): Promise<VerifyResult> {
   if (!guarantee) return { ok: false, error: NO_MATCH };
   // Self-serve lookup — not pre-verified, so the fitting asks for the receipt.
   await setSession(guarantee.id, "lookup");
-  redirect("/tonight");
+  redirect(homePath());
 }

@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   ADMIN_PATH,
+  CLAIMS_HOME_PATH,
   ENTRY_PATH,
   HOME_PATH,
   LINK_PATH,
@@ -9,6 +10,7 @@ import {
   guardAppRoute,
   guardAuthRoute,
   guardLinkRoute,
+  homePath,
   routeAfterAuth,
   type ViewerState,
 } from "./routing";
@@ -143,5 +145,44 @@ describe("fallback when Supabase is NOT configured", () => {
   it("lets /admin render its own calm 'not switched on' state instead of looping", () => {
     // Redirecting to a login that cannot work would be a dead end.
     expect(guardAdminRoute(unconfigured())).toBeNull();
+  });
+});
+
+describe("claims mode moves home from /tonight to /guarantee", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("homePath is /tonight normally and /guarantee in claims mode", () => {
+    expect(homePath(false)).toBe(HOME_PATH);
+    expect(homePath(true)).toBe(CLAIMS_HOME_PATH);
+  });
+
+  it("reads the env-backed default: off unless exactly 'true'", () => {
+    expect(homePath()).toBe(HOME_PATH);
+    vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "true");
+    expect(homePath()).toBe(CLAIMS_HOME_PATH);
+  });
+
+  it("lands a linked consumer on the guarantee after authentication", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "true");
+    expect(
+      routeAfterAuth(state({ authenticated: true, linked: true, role: "consumer" }))
+    ).toBe(CLAIMS_HOME_PATH);
+  });
+
+  it("skips the link step to the guarantee once a purchase is linked", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "true");
+    expect(guardLinkRoute(state({ authenticated: true, linked: true }))).toBe(
+      CLAIMS_HOME_PATH
+    );
+  });
+
+  it("still routes the unlinked and staff exactly as before", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "true");
+    expect(routeAfterAuth(state({ authenticated: true, role: "consumer" }))).toBe(
+      LINK_PATH
+    );
+    expect(routeAfterAuth(state({ authenticated: true, role: "rap_admin" }))).toBe(
+      ADMIN_PATH
+    );
   });
 });

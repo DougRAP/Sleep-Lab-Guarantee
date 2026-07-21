@@ -23,7 +23,7 @@ import {
   isAuthConfigured,
 } from "../auth/config";
 import { linkPurchase } from "../auth/link";
-import { ENTRY_PATH, HOME_PATH, LOGIN_PATH, routeAfterAuth } from "../auth/routing";
+import { ENTRY_PATH, LOGIN_PATH, homePath, routeAfterAuth } from "../auth/routing";
 
 export type AuthResult = { ok: false; error: string } | { ok: true; message: string };
 
@@ -175,7 +175,7 @@ export async function linkPurchaseAction(input: {
   });
   if (!result.ok) return { ok: false, error: result.error };
 
-  redirect(HOME_PATH);
+  redirect(homePath());
 }
 
 /* -------------------------------------------------------------------------- */

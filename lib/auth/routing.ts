@@ -13,13 +13,24 @@
 // authenticated user performs.
 
 import type { Role } from "../types";
+import { isClaimsMode } from "../demo";
 
 export const ENTRY_PATH = "/";
 export const LOGIN_PATH = "/login";
 export const SIGNUP_PATH = "/signup";
 export const LINK_PATH = "/link";
 export const HOME_PATH = "/tonight";
+export const CLAIMS_HOME_PATH = "/guarantee";
 export const ADMIN_PATH = "/admin";
+
+/**
+ * Where a linked consumer lands. Normally /tonight; in the claims-mode demo cut
+ * the companion layer is hidden, so home is the guarantee. The parameter keeps
+ * the decision pure/testable — callers rely on the env-backed default.
+ */
+export function homePath(claimsMode: boolean = isClaimsMode()): string {
+  return claimsMode ? CLAIMS_HOME_PATH : HOME_PATH;
+}
 
 /** Everything a routing decision needs to know about the current visitor. */
 export interface ViewerState {
@@ -44,7 +55,7 @@ export function routeAfterAuth(state: ViewerState): string {
   if (!state.authConfigured) return ENTRY_PATH;
   if (!state.authenticated) return LOGIN_PATH;
   if (isStaff(state.role)) return ADMIN_PATH;
-  return state.linked ? HOME_PATH : LINK_PATH;
+  return state.linked ? homePath() : LINK_PATH;
 }
 
 /**
@@ -64,7 +75,7 @@ export function guardAppRoute(state: ViewerState): string | null {
 export function guardLinkRoute(state: ViewerState): string | null {
   if (!state.authConfigured) return ENTRY_PATH;
   if (!state.authenticated) return LOGIN_PATH;
-  if (state.linked) return HOME_PATH;
+  if (state.linked) return homePath();
   if (isStaff(state.role)) return ADMIN_PATH;
   return null;
 }
@@ -79,7 +90,7 @@ export function guardAdminRoute(state: ViewerState): string | null {
   if (!state.authenticated) return LOGIN_PATH;
   if (isStaff(state.role)) return null;
   // A consumer who wandered in: send them somewhere useful, never an error.
-  return state.linked ? HOME_PATH : LINK_PATH;
+  return state.linked ? homePath() : LINK_PATH;
 }
 
 /** Guard for /login and /signup — an authenticated visitor doesn't need them. */
