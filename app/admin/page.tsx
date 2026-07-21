@@ -5,11 +5,11 @@ import { Logo } from "../../components/Logo";
 import { FrostedCard } from "../../components/ui/frosted-card";
 import { buttonVariants } from "../../components/ui/button";
 import { SignOut } from "../../components/auth/sign-out";
+import { StatusChip } from "../../components/ui/status-chip";
 import { isAuthConfigured } from "../../lib/auth/config";
 import { getViewer } from "../../lib/auth/user";
 import { getRepository } from "../../lib/data";
 import { guardAdminRoute } from "../../lib/auth/routing";
-import { statusLabel } from "../../lib/claim-status";
 import { cn } from "../../lib/utils";
 import type { ClaimRecord, ClaimRecordScope } from "../../lib/data/repository";
 
@@ -114,9 +114,7 @@ function AdminRow({ record }: { record: ClaimRecord }) {
             Order {record.salesOrderNumber}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-[var(--line)] bg-white/[0.03] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-dawn">
-          {statusLabel(record.status)}
-        </span>
+        <StatusChip status={record.status} />
       </div>
 
       <dl className="grid grid-cols-3 gap-3">

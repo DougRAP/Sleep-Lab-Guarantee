@@ -3,11 +3,14 @@
 // repository so the app runs and both entry flows work with NO real keys.
 
 import type {
+  Claim,
+  ClaimItem,
   DealerLocation,
   Guarantee,
   InitialImpressionRecord,
   Tip,
 } from "../types";
+import { CONFIRMATION_KEYS } from "../fitting";
 
 /** ISO date (YYYY-MM-DD) `n` whole days before today (local). */
 function isoDaysAgo(n: number): string {
@@ -17,6 +20,21 @@ function isoDaysAgo(n: number): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** ISO timestamp `n` whole days before today, at a fixed mid-day hour. */
+function isoTimestampDaysAgo(n: number): string {
+  return `${isoDaysAgo(n)}T15:00:00.000Z`;
+}
+
+/**
+ * `RA-YYMMDD-XXXX` in the lib/ra.ts format, dated `n` days back, so a seeded
+ * RA's date segment always agrees with its claim's `submittedAt` even though
+ * the seed is relative to "today". Suffixes are drawn from CODE_ALPHABET.
+ */
+function raNumberDaysAgo(n: number, suffix: string): string {
+  const iso = isoDaysAgo(n);
+  return `RA-${iso.slice(2, 4)}${iso.slice(5, 7)}${iso.slice(8, 10)}-${suffix}`;
 }
 
 // Two demo guarantees:
@@ -59,6 +77,111 @@ export const SEED_GUARANTEES: Guarantee[] = [
     purchasePrice: 1299.99,
     deliveryDate: isoDaysAgo(6),
     accessToken: "demo-rivera-token",
+  },
+  // The six below back SEED_CLAIMS, so the admin list reads like a live
+  // program (one request per status). APPEND-ONLY past this point: tests
+  // address the two demo entries above by index and by id.
+  {
+    id: "seed-guarantee-calloway",
+    salesOrderNumber: "1011099412A",
+    guaranteeNumber: "RAP-90-1011099412A",
+    customerFirstName: "Denise",
+    customerLastName: "Calloway",
+    customerEmail: "d.calloway@example.com",
+    customerPhone: "7045550214",
+    dealerName: "RAP Furniture — Shelby",
+    dealerLocationId: "101",
+    manufacturer: "Sealy",
+    oemModel: "2214",
+    productDescription: "Sealy Posturepedic Plush — Queen",
+    purchasePrice: 749.99,
+    deliveryDate: isoDaysAgo(38),
+    accessToken: "demo-calloway-token",
+  },
+  {
+    id: "seed-guarantee-boyd",
+    salesOrderNumber: "1011099437K",
+    guaranteeNumber: "RAP-90-1011099437K",
+    customerFirstName: "Marcus",
+    customerLastName: "Boyd",
+    customerEmail: "marcus.boyd@example.com",
+    customerPhone: "8285550172",
+    dealerName: "RAP Furniture — Shelby",
+    dealerLocationId: "101",
+    manufacturer: "Serta",
+    oemModel: "8871",
+    productDescription: "Serta Perfect Sleeper — King",
+    purchasePrice: 899.99,
+    deliveryDate: isoDaysAgo(45),
+    accessToken: "demo-boyd-token",
+  },
+  {
+    id: "seed-guarantee-natarajan",
+    salesOrderNumber: "1011099450M",
+    guaranteeNumber: "RAP-90-1011099450M",
+    customerFirstName: "Priya",
+    customerLastName: "Natarajan",
+    customerEmail: "priya.natarajan@example.com",
+    customerPhone: "9805550346",
+    dealerName: "RAP Furniture — Shelby",
+    dealerLocationId: "101",
+    manufacturer: "Stearns & Foster",
+    oemModel: "4402",
+    productDescription: "Stearns & Foster Estate — Queen",
+    purchasePrice: 1499.99,
+    deliveryDate: isoDaysAgo(58),
+    accessToken: "demo-natarajan-token",
+  },
+  {
+    id: "seed-guarantee-kowalski",
+    salesOrderNumber: "1011099461T",
+    guaranteeNumber: "RAP-90-1011099461T",
+    customerFirstName: "Evan",
+    customerLastName: "Kowalski",
+    customerEmail: "e.kowalski@example.com",
+    customerPhone: "7045550488",
+    dealerName: "RAP Furniture — Shelby",
+    dealerLocationId: "101",
+    manufacturer: "Beautyrest",
+    oemModel: "3320",
+    productDescription: "Beautyrest Harmony — Split King (pair)",
+    purchasePrice: 1899.99,
+    deliveryDate: isoDaysAgo(63),
+    accessToken: "demo-kowalski-token",
+  },
+  {
+    id: "seed-guarantee-simmons",
+    salesOrderNumber: "1011099478E",
+    guaranteeNumber: "RAP-90-1011099478E",
+    customerFirstName: "Gloria",
+    customerLastName: "Simmons",
+    customerEmail: "gloria.simmons@example.com",
+    customerPhone: "8285550631",
+    dealerName: "RAP Furniture — Shelby",
+    dealerLocationId: "101",
+    manufacturer: "Sealy",
+    oemModel: "5583",
+    productDescription: "Sealy Crown Jewel — Queen",
+    purchasePrice: 999.99,
+    deliveryDate: isoDaysAgo(74),
+    accessToken: "demo-simmons-token",
+  },
+  {
+    id: "seed-guarantee-delgado",
+    salesOrderNumber: "1011099489R",
+    guaranteeNumber: "RAP-90-1011099489R",
+    customerFirstName: "Ray",
+    customerLastName: "Delgado",
+    customerEmail: "ray.delgado@example.com",
+    customerPhone: "9805550759",
+    dealerName: "RAP Furniture — Shelby",
+    dealerLocationId: "101",
+    manufacturer: "Serta",
+    oemModel: "1108",
+    productDescription: "Serta iComfort — Twin XL",
+    purchasePrice: 579.99,
+    deliveryDate: isoDaysAgo(52),
+    accessToken: "demo-delgado-token",
   },
 ];
 
@@ -137,5 +260,241 @@ export const SEED_TIPS: Tip[] = [
     title: "The comfort exchange is open",
     body: "If it still isn't right, your one-time comfort exchange is available. When you're ready, we'll walk through it together.",
     active: true,
+  },
+];
+
+/**
+ * Submitted-or-later requests for the six seeded customers above — one per
+ * status, so the admin list reads like a live program out of the box. Shapes
+ * mirror exactly what MemoryRepository produces at runtime (createDraftClaim →
+ * submitClaim), with the adjudication timestamps a later status implies.
+ * None belong to the two demo guarantees: their journeys must start with no
+ * requests (tests and the demo script both assume it).
+ */
+export const SEED_CLAIMS: Claim[] = [
+  {
+    // Day ~38 of 90 — just sent, nobody has read it yet.
+    id: "seed-claim-calloway",
+    guaranteeId: "seed-guarantee-calloway",
+    status: "submitted",
+    step: "submitted",
+    confirmations: [...CONFIRMATION_KEYS],
+    preVerified: true,
+    reasonExperience:
+      "It sleeps much warmer than the floor model and I wake up with lower-back stiffness.",
+    preferredReplacement: "Something cooler, medium-firm.",
+    contactPhone: "7045550214",
+    contactPhoneKind: "mobile",
+    contactEmail: "d.calloway@example.com",
+    atDeliveryAddress: true,
+    newAddress: null,
+    stillOwns: true,
+    raNumber: raNumberDaysAgo(2, "V7KM"),
+    trackingNumber: "RAP-W4XKQ7MD",
+    submittedAt: isoTimestampDaysAgo(2),
+    createdAt: isoTimestampDaysAgo(3),
+    updatedAt: isoTimestampDaysAgo(2),
+  },
+  {
+    // Day ~45 — RAP picked it up two days after submission.
+    id: "seed-claim-boyd",
+    guaranteeId: "seed-guarantee-boyd",
+    status: "in_review",
+    step: "submitted",
+    confirmations: [...CONFIRMATION_KEYS],
+    preVerified: false,
+    reasonExperience:
+      "Far softer than the one we tried in the store — I sink in and can't turn over easily.",
+    preferredReplacement: "The firmer Perfect Sleeper we almost bought.",
+    contactPhone: "8285550172",
+    contactPhoneKind: "mobile",
+    contactEmail: "marcus.boyd@example.com",
+    atDeliveryAddress: true,
+    newAddress: null,
+    stillOwns: true,
+    raNumber: raNumberDaysAgo(6, "T4XG"),
+    trackingNumber: "RAP-N3TGV8PH",
+    submittedAt: isoTimestampDaysAgo(6),
+    reviewedAt: isoTimestampDaysAgo(4),
+    createdAt: isoTimestampDaysAgo(7),
+    updatedAt: isoTimestampDaysAgo(4),
+  },
+  {
+    // Day ~58 — approved five days after review; dealer not yet scheduled.
+    id: "seed-claim-natarajan",
+    guaranteeId: "seed-guarantee-natarajan",
+    status: "approved",
+    step: "submitted",
+    confirmations: [...CONFIRMATION_KEYS],
+    preVerified: true,
+    reasonExperience:
+      "Pressure points at the hip and shoulder every morning, even after two months.",
+    preferredReplacement: "A plusher Estate model, same size.",
+    contactPhone: "9805550346",
+    contactPhoneKind: "home",
+    contactEmail: "priya.natarajan@example.com",
+    atDeliveryAddress: true,
+    newAddress: null,
+    stillOwns: true,
+    raNumber: raNumberDaysAgo(12, "R8DP"),
+    trackingNumber: "RAP-C6RJDM24",
+    submittedAt: isoTimestampDaysAgo(12),
+    reviewedAt: isoTimestampDaysAgo(9),
+    approvedAt: isoTimestampDaysAgo(7),
+    createdAt: isoTimestampDaysAgo(13),
+    updatedAt: isoTimestampDaysAgo(7),
+  },
+  {
+    // Day ~63 — approved, and the dealer has the exchange on the calendar.
+    id: "seed-claim-kowalski",
+    guaranteeId: "seed-guarantee-kowalski",
+    status: "dealer_scheduled",
+    step: "submitted",
+    confirmations: [...CONFIRMATION_KEYS],
+    preVerified: false,
+    reasonExperience:
+      "Both halves of the split king feel firmer than expected; neither of us has adjusted.",
+    preferredReplacement: "The softer Harmony option on both sides.",
+    contactPhone: "7045550488",
+    contactPhoneKind: "mobile",
+    contactEmail: "e.kowalski@example.com",
+    atDeliveryAddress: false,
+    newAddress: "412 Pinehurst Ct, Shelby, NC 28150",
+    stillOwns: true,
+    raNumber: raNumberDaysAgo(16, "H6WC"),
+    trackingNumber: "RAP-F9HWSL73",
+    submittedAt: isoTimestampDaysAgo(16),
+    reviewedAt: isoTimestampDaysAgo(13),
+    approvedAt: isoTimestampDaysAgo(11),
+    createdAt: isoTimestampDaysAgo(17),
+    updatedAt: isoTimestampDaysAgo(5),
+  },
+  {
+    // Day ~74 — the exchange happened; this journey is resolved.
+    id: "seed-claim-simmons",
+    guaranteeId: "seed-guarantee-simmons",
+    status: "completed",
+    step: "submitted",
+    confirmations: [...CONFIRMATION_KEYS],
+    preVerified: true,
+    reasonExperience:
+      "Too firm from the first week and it never broke in the way the store said it would.",
+    preferredReplacement: "The pillow-top version of the same set.",
+    contactPhone: "8285550631",
+    contactPhoneKind: "home",
+    contactEmail: "gloria.simmons@example.com",
+    atDeliveryAddress: true,
+    newAddress: null,
+    stillOwns: true,
+    raNumber: raNumberDaysAgo(30, "Q3NF"),
+    trackingNumber: "RAP-D2QNXB85",
+    submittedAt: isoTimestampDaysAgo(30),
+    reviewedAt: isoTimestampDaysAgo(27),
+    approvedAt: isoTimestampDaysAgo(24),
+    completedAt: isoTimestampDaysAgo(18),
+    createdAt: isoTimestampDaysAgo(31),
+    updatedAt: isoTimestampDaysAgo(18),
+  },
+  {
+    // Day ~52 — reviewed and declined; the dealer talks it through with them.
+    id: "seed-claim-delgado",
+    guaranteeId: "seed-guarantee-delgado",
+    status: "denied",
+    step: "submitted",
+    confirmations: [...CONFIRMATION_KEYS],
+    preVerified: false,
+    reasonExperience: "Feels lumpy on one side after a month and a half.",
+    preferredReplacement: "Whatever holds its shape better.",
+    contactPhone: "9805550759",
+    contactPhoneKind: "mobile",
+    contactEmail: "ray.delgado@example.com",
+    atDeliveryAddress: true,
+    newAddress: null,
+    stillOwns: true,
+    denialReason:
+      "Law tag removed — outside the guarantee's like-new condition terms.",
+    raNumber: raNumberDaysAgo(10, "B9SL"),
+    trackingNumber: "RAP-G7VKTP36",
+    submittedAt: isoTimestampDaysAgo(10),
+    reviewedAt: isoTimestampDaysAgo(8),
+    createdAt: isoTimestampDaysAgo(11),
+    updatedAt: isoTimestampDaysAgo(8),
+  },
+];
+
+/**
+ * The mattresses on those seeded requests — the shape saveClaimItems produces.
+ * Kowalski's split king carries two (the PRD's max); everyone else has one.
+ */
+export const SEED_CLAIM_ITEMS: ClaimItem[] = [
+  {
+    id: "seed-claim-item-calloway-1",
+    claimId: "seed-claim-calloway",
+    modelNumber: "SP-2214",
+    notSoiled: true,
+    noOdors: true,
+    notDamaged: true,
+    position: 0,
+    createdAt: isoTimestampDaysAgo(3),
+  },
+  {
+    id: "seed-claim-item-boyd-1",
+    claimId: "seed-claim-boyd",
+    modelNumber: "PS-8871",
+    notSoiled: true,
+    noOdors: true,
+    notDamaged: true,
+    position: 0,
+    createdAt: isoTimestampDaysAgo(7),
+  },
+  {
+    id: "seed-claim-item-natarajan-1",
+    claimId: "seed-claim-natarajan",
+    modelNumber: "ES-4402",
+    notSoiled: true,
+    noOdors: true,
+    notDamaged: true,
+    position: 0,
+    createdAt: isoTimestampDaysAgo(13),
+  },
+  {
+    id: "seed-claim-item-kowalski-1",
+    claimId: "seed-claim-kowalski",
+    modelNumber: "BH-3320",
+    notSoiled: true,
+    noOdors: true,
+    notDamaged: true,
+    position: 0,
+    createdAt: isoTimestampDaysAgo(17),
+  },
+  {
+    id: "seed-claim-item-kowalski-2",
+    claimId: "seed-claim-kowalski",
+    modelNumber: "BH-3321",
+    notSoiled: true,
+    noOdors: true,
+    notDamaged: true,
+    position: 1,
+    createdAt: isoTimestampDaysAgo(17),
+  },
+  {
+    id: "seed-claim-item-simmons-1",
+    claimId: "seed-claim-simmons",
+    modelNumber: "CJ-5583",
+    notSoiled: true,
+    noOdors: true,
+    notDamaged: true,
+    position: 0,
+    createdAt: isoTimestampDaysAgo(31),
+  },
+  {
+    id: "seed-claim-item-delgado-1",
+    claimId: "seed-claim-delgado",
+    modelNumber: "IC-1108",
+    notSoiled: true,
+    noOdors: true,
+    notDamaged: true,
+    position: 0,
+    createdAt: isoTimestampDaysAgo(11),
   },
 ];

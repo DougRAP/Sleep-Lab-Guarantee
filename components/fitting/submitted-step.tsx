@@ -3,6 +3,8 @@ import { ConciergeCard } from "../concierge-card";
 import { FrostedCard } from "../ui/frosted-card";
 import { Stat } from "../ui/stat";
 import { buttonVariants } from "../ui/button";
+import { homePath } from "../../lib/auth/routing";
+import { isClaimsMode } from "../../lib/demo";
 import { cn } from "../../lib/utils";
 
 /**
@@ -45,10 +47,10 @@ export function SubmittedStep({
       </Link>
 
       <Link
-        href="/tonight"
+        href={homePath()}
         className="block text-center font-mono text-[11px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
       >
-        Back to tonight
+        {isClaimsMode() ? "Back to your guarantee" : "Back to tonight"}
       </Link>
     </div>
   );

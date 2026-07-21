@@ -8,6 +8,7 @@ import type {
   Claim,
   ClaimItem,
   ClaimPhoto,
+  ClaimStatus,
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
@@ -38,6 +39,7 @@ import {
   type SubmitClaimResult,
   type UpdateClaimInput,
   type VerifyInput,
+  assertClaimStatusTransition,
   byMostRecent,
   lastNameMatches,
   sameCalendarDate,
@@ -541,6 +543,20 @@ export class SupabaseRepository implements GuaranteeRepository {
       .select("*")
       .maybeSingle();
     return { claim: toClaim(data), raNumber, trackingNumber };
+  }
+
+  async updateClaimStatus(claimId: string, status: ClaimStatus): Promise<Claim> {
+    const existing = await this.getClaimById(claimId);
+    if (!existing) throw new Error(`No claim ${claimId}`);
+    assertClaimStatusTransition(existing.status, status);
+    // updated_at refreshes via the schema's touch trigger — not set here.
+    const { data } = await this.db
+      .from("claims")
+      .update({ status })
+      .eq("id", claimId)
+      .select("*")
+      .maybeSingle();
+    return toClaim(data);
   }
 
   // --- M5b: the shop coupon ---

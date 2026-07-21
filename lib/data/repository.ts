@@ -172,6 +172,31 @@ export function byMostRecent(a: Timestamped, b: Timestamped): number {
   return bt.localeCompare(at);
 }
 
+/** Statuses a claim never leaves — the request's story is over (PRD §4). */
+export const TERMINAL_CLAIM_STATUSES: ReadonlySet<ClaimStatus> = new Set([
+  "completed",
+  "denied",
+  "expired",
+  "withdrawn",
+]);
+
+/**
+ * The status-transition guard, shared by both backends so they refuse the same
+ * moves: nothing leaves a terminal status, and nothing ever returns to `draft`
+ * (a draft is an in-progress fitting, not an adjudication state).
+ */
+export function assertClaimStatusTransition(
+  current: ClaimStatus,
+  next: ClaimStatus
+): void {
+  if (next === "draft") {
+    throw new Error(`Cannot move a claim back to draft`);
+  }
+  if (TERMINAL_CLAIM_STATUSES.has(current)) {
+    throw new Error(`Cannot change a ${current} claim`);
+  }
+}
+
 export interface GuaranteeRepository {
   getGuaranteeById(id: string): Promise<Guarantee | null>;
   getGuaranteeBySalesOrder(salesOrderNumber: string): Promise<Guarantee | null>;
@@ -241,6 +266,13 @@ export interface GuaranteeRepository {
    * `submitted`. Idempotent — re-submitting returns the existing numbers.
    */
   submitClaim(claimId: string): Promise<SubmitClaimResult>;
+  /**
+   * Move a claim to a new status (adjudication seam) and let `updatedAt`
+   * refresh. Guarded by `assertClaimStatusTransition`: terminal statuses
+   * (completed/denied/expired/withdrawn) are final, and no claim returns to
+   * `draft`. Throws on an unknown claim id or a refused transition.
+   */
+  updateClaimStatus(claimId: string, status: ClaimStatus): Promise<Claim>;
 
   // --- M5b: the shop coupon (issued on request, four-week expiry) ---
   /** The guarantee's current coupon, or null when there is none or it expired. */

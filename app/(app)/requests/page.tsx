@@ -4,11 +4,11 @@ import { Logo } from "../../../components/Logo";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { FrostedCard } from "../../../components/ui/frosted-card";
+import { StatusChip } from "../../../components/ui/status-chip";
 import { buttonVariants } from "../../../components/ui/button";
 import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
-import { statusLabel } from "../../../lib/claim-status";
 import { formatPlainDate } from "../../../lib/dates";
 import { cn } from "../../../lib/utils";
 import type { Claim } from "../../../lib/types";
@@ -106,9 +106,7 @@ function RequestRow({ claim, itemCount }: { claim: Claim; itemCount: number }) {
             {claim.trackingNumber ?? "Not yet submitted"}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-[var(--line)] bg-white/[0.03] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-dawn">
-          {statusLabel(claim.status)}
-        </span>
+        <StatusChip status={claim.status} />
       </div>
 
       <p className="text-[13px] leading-relaxed text-mist">

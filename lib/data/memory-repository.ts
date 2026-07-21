@@ -10,6 +10,7 @@ import type {
   Claim,
   ClaimItem,
   ClaimPhoto,
+  ClaimStatus,
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
@@ -39,6 +40,7 @@ import {
   type SubmitClaimResult,
   type UpdateClaimInput,
   type VerifyInput,
+  assertClaimStatusTransition,
   byMostRecent,
   lastNameMatches,
   sameCalendarDate,
@@ -46,6 +48,8 @@ import {
   todayIso,
 } from "./repository";
 import {
+  SEED_CLAIM_ITEMS,
+  SEED_CLAIMS,
   SEED_DEALER_LOCATIONS,
   SEED_GUARANTEES,
   SEED_INITIAL_IMPRESSIONS,
@@ -80,6 +84,13 @@ export class MemoryRepository implements GuaranteeRepository {
     this.dealerLocations = dealerLocations;
     // Copy so seed data isn't mutated across repository instances (tests).
     this.impressions = impressions.map((i) => ({ ...i }));
+    // Seeded requests, copied for the same reason — a status update on one
+    // instance must never leak into the module-level seed.
+    this.claims = SEED_CLAIMS.map((c) => ({
+      ...c,
+      confirmations: c.confirmations ? [...c.confirmations] : c.confirmations,
+    }));
+    this.claimItems = SEED_CLAIM_ITEMS.map((i) => ({ ...i }));
   }
 
   private nextId(prefix: string): string {
@@ -133,8 +144,9 @@ export class MemoryRepository implements GuaranteeRepository {
   }
 
   async hasResolvedExchange(guaranteeId: string): Promise<boolean> {
-    // Nothing is seeded, so a demo journey starts live/unresolved; a claim only
-    // resolves the journey once it has actually been approved or completed.
+    // The two demo guarantees have no seeded claims, so a demo journey starts
+    // live/unresolved; a claim only resolves the journey once it has actually
+    // been approved or completed.
     return this.claims.some(
       (c) =>
         c.guaranteeId === guaranteeId &&
@@ -380,6 +392,15 @@ export class MemoryRepository implements GuaranteeRepository {
     row.submittedAt = now;
     row.updatedAt = now;
     return { claim: { ...row }, raNumber, trackingNumber };
+  }
+
+  async updateClaimStatus(claimId: string, status: ClaimStatus): Promise<Claim> {
+    const row = this.claims.find((c) => c.id === claimId);
+    if (!row) throw new Error(`No claim ${claimId}`);
+    assertClaimStatusTransition(row.status, status);
+    row.status = status;
+    row.updatedAt = new Date().toISOString();
+    return { ...row };
   }
 
   // --- M5b: the shop coupon ---
