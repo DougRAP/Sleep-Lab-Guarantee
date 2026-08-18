@@ -18,7 +18,17 @@ import { getSession } from "../session";
 import { getViewer } from "./user";
 import { isAuthConfigured } from "./config";
 import { ADMIN_PATH, ENTRY_PATH, LINK_PATH, LOGIN_PATH, isStaff } from "./routing";
+import { readActiveGuaranteeId, resolveActiveGuarantee } from "../active-guarantee";
 import type { Guarantee, LinkVia, Role } from "../types";
+
+/**
+ * B-28: the active purchase for a real-auth account, honoring the selection
+ * cookie and defaulting to the most recent. Returns null when nothing is linked.
+ */
+async function activeGuaranteeFor(userId: string): Promise<Guarantee | null> {
+  const owned = await getRepository().listGuaranteesForUser(userId);
+  return resolveActiveGuarantee(owned, await readActiveGuaranteeId());
+}
 
 /** The resolved session. `userId` is null on the light-verify fallback path. */
 export interface AppSession {
@@ -26,6 +36,8 @@ export interface AppSession {
   via: LinkVia;
   userId: string | null;
   role: Role | null;
+  /** The signed-in email for the header identity; null on light-verify. */
+  email: string | null;
 }
 
 /** True when the sales order was pre-verified (arrived on a dashboard link). */
@@ -46,18 +58,20 @@ export async function getAppSession(): Promise<AppSession | null> {
       via: light.via ?? "lookup",
       userId: null,
       role: null,
+      email: null,
     };
   }
 
   const viewer = await getViewer();
   if (!viewer) return null;
-  const guarantee = await getRepository().getGuaranteeForUser(viewer.userId);
+  const guarantee = await activeGuaranteeFor(viewer.userId);
   if (!guarantee) return null;
   return {
     guaranteeId: guarantee.id,
     via: guarantee.linkedVia ?? "lookup",
     userId: viewer.userId,
     role: viewer.role,
+    email: viewer.email,
   };
 }
 
@@ -83,6 +97,7 @@ export async function requireGuarantee(): Promise<{
         via: light.via ?? "lookup",
         userId: null,
         role: null,
+        email: null,
       },
       guarantee,
     };
@@ -92,7 +107,7 @@ export async function requireGuarantee(): Promise<{
   const viewer = await getViewer();
   if (!viewer) redirect(LOGIN_PATH);
 
-  const guarantee = await repo.getGuaranteeForUser(viewer.userId);
+  const guarantee = await activeGuaranteeFor(viewer.userId);
   if (!guarantee) redirect(isStaff(viewer.role) ? ADMIN_PATH : LINK_PATH);
 
   return {
@@ -101,6 +116,7 @@ export async function requireGuarantee(): Promise<{
       via: guarantee.linkedVia ?? "lookup",
       userId: viewer.userId,
       role: viewer.role,
+      email: viewer.email,
     },
     guarantee,
   };

@@ -28,7 +28,9 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
           aria-describedby={[hintId, errId].filter(Boolean).join(" ") || undefined}
           aria-invalid={error ? true : undefined}
           className={cn(
-            "h-12 w-full rounded-xl border bg-white/[0.04] px-4 text-[15px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40",
+            // 16px minimum: anything smaller makes iOS Safari auto-zoom on
+            // focus and leave the page zoomed (review 2026-07-22).
+            "h-12 w-full rounded-xl border bg-white/[0.04] px-4 text-[16px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40",
             error ? "border-dawn/70" : "border-[var(--line)]",
             className
           )}

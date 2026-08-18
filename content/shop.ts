@@ -3,10 +3,10 @@
 // Curated accessories for the Shop tab (#6) — a versioned content layer, not a
 // store. Lead-gen only: each item links out to the dealer/store, and the dealer
 // coupon (from dealer_locations) is applied at their checkout. No cart, no
-// Stripe. Keep the list short and calm; the waterproof protector is first
-// because the Comfort Guarantee recommends one from day one.
+// Stripe. Keep the list short and calm; the protector is first because the
+// Comfort Guarantee recommends one from day one.
 //
-// PLACEHOLDER links (example.com) until real product URLs are provided.
+// Live City Mattress collection links + images, provided by Doug 2026-07-23.
 
 export interface ShopItem {
   id: string;
@@ -17,31 +17,36 @@ export interface ShopItem {
   url: string;
   /** Why it belongs here / how the coupon applies. */
   note: string;
+  /** Local image path (public/), shown atop the card. */
+  image?: string;
 }
 
 export const SHOP_ITEMS: ShopItem[] = [
   {
-    id: "waterproof-protector",
-    name: "Waterproof mattress protector",
+    id: "pads-protectors",
+    name: "Mattress pads & protectors",
     blurb:
-      "Breathable, quiet, and machine-washable — it keeps the set clean and sanitary so your Comfort Guarantee stays intact.",
-    url: "https://example.com/shop/waterproof-mattress-protector",
+      "A waterproof protector keeps the set clean and sanitary — and your Comfort Guarantee intact.",
+    url: "https://www.citymattress.com/collections/pads-protectors",
     note: "Recommended from night one. Your dealer coupon applies at checkout.",
+    image: "/shop/protector.webp",
   },
   {
-    id: "down-alternative-pillow",
-    name: "Down-alternative pillow",
+    id: "pillows",
+    name: "Pillows",
     blurb:
-      "A medium-loft pillow that pairs well with most new mattresses while your body settles in.",
-    url: "https://example.com/shop/down-alternative-pillow",
-    note: "Add it to your order and use your dealer coupon at checkout.",
+      "The right pillow does half the work while your body settles into a new surface.",
+    url: "https://www.citymattress.com/collections/pillows",
+    note: "Add one to your order and use your dealer coupon at checkout.",
+    image: "/shop/pillows.webp",
   },
   {
-    id: "cotton-sheet-set",
-    name: "Cotton percale sheet set",
+    id: "bedroom-furniture",
+    name: "Bedroom furniture",
     blurb:
-      "Cool, crisp, and simple — a calm foundation for the first nights on a new surface.",
-    url: "https://example.com/shop/cotton-percale-sheet-set",
+      "Bases, frames, and the rest of the room — a calm foundation for better sleep.",
+    url: "https://www.citymattress.com/collections/bedroom-furniture",
     note: "Your dealer coupon applies at checkout.",
+    image: "/shop/furn.webp",
   },
 ];

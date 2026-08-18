@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LivingSky } from "../../../../components/living-sky";
-import { Logo } from "../../../../components/Logo";
+import { AppHeader } from "../../../../components/app-header";
 import { DayCount } from "../../../../components/day-count";
 import { ConciergeCard } from "../../../../components/concierge-card";
 import { FrostedCard } from "../../../../components/ui/frosted-card";
@@ -10,6 +10,7 @@ import { requireGuarantee } from "../../../../lib/auth/app-session";
 import { getRepository } from "../../../../lib/data";
 import { effectiveReferenceDate } from "../../../../lib/demo-server";
 import { statusLabel, statusNextStep } from "../../../../lib/claim-status";
+import { raDocumentAvailable } from "../../../../lib/ra-document";
 import { formatPlainDate } from "../../../../lib/dates";
 
 /**
@@ -31,7 +32,7 @@ export default async function RequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { guarantee } = await requireGuarantee();
+  const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
 
   const claim = await repo.getClaimById(id);
@@ -55,15 +56,13 @@ export default async function RequestDetailPage({
       <LivingSky day={day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <div className="flex items-center justify-between">
-          <Logo />
-          <DayCount day={day} />
-        </div>
+        <AppHeader email={session.email} />
 
         <div className="mt-8 space-y-6">
-          <h1 className="font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
+          <DayCount day={day} className="block" />
+          <h1 className="!mt-2 font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
             Your comfort exchange
           </h1>
 
@@ -74,6 +73,18 @@ export default async function RequestDetailPage({
             <div className="border-t border-[var(--line)] pt-4">
               <Stat label="Tracking number" value={claim.trackingNumber ?? "—"} />
             </div>
+            {/* The customer's own copy of the RA (Doug 2026-07-23) — only
+                once RAP has authorized the exchange. */}
+            {claim.raNumber && raDocumentAvailable(claim.status) && (
+              <a
+                href={`/requests/${claim.id}/ra`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-dawn transition-colors hover:text-cloud"
+              >
+                Open the RA document &rsaquo;
+              </a>
+            )}
           </FrostedCard>
 
           <dl className="grid grid-cols-2 gap-3">

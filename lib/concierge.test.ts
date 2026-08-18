@@ -104,12 +104,16 @@ describe("buildSystemPrompt / conciergeGreeting", () => {
       day: 12,
       phase: "settle_in",
       product: "Sealy Pillow Top — Queen",
-      dealer: "RAP — Shelby",
+      dealer: "City Mattress",
       tip: null,
     });
     expect(sys).toContain("day 12 of 90");
     expect(sys).toMatch(/No emoji/i);
     expect(sys).toContain("Sealy Pillow Top — Queen");
+    // B-13 Pieza 9: the soft distress guidance is present (doctor/counselor,
+    // warmth) and the crisis line is NOT scripted into the prompt.
+    expect(sys).toMatch(/doctor or counselor/i);
+    expect(sys).not.toContain("988");
   });
 
   it("greets with a phase- and day-aware opening", () => {

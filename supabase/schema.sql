@@ -123,16 +123,39 @@ create index if not exists guarantees_consumer_idx on public.guarantees (consume
 -- ---------------------------------------------------------------------------
 create table if not exists public.claims (
   id uuid primary key default uuid_generate_v4(),
-  guarantee_id uuid not null references public.guarantees(id) on delete cascade,
+  -- v3: NULLABLE — an anonymous claim exists before (unless) it is matched to
+  -- a registered guarantee. FK + cascade kept for linked claims.
+  guarantee_id uuid references public.guarantees(id) on delete cascade,
   consumer_id uuid references public.profiles(id) on delete set null,
   -- 'draft' (M5) precedes 'submitted': an in-progress fitting is persisted so
   -- the customer can leave and resume rather than being held in a linear script.
+  -- v3 adds 'inspection_scheduled' (a tech visit is on the calendar).
   status text not null default 'submitted' check (status in (
-    'draft','submitted','in_review','approved','dealer_scheduled','completed',
-    'denied','expired','withdrawn'
+    'draft','submitted','in_review','inspection_scheduled','approved',
+    'dealer_scheduled','completed','denied','expired','withdrawn'
   )),
+  -- v3: neither RA nor tracking number is minted at submit any more (kept for
+  -- rows that have them; RA issuance became a manual admin action). The claim
+  -- number CG###### below is the single customer reference.
   ra_number text,
   tracking_number text,
+  claim_number text unique,
+  -- v3 anonymous intake: self-reported identity + purchase details.
+  first_name text,
+  last_name text,
+  delivery_zip text,
+  sales_order_number text,
+  model_number text,
+  purchase_date date,
+  delivery_date date,
+  protector_used boolean,
+  days_in_service_at_submit int,
+  -- Set only when submitted before day 31 (the customer's choice).
+  early_preference text check (early_preference in ('auto_submit_day_31','agent_call')),
+  -- Scopes an UNLINKED claim to a dealer (default City Mattress); linked
+  -- claims keep scoping through their guarantee. Loose text id, like
+  -- guarantees.dealer_location_id.
+  dealer_location_id text,
   -- Structured intake (agent or guided form) — both land on the RA.
   reason_experience text,
   preferred_replacement text,
@@ -161,6 +184,11 @@ create table if not exists public.claims (
 );
 create index if not exists claims_guarantee_idx on public.claims (guarantee_id);
 create index if not exists claims_draft_idx on public.claims (guarantee_id, status);
+-- B-18 architecture audit: the staff desk lists non-draft claims newest-first
+-- (listClaimRecords orders by updated_at desc, neq draft). Trivial today,
+-- necessary at City Mattress scale (~50k units/yr).
+create index if not exists claims_updated_at_idx
+  on public.claims (updated_at desc) where status <> 'draft';
 
 -- Idempotent migration for existing deployments (columns added in M5).
 alter table public.claims add column if not exists tracking_number text;
@@ -175,13 +203,51 @@ alter table public.claims add column if not exists contact_email text;
 alter table public.claims add column if not exists at_delivery_address boolean;
 alter table public.claims add column if not exists new_address text;
 alter table public.claims add column if not exists still_owns boolean;
+-- Review 2026-07-22: the dealer records the in-store exchange's sales order.
+alter table public.claims add column if not exists exchange_sales_order_number text;
 
--- Widen the status check to admit 'draft' on pre-M5 deployments.
+-- Idempotent migration for existing deployments (v3, M-S1 — simplified claims
+-- intake). These ALTERs are the migration: run this file against an existing
+-- database and the claims table gains the anonymous-intake shape.
+alter table public.claims alter column guarantee_id drop not null;
+alter table public.claims add column if not exists claim_number text;
+alter table public.claims add column if not exists first_name text;
+alter table public.claims add column if not exists last_name text;
+alter table public.claims add column if not exists delivery_zip text;
+alter table public.claims add column if not exists sales_order_number text;
+alter table public.claims add column if not exists model_number text;
+alter table public.claims add column if not exists purchase_date date;
+alter table public.claims add column if not exists delivery_date date;
+alter table public.claims add column if not exists protector_used boolean;
+alter table public.claims add column if not exists days_in_service_at_submit int;
+alter table public.claims add column if not exists early_preference text;
+alter table public.claims add column if not exists dealer_location_id text;
+-- Unique + fast lookup for the customer reference (also enforces the
+-- mint-with-retry rule in the repository).
+create unique index if not exists claims_claim_number_key
+  on public.claims (claim_number);
+do $$ begin
+  alter table public.claims drop constraint if exists claims_early_preference_check;
+  alter table public.claims add constraint claims_early_preference_check
+    check (early_preference is null or early_preference in ('auto_submit_day_31','agent_call'));
+end $$;
+
+-- Doug 2026-07-23: customer address mirroring the bulk-import file spec
+-- (CUST_STREET/2/CIT/ST/ZIP). Empty until the import fills them; the ZIP
+-- powers the staff records search.
+alter table public.guarantees add column if not exists customer_street text;
+alter table public.guarantees add column if not exists customer_street2 text;
+alter table public.guarantees add column if not exists customer_city text;
+alter table public.guarantees add column if not exists customer_state text;
+alter table public.guarantees add column if not exists customer_zip text;
+
+-- Widen the status check to admit 'draft' on pre-M5 deployments and
+-- 'inspection_scheduled' on pre-v3 ones.
 do $$ begin
   alter table public.claims drop constraint if exists claims_status_check;
   alter table public.claims add constraint claims_status_check check (status in (
-    'draft','submitted','in_review','approved','dealer_scheduled','completed',
-    'denied','expired','withdrawn'
+    'draft','submitted','in_review','inspection_scheduled','approved',
+    'dealer_scheduled','completed','denied','expired','withdrawn'
   ));
 end $$;
 
@@ -240,6 +306,19 @@ create table if not exists public.claim_notes (
   created_at timestamptz default now()
 );
 create index if not exists claim_notes_claim_idx on public.claim_notes (claim_id);
+
+-- v3: document links agents attach to a claim (exchange authorization sheet,
+-- tech report, …) — how RAP's manual adjudication lands back in the app.
+create table if not exists public.claim_links (
+  id uuid primary key default uuid_generate_v4(),
+  claim_id uuid not null references public.claims(id) on delete cascade,
+  kind text not null check (kind in ('exchange_authorization','tech_report','other')),
+  url text not null,
+  label text,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now()
+);
+create index if not exists claim_links_claim_idx on public.claim_links (claim_id);
 
 -- Payment seam only — dev team wires Stripe (PRD §2).
 create table if not exists public.payments (
@@ -354,6 +433,43 @@ create table if not exists public.concierge_messages (
 );
 create index if not exists concierge_messages_thread_idx on public.concierge_messages (thread_id);
 
+-- B-11: coach usage telemetry. Numbers + thread only — no guarantee_id, no
+-- text (privacy-adjusted design 2026-07-24). Server-only via service_role; see
+-- supabase/migrations/20260724120000_concierge_usage.sql for the daily view,
+-- RLS and grants (fresh installs run schema.sql THEN the migrations).
+create table if not exists public.concierge_usage (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid references public.concierge_threads(id) on delete set null,
+  model text not null,
+  api_calls integer not null default 1,
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  cache_creation_tokens integer not null default 0,
+  cache_read_tokens integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists concierge_usage_created_idx
+  on public.concierge_usage (created_at);
+
+-- B-13: tunable limits + rate-limit counters. Server-only (service_role). Full
+-- definitions, grants and the atomic bump function live in
+-- supabase/migrations/20260724180000_b13_settings_and_rate_limits.sql; fresh
+-- installs run schema.sql THEN the migrations.
+create table if not exists public.app_settings (
+  key text primary key,
+  value numeric not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.rate_counters (
+  bucket text not null,
+  key text not null,
+  window_start timestamptz not null,
+  count integer not null default 0,
+  primary key (bucket, key, window_start)
+);
+create index if not exists rate_counters_window_idx
+  on public.rate_counters (window_start);
+
 -- keep claims.updated_at fresh
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
@@ -373,6 +489,7 @@ alter table public.claims             enable row level security;
 alter table public.claim_items        enable row level security;
 alter table public.claim_photos       enable row level security;
 alter table public.claim_notes        enable row level security;
+alter table public.claim_links        enable row level security;
 alter table public.payments           enable row level security;
 alter table public.coupons            enable row level security;
 alter table public.journey            enable row level security;
@@ -387,8 +504,21 @@ drop policy if exists profiles_self_select on public.profiles;
 create policy profiles_self_select on public.profiles
   for select using (id = auth.uid() or public.is_rap_admin());
 drop policy if exists profiles_self_update on public.profiles;
+-- Audit 2026-07-28: WITH CHECK freezes the privilege columns to their current
+-- values, so a self-update can edit email/phone/name but can NEVER change role
+-- or dealer scope. Without it, an authenticated user could PATCH their own row
+-- via PostgREST and set role='rap_admin' (privilege escalation). service_role
+-- and by-hand SQL promotion bypass RLS, so backend/admin role management is
+-- unaffected. The subqueries read the caller's own row (id = auth.uid()); the
+-- profiles SELECT policy and is_rap_admin() (SECURITY DEFINER) prevent recursion.
 create policy profiles_self_update on public.profiles
-  for update using (id = auth.uid());
+  for update using (id = auth.uid())
+  with check (
+    id = auth.uid()
+    and role = (select p.role from public.profiles p where p.id = auth.uid())
+    and dealer_location_id is not distinct from
+        (select p.dealer_location_id from public.profiles p where p.id = auth.uid())
+  );
 
 -- dealer_locations: admin all · dealer own location · consumer via own guarantee.
 -- (Server-authoritative reads use the service role, which bypasses RLS; these
@@ -480,6 +610,27 @@ create policy claim_notes_read on public.claim_notes
              or g.dealer_location_id = public.current_dealer_location())
     ))
   );
+
+-- claim_links (v3): admin all; consumer/dealer via the parent claim's scope,
+-- same join shape as claim_notes. An ANONYMOUS unlinked claim has no
+-- consumer_id and no guarantee row, so neither branch matches — those links
+-- are service-role only until the claim is matched, by design (spec/handoff:
+-- follow the existing pattern; do not weaken existing policies).
+drop policy if exists claim_links_read on public.claim_links;
+create policy claim_links_read on public.claim_links
+  for select using (
+    public.is_rap_admin()
+    or exists (
+      select 1 from public.claims c
+      join public.guarantees g on g.id = c.guarantee_id
+      where c.id = claim_links.claim_id
+        and (c.consumer_id = auth.uid()
+             or g.dealer_location_id = public.current_dealer_location())
+    )
+  );
+drop policy if exists claim_links_admin_write on public.claim_links;
+create policy claim_links_admin_write on public.claim_links
+  for all using (public.is_rap_admin()) with check (public.is_rap_admin());
 
 -- payments: admin all; consumer own claim
 drop policy if exists payments_read on public.payments;

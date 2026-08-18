@@ -2,6 +2,21 @@
 
 Mobile-first PWA for filing 90-Night Comfort Guarantee exchanges, OEM warranty issues, and mattress service requests.
 
+## Authoritative guarantee terms
+
+**`docs/CMFG-90-CITY-GS.html`** is the current authoritative Limited 90-Night Comfort Guarantee (dealer variant: City Mattress, SKU `CMFG-90-CITY-GS`) until changed. The dealer may request changes; any update replaces this file and must be reconciled against the app's encoded business rules (`lib/eligibility.ts`, `content/guarantee-terms.ts`).
+
+Key terms from the authoritative document:
+- Exchange window: day 31–90 after delivery (delivery date = start)
+- One-time exchange, credit only — no refunds, no cash value
+- **$199 comfort exchange fee** paid to the Dealer (includes delivery/pickup within 50 miles)
+- Additional restocking fee for California King sets
+- Law tag + model tag must be attached and unaltered (removal voids the Guarantee)
+- Exchange requires an RA issued by RAP; exchanges happen at the selling Dealer's location
+- Exchange credit capped at purchase price or $10,000, whichever is less
+
+The app encodes the $199 fee as `COMFORT_EXCHANGE_FEE` in `lib/eligibility.ts`.
+
 **Brand:** Sleep Lab by RAP  
 **Demo Mode:** Fully functional with mock data. No Supabase or API keys required to view and test the flows on Netlify.
 
@@ -58,8 +73,8 @@ Open http://localhost:3000
 ## Key business rules encoded
 - 31–90 day window for comfort exchange (purchase date = start)
 - One-time exchange
-- $99 restocking fee
+- $199 comfort exchange fee (`COMFORT_EXCHANGE_FEE`); Cal King restocking fee is text-only
 - Law tag + model tag photos preferred (or $29 inspection)
-- Friendly reminders + full Guarantee document link
+- Friendly reminders + full Guarantee document link (authoritative terms: `docs/CMFG-90-CITY-GS.html`)
 
 Built for RAP by the Grok team.

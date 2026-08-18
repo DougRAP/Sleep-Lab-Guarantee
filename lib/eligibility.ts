@@ -13,8 +13,13 @@ export const WINDOW_OPEN_DAY = 31;
 /** Last day of the 90-night window (inclusive). */
 export const WINDOW_CLOSE_DAY = 90;
 
-/** Config value; RAP-tunable. The dev team wires the live charge (Stripe seam). */
-export const RESTOCKING_FEE = 99;
+/**
+ * The one-time comfort exchange fee (signed guarantee 2026-07, confirmed in the
+ * 07-22 review): $199, paid to the dealer when making the exchange; includes
+ * delivery and pickup within 50 miles. Distinct from the California King
+ * restocking fee, which the dealer collects separately. RAP-tunable config.
+ */
+export const COMFORT_EXCHANGE_FEE = 199;
 
 export interface EligibilityReason {
   ruleId: string;
@@ -44,15 +49,24 @@ export const RULES = {
     message:
       "The Comfort Guarantee includes a single one-time exchange, which has already been used.",
   },
+  // B-29 (Doug 2026-07-27): the "one request per sales order" rule was retired.
+  // Filing is never walled off by a prior submitted/denied request; duplicates
+  // are caught dealer-side at approval. The one-time cap lives in ONE_TIME_ONLY
+  // above (a COMPLETED/approved exchange), keyed by guarantee, per the terms.
   // Informational catalog (non-date terms) — cited by the fitting / admin later.
   EQUAL_OR_GREATER_VALUE: {
     id: "equal_or_greater_value",
     message:
       "The replacement must be in-stock and of equal or greater value; any price difference is paid at the dealer.",
   },
-  RESTOCKING_FEE: {
-    id: "restocking_fee",
-    message: `A $${RESTOCKING_FEE} restocking fee applies at the time of exchange.`,
+  COMFORT_EXCHANGE_FEE: {
+    id: "comfort_exchange_fee",
+    message: `A $${COMFORT_EXCHANGE_FEE} comfort exchange fee applies at the time of exchange (delivery and pickup within 50 miles included).`,
+  },
+  CAL_KING_RESTOCKING: {
+    id: "cal_king_restocking",
+    message:
+      "California King sets carry a separate restocking fee, paid to the dealer before the exchange.",
   },
   BOTH_PARTNERS_PRESENT: {
     id: "both_partners_present",

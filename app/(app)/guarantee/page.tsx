@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
-import { Logo } from "../../../components/Logo";
+import { AppHeader } from "../../../components/app-header";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { buttonVariants } from "../../../components/ui/button";
-import { SignOut } from "../../../components/auth/sign-out";
 import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
@@ -18,7 +17,7 @@ import { GUARANTEE_ESSENTIALS, GUARANTEE_META } from "../../../content/guarantee
 // is M5), a short plain-language "essentials" summary, and a link OUT to the full
 // externally-hosted guarantee (no in-app signing). Poster-first, printed-light.
 export default async function GuaranteePage() {
-  const { guarantee } = await requireGuarantee();
+  const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
 
   const resolved = await repo.hasResolvedExchange(guarantee.id);
@@ -30,22 +29,22 @@ export default async function GuaranteePage() {
     exchangeResolved: resolved,
   });
 
-  const state = eligibilityCopy(elig.day, elig.eligible, elig.phase, elig.windowOpensDay);
+  const state = eligibilityCopy(elig);
 
   return (
     <>
       <LivingSky day={elig.day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <div className="flex items-center justify-between">
-          <Logo />
-          <DayCount day={elig.day} />
-        </div>
+        <AppHeader email={session.email} />
 
         <div className="mt-8 space-y-6">
-          <h1 className="font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
+          {/* The day count as an eyebrow above the H1 (review 2026-07-22):
+              the whole app is about what day you're on, so it leads the page. */}
+          <DayCount day={elig.day} className="block" />
+          <h1 className="!mt-2 font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
             Your 90-Night Comfort Guarantee
           </h1>
 
@@ -109,12 +108,6 @@ export default async function GuaranteePage() {
           >
             Something else? (e.g. a damaged mattress)
           </Link>
-
-          {/* The one quiet way out of the account. Same whisper as the back
-              links elsewhere — never a peer of the primary action. */}
-          <div className="pt-2">
-            <SignOut />
-          </div>
         </div>
       </main>
     </>
@@ -122,12 +115,14 @@ export default async function GuaranteePage() {
 }
 
 /** Eligibility state → one line of the guide's voice + the affordance label. */
-function eligibilityCopy(
-  day: number,
-  eligible: boolean,
-  phase: string,
-  windowOpensDay: number
-): { message: string; affordance: string } {
+function eligibilityCopy(elig: {
+  day: number;
+  eligible: boolean;
+  phase: string;
+  windowOpensDay: number;
+  reasons: { ruleId: string; message: string }[];
+}): { message: string; affordance: string } {
+  const { day, eligible, phase, windowOpensDay } = elig;
   if (phase === "resolved") {
     return {
       message:

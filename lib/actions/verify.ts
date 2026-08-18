@@ -64,6 +64,10 @@ export async function verifyEntry(input: EntryInput): Promise<VerifyResult> {
   if (!salesOrderNumber || !lastName) {
     return { ok: false, error: MISSING_LOOKUP };
   }
+  // NOTE: no rate limit here on purpose. This lookup path only runs when
+  // Supabase is UNCONFIGURED (the demo/fallback); in production isAuthConfigured
+  // is true and this action refuses above (line ~44), so the real order+lastname
+  // guessing surface is linkPurchaseAction, which is where the B-13 guard lives.
   const guarantee = await repo.verifyGuarantee({ mode: "lookup", salesOrderNumber, lastName });
   if (!guarantee) return { ok: false, error: NO_MATCH };
   // Self-serve lookup — not pre-verified, so the fitting asks for the receipt.

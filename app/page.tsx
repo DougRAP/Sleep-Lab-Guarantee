@@ -58,18 +58,38 @@ export default async function WelcomePage({
           )}
 
           {realAuth ? (
-            <>
-              <AccountForm mode="signup" />
-              <p className="text-[13px] text-mist">
-                Already have an account?{" "}
-                <Link
-                  href="/login"
-                  className="text-dawn underline-offset-4 transition-colors hover:underline"
-                >
-                  Log in
-                </Link>
-              </p>
-            </>
+            hasToken ? (
+              /* A dashboard link means a brand-new customer whose purchase
+                 auto-links on account creation — signup stays first here. */
+              <>
+                <AccountForm mode="signup" />
+                <p className="text-[13px] text-mist">
+                  Already have an account?{" "}
+                  <Link
+                    href="/login"
+                    className="text-dawn underline-offset-4 transition-colors hover:underline"
+                  >
+                    Log in
+                  </Link>
+                </p>
+              </>
+            ) : (
+              /* Emmy's QA (2026-07-23): most visits are returning customers,
+                 so the front door leads with Log In; Create Account sits
+                 underneath. */
+              <>
+                <AccountForm mode="login" />
+                <p className="text-[13px] text-mist">
+                  New here?{" "}
+                  <Link
+                    href="/signup"
+                    className="text-dawn underline-offset-4 transition-colors hover:underline"
+                  >
+                    Create your account
+                  </Link>
+                </p>
+              </>
+            )
           ) : (
             <>
               <Entry token={token} />

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
-import { Logo } from "../../../components/Logo";
+import { AppHeader } from "../../../components/app-header";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeChat } from "../../../components/concierge/concierge-chat";
 import { requireGuarantee } from "../../../lib/auth/app-session";
@@ -13,7 +13,7 @@ import { conciergeGreeting } from "../../../lib/concierge";
 // via the repository, and the guide's replies come from the concierge action
 // (Anthropic when a key is set, scripted fallback otherwise).
 export default async function ConciergePage() {
-  const { guarantee } = await requireGuarantee();
+  const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
 
   const journey = await repo.getJourney(
@@ -37,19 +37,19 @@ export default async function ConciergePage() {
       <LivingSky day={day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <div className="flex items-center justify-between">
-          <Logo />
+        <AppHeader email={session.email} />
+
+        <div className="mt-3 flex items-center justify-between">
+          <Link
+            href="/tonight"
+            className="inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
+          >
+            &lsaquo; Tonight
+          </Link>
           <DayCount day={day} />
         </div>
-
-        <Link
-          href="/tonight"
-          className="mt-3 inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
-        >
-          &lsaquo; Tonight
-        </Link>
 
         <ConciergeChat
           greeting={greeting}

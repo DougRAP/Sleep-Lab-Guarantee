@@ -1,5 +1,5 @@
 import { LivingSky } from "../../../components/living-sky";
-import { Logo } from "../../../components/Logo";
+import { AppHeader } from "../../../components/app-header";
 import { DayCount } from "../../../components/day-count";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { FrostedCard } from "../../../components/ui/frosted-card";
@@ -20,7 +20,7 @@ const COUPON_TERMS = "Subject to dealer conditions and rules of acceptance.";
 // each item links out to the dealer/store, and the dealer coupon (from
 // dealer_locations) applies at their checkout. No cart, no Stripe.
 export default async function ShopPage() {
-  const { guarantee } = await requireGuarantee();
+  const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
 
   const journey = await repo.getJourney(guarantee.id);
@@ -35,15 +35,13 @@ export default async function ShopPage() {
       <LivingSky day={day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <div className="flex items-center justify-between">
-          <Logo />
-          <DayCount day={day} />
-        </div>
+        <AppHeader email={session.email} />
 
         <div className="mt-8 space-y-6">
-          <h1 className="font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
+          <DayCount day={day} className="block" />
+          <h1 className="!mt-2 font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
             A few things for better sleep
           </h1>
 
@@ -62,6 +60,15 @@ export default async function ShopPage() {
           <div className="space-y-4">
             {SHOP_ITEMS.map((item) => (
               <FrostedCard key={item.id} className="space-y-3">
+                {item.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    loading="lazy"
+                    className="h-40 w-full rounded-xl border border-[var(--line)] object-cover"
+                  />
+                )}
                 <div className="space-y-1.5">
                   <h2 className="font-serif text-[19px] leading-tight text-cloud">
                     {item.name}

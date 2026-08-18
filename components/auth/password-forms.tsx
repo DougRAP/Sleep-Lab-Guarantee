@@ -3,6 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Field } from "../ui/field";
+import { PasswordField } from "../ui/password-field";
 import { Button } from "../ui/button";
 import { AuthMessage } from "./auth-shell";
 import {
@@ -83,9 +84,8 @@ export function NewPasswordForm() {
 
   return (
     <form onSubmit={submit} noValidate className="space-y-4">
-      <Field
+      <PasswordField
         label="New password"
-        type="password"
         autoComplete="new-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}

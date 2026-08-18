@@ -6,12 +6,13 @@ import { statusLabel } from "../../lib/claim-status";
  * appears (the admin list and the consumer's own Requests list). Renders the
  * shared `statusLabel`, so consumer and staff never read a status differently.
  *
- * The markup and classes are exactly the span this replaced at both call
- * sites — pixel-identical, extracted so the pill can't drift between surfaces.
+ * Contrast raised on Emmy's QA (2026-07-23: "can't see statuses unless
+ * hovering"): a dawn-tinted fill, a stronger border and semibold type — the
+ * same single register, just legible at a glance on every screen.
  */
 export function StatusChip({ status }: { status: ClaimStatus }) {
   return (
-    <span className="shrink-0 rounded-full border border-[var(--line)] bg-white/[0.03] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-dawn">
+    <span className="shrink-0 rounded-full border border-dawn/50 bg-dawn/15 px-3 py-1 font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em] text-dawn">
       {statusLabel(status)}
     </span>
   );

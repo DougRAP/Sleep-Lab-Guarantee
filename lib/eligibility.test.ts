@@ -5,8 +5,68 @@ import {
   evaluateEligibility,
   WINDOW_OPEN_DAY,
   WINDOW_CLOSE_DAY,
+  COMFORT_EXCHANGE_FEE,
   RULES,
 } from "./eligibility";
+import { GUARANTEE_ESSENTIALS, GUARANTEE_TERMS } from "../content/guarantee-terms";
+
+// The signed guarantee (2026-07, confirmed by Doug in the 07-22 review:
+// "the document is right") sets a $199 comfort exchange fee; the separate
+// restocking fee applies only to California King sets.
+// B-29 (Doug, 2026-07-27): the "one request per sales order" block is gone.
+// Doug: "the app should not restrict the number of times any sales order is used
+// by the same customer." A prior submitted/denied request no longer walls off a
+// new one — duplicates are caught dealer-side at approval. The ONLY hard stop is
+// a COMPLETED/approved exchange, which the signed guarantee caps at one per set
+// ("ONLY ONE exchange under this Guarantee"), keyed by guarantee.
+describe("re-filing a request (B-29, Doug 2026-07-27)", () => {
+  it("a prior submitted/denied request no longer blocks starting another", () => {
+    const r = evaluateEligibility({
+      deliveryDate: deliveryNDaysAgo(40),
+      referenceDate: REF,
+    });
+    expect(r.eligible).toBe(true);
+    // The retired rule is gone from the catalog entirely.
+    expect(RULES).not.toHaveProperty("ONE_REQUEST_PER_ORDER");
+  });
+
+  it("a resolved exchange still blocks — the one-time rule (terms)", () => {
+    const r = evaluateEligibility({
+      deliveryDate: deliveryNDaysAgo(40),
+      referenceDate: REF,
+      exchangeResolved: true,
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.reasons.map((x) => x.ruleId)).toContain(RULES.ONE_TIME_ONLY.id);
+  });
+
+  it("the window rules behave exactly as before", () => {
+    expect(evaluateEligibility({ deliveryDate: deliveryNDaysAgo(40), referenceDate: REF }).eligible).toBe(true);
+    expect(evaluateEligibility({ deliveryDate: deliveryNDaysAgo(10), referenceDate: REF }).eligible).toBe(false);
+    expect(evaluateEligibility({ deliveryDate: deliveryNDaysAgo(120), referenceDate: REF }).eligible).toBe(false);
+  });
+});
+
+describe("comfort exchange fee (signed guarantee 2026-07)", () => {
+  it("is $199", () => {
+    expect(COMFORT_EXCHANGE_FEE).toBe(199);
+  });
+
+  it("is cited as a comfort exchange fee, not a restocking fee", () => {
+    expect(RULES.COMFORT_EXCHANGE_FEE.message).toContain("$199 comfort exchange fee");
+  });
+
+  it("appears in the in-app essentials with the correct amount", () => {
+    const feeLine = GUARANTEE_ESSENTIALS.find((l) => l.includes("comfort exchange fee"));
+    expect(feeLine).toContain("$199");
+    expect(GUARANTEE_ESSENTIALS.some((l) => l.includes("$99 restocking"))).toBe(false);
+  });
+
+  it("keeps the Cal King restocking fee as a separate, dealer-collected term", () => {
+    const all = GUARANTEE_TERMS.flatMap((s) => [...(s.body ?? []), ...(s.items ?? [])]);
+    expect(all.some((l) => l.includes("California King"))).toBe(true);
+  });
+});
 
 // Fixed reference so tests are deterministic.
 const REF = new Date("2026-07-19T21:00:00");

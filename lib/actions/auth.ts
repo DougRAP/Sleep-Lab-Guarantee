@@ -23,7 +23,9 @@ import {
   isAuthConfigured,
 } from "../auth/config";
 import { linkPurchase } from "../auth/link";
-import { ENTRY_PATH, LOGIN_PATH, homePath, routeAfterAuth } from "../auth/routing";
+import { guardLookupAttempt } from "./lookup-guard";
+import { setActiveGuaranteeCookie } from "../active-guarantee";
+import { ENTRY_PATH, LOGIN_PATH, homePath, isStaff, routeAfterAuth } from "../auth/routing";
 
 export type AuthResult = { ok: false; error: string } | { ok: true; message: string };
 
@@ -168,6 +170,10 @@ export async function linkPurchaseAction(input: {
   const viewer = await getViewer();
   if (!viewer) redirect(LOGIN_PATH);
 
+  // B-13: throttle order+lastname guessing before doing the match.
+  const guard = await guardLookupAttempt(input.salesOrderNumber);
+  if (!guard.ok) return { ok: false, error: guard.error! };
+
   const result = await linkPurchase(getRepository(), viewer.userId, {
     mode: "lookup",
     salesOrderNumber: input.salesOrderNumber,
@@ -175,6 +181,9 @@ export async function linkPurchaseAction(input: {
   });
   if (!result.ok) return { ok: false, error: result.error };
 
+  // B-28: make the just-linked purchase the active one, so adding a second
+  // purchase lands the app on it rather than the previous default.
+  await setActiveGuaranteeCookie(result.guaranteeId);
   redirect(homePath());
 }
 
@@ -192,9 +201,14 @@ async function destinationAfterAuth(): Promise<string> {
   const pendingToken = store.get(PENDING_TOKEN_COOKIE)?.value;
 
   const viewer = await getViewer();
-  const linked = viewer
-    ? Boolean(await getRepository().getGuaranteeForUser(viewer.userId))
-    : false;
+  // B-18 fix 3: staff have no linked purchase and their routing never reads
+  // it (routeAfterAuth sends staff to /admin regardless), so skip the
+  // guarantees round-trip for them. `linked` stays false for staff — the
+  // same value the query would have produced.
+  const linked =
+    viewer && !isStaff(viewer.role)
+      ? Boolean(await getRepository().getGuaranteeForUser(viewer.userId))
+      : false;
 
   if (pendingToken && !linked) return "/auth/link-token";
 

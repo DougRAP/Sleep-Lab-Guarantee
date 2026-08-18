@@ -123,12 +123,13 @@ describe("cross-guarantee isolation — the /requests/[id] rule", () => {
     expect(someoneElses).toBeNull();
   });
 
-  it("does not leak another guarantee's tracking number through the list either", async () => {
+  // v3: the claim number replaced the tracking number as the customer reference.
+  it("does not leak another guarantee's claim number through the list either", async () => {
     const r = new MemoryRepository();
     const theirs = await r.createDraftClaim({ guaranteeId: RIVERA.id, preVerified: false });
-    const { trackingNumber } = await r.submitClaim(theirs.id);
+    const { claimNumber } = await r.submitClaim(theirs.id);
 
     const mine = await r.listClaimsForGuarantee(DEMO.id);
-    expect(mine.map((c) => c.trackingNumber)).not.toContain(trackingNumber);
+    expect(mine.map((c) => c.claimNumber)).not.toContain(claimNumber);
   });
 });

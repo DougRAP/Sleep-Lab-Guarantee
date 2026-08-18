@@ -15,6 +15,7 @@ import {
   nextStep,
   normalizeConfirmations,
   photoTargetsFor,
+  draftHasContent,
   photosStatus,
   previousStep,
   requiresReceiptPhoto,
@@ -111,6 +112,38 @@ describe("photoTargetsFor", () => {
   });
 });
 
+describe("draftHasContent (Emmy's ghost fix, 2026-07-23)", () => {
+  const emptyDraft: Parameters<typeof draftHasContent>[0] = {
+    status: "draft",
+    reasonExperience: null,
+    preferredReplacement: null,
+    confirmations: [],
+  };
+
+  it("an untouched draft has no content — it must not clutter the list", () => {
+    expect(draftHasContent(emptyDraft, [], [])).toBe(false);
+  });
+
+  it("typed intake counts as content", () => {
+    expect(
+      draftHasContent({ ...emptyDraft, reasonExperience: "too firm" }, [], [])
+    ).toBe(true);
+  });
+
+  it("an added mattress counts as content", () => {
+    expect(draftHasContent(emptyDraft, [{ modelNumber: "  " }], [])).toBe(false);
+    expect(draftHasContent(emptyDraft, [{ modelNumber: "SP-1" }], [])).toBe(true);
+  });
+
+  it("a captured photo counts as content", () => {
+    expect(draftHasContent(emptyDraft, [], [photo("law_tag")])).toBe(true);
+  });
+
+  it("non-draft claims always have content", () => {
+    expect(draftHasContent({ ...emptyDraft, status: "submitted" }, [], [])).toBe(true);
+  });
+});
+
 describe("photosStatus", () => {
   const allBase = BASE_PHOTO_TARGETS.map((t) => photo(t.angle));
 
@@ -118,10 +151,15 @@ describe("photosStatus", () => {
     expect(photosStatus(allBase, true).complete).toBe(true);
   });
 
-  it("still needs the receipt when the order was not pre-verified", () => {
+  it("is complete without the receipt — the receipt is optional (review 2026-07-22)", () => {
     const status = photosStatus(allBase, false);
-    expect(status.complete).toBe(false);
-    expect(status.stillNeeded).toEqual(["Receipt"]);
+    expect(status.complete).toBe(true);
+    expect(status.stillNeeded).toEqual([]);
+  });
+
+  it("offers the receipt as an optional target when not pre-verified", () => {
+    const receipt = photoTargetsFor(false).find((t) => t.angle === "receipt");
+    expect(receipt?.optional).toBe(true);
   });
 
   it("counts a capture with no storage path — the fallback still counts", () => {

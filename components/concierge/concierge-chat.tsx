@@ -17,18 +17,24 @@ export function ConciergeChat({ greeting, initial }: { greeting: string; initial
   const [messages, setMessages] = useState<Msg[]>(initial);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // B-13 Pieza 3: once the daily limit is reached the coach rests until
+  // tomorrow — the input goes quiet rather than faking scripted replies.
+  const [resting, setResting] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function submit(e: FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || pending) return;
+    if (!text || pending || resting) return;
     setDraft("");
     setError(null);
     setMessages((m) => [...m, { role: "user", body: text }]);
     startTransition(async () => {
       const res = await sendConciergeMessage(text);
-      if (res.ok) {
+      if (res.ok && "resting" in res) {
+        setMessages((m) => [...m, { role: "assistant", body: res.message }]);
+        setResting(true);
+      } else if (res.ok) {
         setMessages((m) => [...m, { role: "assistant", body: res.reply }]);
       } else {
         setError(res.error);
@@ -74,18 +80,26 @@ export function ConciergeChat({ greeting, initial }: { greeting: string; initial
             aria-label="Message your guide"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={"Tell your guide…"}
-            className="h-12 flex-1 rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 text-[15px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
+            placeholder={resting ? "Back tomorrow…" : "Tell your guide…"}
+            disabled={resting}
+            className="h-12 flex-1 rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 text-[16px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40 disabled:opacity-60"
           />
           <Button
             type="submit"
             variant="ghost"
             size="md"
-            disabled={pending || !draft.trim()}
+            disabled={pending || resting || !draft.trim()}
           >
             Send
           </Button>
         </div>
+        {/* B-13 Pieza 9: AI + recording notice. Present on the page but quiet —
+            a hairline footnote under the input, out of the conversation flow. */}
+        <p className="pt-2 text-[11px] leading-snug text-mist/50">
+          Sleep Coach is an AI assistant, not a human or medical professional, and
+          conversations aren&apos;t monitored by people. They&apos;re saved to help
+          with your 90-night trial.
+        </p>
       </form>
     </div>
   );

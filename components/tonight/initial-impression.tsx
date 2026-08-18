@@ -73,7 +73,7 @@ export function InitialImpression() {
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Anything you'd add? (optional)"
-        className="h-12 w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 text-[15px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
+        className="h-12 w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 text-[16px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
       />
       <Button disabled={!choice || pending} onClick={share}>
         Share first impression

@@ -14,6 +14,14 @@
 import type { ConciergeToolDef, ToolDispatch } from "./concierge-tools";
 import type { GuaranteeRepository } from "./data/repository";
 
+/**
+ * Shown when the intake's per-hour rate limit is reached (audit 2026-07-28). An
+ * honest customer never sees it (the limit is generous); it rests a script
+ * calmly instead of spending on the model, and keeps the guided form usable.
+ */
+export const INTAKE_RESTING_REPLY =
+  "Let's take a short breather and pick this back up in a little while. You can also type your reason and preference straight into the form below.";
+
 /** The repository surface the intake dispatch may touch. */
 export type IntakeToolRepo = Pick<GuaranteeRepository, "updateClaim" | "getClaimById">;
 

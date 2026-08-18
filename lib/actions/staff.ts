@@ -75,6 +75,40 @@ export async function addStaffNoteAction(formData: FormData): Promise<void> {
 }
 
 /* -------------------------------------------------------------------------- */
+/* The exchange sales order — the dealer's one write (review 2026-07-22)      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Record the sales order number of the in-store exchange. Dealer OR admin —
+ * this is the one thing a dealer writes besides notes ("Mrs. Jones comes in
+ * and exchanges; the store writes in the sales order number for the exchange,
+ * and that turns it to exchange"). Scope re-checked through the repository;
+ * the repository guard refuses unless RAP already authorized the exchange.
+ */
+export async function recordExchangeSalesOrderAction(formData: FormData): Promise<void> {
+  const view = await getStaffView();
+  if (!view) return;
+
+  const claimId = String(formData.get("claimId") ?? "").trim();
+  const salesOrderNumber = String(formData.get("exchangeSalesOrderNumber") ?? "").trim();
+  if (!claimId || !salesOrderNumber) return;
+
+  const repo = getRepository();
+  // A dealer can only touch claims at their own location.
+  const record = await repo.getClaimRecord(staffScope(view), claimId);
+  if (!record) return;
+
+  try {
+    await repo.recordExchangeSalesOrder(claimId, salesOrderNumber);
+  } catch {
+    // Refused (not yet authorized, or a race) — the page only offers the form
+    // on recordable statuses, so the re-render shows truth.
+  }
+  revalidatePath(`${ADMIN_PATH}/requests/${claimId}`);
+  revalidatePath(ADMIN_PATH);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Status — RAP only ("the CRM posted back")                                  */
 /* -------------------------------------------------------------------------- */
 

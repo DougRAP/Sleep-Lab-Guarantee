@@ -10,6 +10,7 @@ import { SignOut } from "../../../../components/auth/sign-out";
 import { DemoViewBanner } from "../../../../components/admin/demo-view-banner";
 import {
   addStaffNoteAction,
+  recordExchangeSalesOrderAction,
   updateStaffClaimStatusAction,
 } from "../../../../lib/actions/staff";
 import { getRepository } from "../../../../lib/data";
@@ -19,8 +20,12 @@ import {
   type StaffView,
 } from "../../../../lib/auth/staff-view";
 import { ADMIN_PATH } from "../../../../lib/auth/routing";
-import { permittedClaimStatusTransitions } from "../../../../lib/data/repository";
+import {
+  EXCHANGE_RECORDABLE_STATUSES,
+  permittedClaimStatusTransitions,
+} from "../../../../lib/data/repository";
 import { statusLabel, statusNextStep } from "../../../../lib/claim-status";
+import { raDocumentAvailable } from "../../../../lib/ra-document";
 import { formatPlainDate } from "../../../../lib/dates";
 import type { ClaimNote } from "../../../../lib/types";
 
@@ -52,10 +57,13 @@ export default async function StaffRequestDetailPage({
   const record = await repo.getClaimRecord(staffScope(view), id);
   if (!record) notFound();
 
-  const [items, photos, allNotes, dealerLocation] = await Promise.all([
+  const [items, photos, allNotes, claim, dealerLocation] = await Promise.all([
     repo.listClaimItems(record.claimId),
     repo.listClaimPhotos(record.claimId),
     repo.listClaimNotes(record.claimId),
+    // The scope was already proven by getClaimRecord above; the full claim row
+    // carries the exchange sales order number the record view doesn't.
+    repo.getClaimById(record.claimId),
     view.dealerLocationId
       ? repo.getDealerLocationById(view.dealerLocationId)
       : Promise.resolve(null),
@@ -74,11 +82,19 @@ export default async function StaffRequestDetailPage({
         id="main"
         className="relative mx-auto flex min-h-[100dvh] w-full max-w-4xl flex-col px-6 pb-12 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <Logo />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
-            {view.role === "dealer" ? "Dealer" : "RAP"}
-          </span>
+          <div className="flex min-w-0 items-center gap-4">
+            {view.email && (
+              <span
+                title={view.email}
+                className="min-w-0 truncate font-mono text-[11px] tracking-[0.02em] text-mist"
+              >
+                {view.email}
+              </span>
+            )}
+            {!view.demo && <SignOut className="shrink-0" />}
+          </div>
         </div>
 
         {view.demo && <DemoViewBanner label={viewLabel(view, dealerLocation?.name ?? null)} />}
@@ -110,9 +126,21 @@ export default async function StaffRequestDetailPage({
         <div className="mt-8 grid gap-8 md:grid-cols-[1fr_320px]">
           {/* Left: the request itself + the thread */}
           <div className="min-w-0">
-            <FrostedCard className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-              <Stat label="Return authorization" value={record.raNumber ?? "—"} />
-              <Stat label="Tracking number" value={record.trackingNumber ?? "—"} />
+            <FrostedCard className="space-y-5">
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                <Stat label="Return authorization" value={record.raNumber ?? "—"} />
+                <Stat label="Tracking number" value={record.trackingNumber ?? "—"} />
+              </div>
+              {record.raNumber && raDocumentAvailable(record.status) && (
+                <a
+                  href={`${ADMIN_PATH}/requests/${record.claimId}/ra`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-dawn transition-colors hover:text-cloud"
+                >
+                  Open the RA document &rsaquo;
+                </a>
+              )}
             </FrostedCard>
 
             <Section title={items.length === 1 ? "The mattress" : "The mattresses"}>
@@ -161,7 +189,7 @@ export default async function StaffRequestDetailPage({
                     rows={3}
                     required
                     placeholder="Visible to both the dealer and RAP."
-                    className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 py-3 text-[15px] leading-relaxed text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
+                    className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 py-3 text-[16px] leading-relaxed text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
                   />
                 </div>
                 <Button type="submit" variant="ghost" size="md">
@@ -190,6 +218,45 @@ export default async function StaffRequestDetailPage({
                 />
               </dl>
             </FrostedCard>
+
+            {/* The dealer's one write (review 2026-07-22): when the customer
+                reselects in-store, the store records the NEW sales order
+                number, which completes the exchange. Offered to both roles,
+                only once RAP has authorized. */}
+            {(claim?.exchangeSalesOrderNumber ||
+              EXCHANGE_RECORDABLE_STATUSES.has(record.status)) && (
+              <Section title="Exchange sales order">
+                {claim?.exchangeSalesOrderNumber ? (
+                  <p className="font-mono text-[15px] text-cloud">
+                    {claim.exchangeSalesOrderNumber}
+                  </p>
+                ) : (
+                  <Quiet>
+                    When the exchange happens in-store, write in the new sales
+                    order number. That completes this request.
+                  </Quiet>
+                )}
+                {EXCHANGE_RECORDABLE_STATUSES.has(record.status) && (
+                  <form action={recordExchangeSalesOrderAction} className="space-y-3">
+                    <input type="hidden" name="claimId" value={record.claimId} />
+                    <input
+                      aria-label="Exchange sales order number"
+                      name="exchangeSalesOrderNumber"
+                      required
+                      defaultValue={claim?.exchangeSalesOrderNumber ?? ""}
+                      placeholder="New sales order #"
+                      autoComplete="off"
+                      className="h-12 w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 font-mono text-[16px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
+                    />
+                    <Button type="submit" variant="ghost" size="md">
+                      {claim?.exchangeSalesOrderNumber
+                        ? "Update exchange order"
+                        : "Record exchange"}
+                    </Button>
+                  </form>
+                )}
+              </Section>
+            )}
 
             {transitions.length > 0 && (
               <Section title="Update status">
@@ -234,7 +301,7 @@ export default async function StaffRequestDetailPage({
   );
 }
 
-/** "Dealer — Demo Bedding Co." / "RAP admin" for the demo-view indicator. */
+/** "Dealer — City Mattress" / "RAP admin" for the demo-view indicator. */
 function viewLabel(view: StaffView, dealerName: string | null): string {
   if (view.role === "dealer") {
     return dealerName ? `Dealer — ${dealerName}` : "Dealer";

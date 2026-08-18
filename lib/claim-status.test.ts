@@ -10,6 +10,7 @@ const ALL_STATUSES: ClaimStatus[] = [
   "draft",
   "submitted",
   "in_review",
+  "inspection_scheduled",
   "approved",
   "dealer_scheduled",
   "completed",
@@ -36,6 +37,10 @@ describe("statusLabel", () => {
     expect(statusLabel("submitted")).toBe("Submitted");
     expect(statusLabel("dealer_scheduled")).toBe("Scheduled");
     expect(statusLabel("denied")).toBe("Declined");
+  });
+
+  it("calls the finished exchange Redeemed (Doug, 2026-07-23)", () => {
+    expect(statusLabel("completed")).toBe("Redeemed");
   });
 });
 

@@ -4,7 +4,13 @@
 // crashes, never blocks submission, and is still recorded as metadata.
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { claimPhotoPath, isPhotoStorageConfigured, uploadClaimPhoto } from "./storage";
+import {
+  claimPhotoPath,
+  isPhotoStorageConfigured,
+  photoUploadIssue,
+  MAX_PHOTO_BYTES,
+  uploadClaimPhoto,
+} from "./storage";
 import { MemoryRepository } from "./data/memory-repository";
 import { SEED_GUARANTEES } from "./data/seed";
 import { canSubmit, photoTargetsFor } from "./fitting";
@@ -73,6 +79,29 @@ describe("claimPhotoPath", () => {
   });
 });
 
+describe("photoUploadIssue — upload guard (audit 2026-07-28, #8)", () => {
+  it("accepts a normal phone photo", () => {
+    expect(photoUploadIssue("image/jpeg", 2_000_000)).toBeNull();
+    expect(photoUploadIssue("image/heic", 5_000_000)).toBeNull();
+    expect(photoUploadIssue("image/png", 1)).toBeNull();
+  });
+
+  it("rejects a file over the size ceiling before its bytes are read", () => {
+    expect(photoUploadIssue("image/jpeg", MAX_PHOTO_BYTES + 1)).toMatch(/too large/i);
+  });
+
+  it("rejects a non-image content type", () => {
+    expect(photoUploadIssue("application/pdf", 1000)).toMatch(/supported/i);
+    expect(photoUploadIssue("text/html", 1000)).toMatch(/supported/i);
+  });
+
+  it("is lenient when the browser omits the content type (size still capped)", () => {
+    expect(photoUploadIssue(undefined, 1000)).toBeNull();
+    expect(photoUploadIssue("", 1000)).toBeNull();
+    expect(photoUploadIssue(undefined, MAX_PHOTO_BYTES + 1)).toMatch(/too large/i);
+  });
+});
+
 describe("a request completes with no storage backend", () => {
   it("records metadata-only captures and still submits", async () => {
     expect(isPhotoStorageConfigured()).toBe(false);
@@ -121,8 +150,10 @@ describe("a request completes with no storage backend", () => {
     const items = await repo.listClaimItems(claim.id);
     expect(canSubmit({ claim: current, items, photos })).toBe(true);
 
+    // v3: submit mints the claim number; RA/tracking are no longer minted.
     const result = await repo.submitClaim(claim.id);
-    expect(result.raNumber).toBeTruthy();
-    expect(result.trackingNumber).toBeTruthy();
+    expect(result.claimNumber).toBeTruthy();
+    expect(result.raNumber).toBeNull();
+    expect(result.trackingNumber).toBeNull();
   });
 });

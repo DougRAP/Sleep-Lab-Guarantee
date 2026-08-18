@@ -4,12 +4,13 @@
 //
 // The 90-Night Comfort Guarantee, as a versioned content layer (PRD v2 §"Content").
 // Rendered on /guarantee. Copy is drafted faithfully from the signed 90-Night
-// agreement's sections; dealer-specific figures (restocking fee, territory,
-// governing law) are surfaced as constants so a single edit updates the page.
+// agreement's sections; dealer-specific figures (comfort exchange fee,
+// territory, governing law) are surfaced as constants so one edit updates the
+// page. Fee figures reconciled against the final signed guarantee (2026-07-22).
 // Nothing here is legal advice or a substitute for the executed agreement — Doug
 // (RAP) reconciles this wording against the signed PDF before launch.
 
-import { RESTOCKING_FEE, WINDOW_OPEN_DAY, WINDOW_CLOSE_DAY } from "../lib/eligibility";
+import { COMFORT_EXCHANGE_FEE, WINDOW_OPEN_DAY, WINDOW_CLOSE_DAY } from "../lib/eligibility";
 
 export interface GuaranteeSection {
   id: string;
@@ -24,14 +25,15 @@ export interface GuaranteeSection {
 export const GUARANTEE_META = {
   version: "2026-07",
   name: "RAP 90-Night Comfort Guarantee",
-  restockingFee: RESTOCKING_FEE,
+  comfortExchangeFee: COMFORT_EXCHANGE_FEE,
   windowOpenDay: WINDOW_OPEN_DAY,
   windowCloseDay: WINDOW_CLOSE_DAY,
   governingState: "Florida",
   governingCounty: "Palm Beach County",
-  // The authoritative guarantee is hosted externally and served via this link
-  // (no in-app signing). Replace with the real hosted URL before launch.
-  fullTermsUrl: "https://example.com/rap-90-night-comfort-guarantee",
+  // The authoritative guarantee, hosted by Doug (received 2026-07-23). No
+  // in-app signing. TEMPORARY dependency on his Netlify: the source HTML has
+  // been requested so the document can live in this repo instead.
+  fullTermsUrl: "https://rap-citymattress-90daycomfort.netlify.app/",
 } as const;
 
 /** Short plain-language essentials shown in-app; the full terms live at fullTermsUrl. */
@@ -39,7 +41,7 @@ export const GUARANTEE_ESSENTIALS: string[] = [
   `A one-time comfort exchange, available days ${WINDOW_OPEN_DAY}–${WINDOW_CLOSE_DAY} of your 90 nights.`,
   "Give your new mattress four to six weeks to settle in before deciding.",
   "Exchange for a set of equal or greater value; you pay any price difference at the dealer.",
-  `A $${RESTOCKING_FEE} restocking fee applies. No refunds or cash back.`,
+  `A $${COMFORT_EXCHANGE_FEE} comfort exchange fee applies. No refunds or cash back.`,
   "Both sleep partners choose the replacement together, in-store.",
   "The mattress must be clean and undamaged, with the law and model tags attached.",
   "Covers comfort only — damage or defects are handled separately by your dealer.",
@@ -79,7 +81,8 @@ export const GUARANTEE_TERMS: GuaranteeSection[] = [
     ],
     items: [
       "You select a replacement of equal or greater value; you pay any price difference at the dealer.",
-      `A $${RESTOCKING_FEE} restocking fee applies at the time of exchange.`,
+      `A $${COMFORT_EXCHANGE_FEE} comfort exchange fee applies at the time of exchange. It includes delivery and pickup within 50 miles of an authorized location.`,
+      "California King sets carry a separate restocking fee, paid to the dealer before the exchange.",
       "The exchange is a mattress swap only — there are no refunds and no cash back.",
       "Both sleep partners should be present in-store to select the replacement together.",
       "The mattress must be returned in like-new, clean, and sanitary condition.",
@@ -122,7 +125,7 @@ export const GUARANTEE_TERMS: GuaranteeSection[] = [
     id: "maximum-obligation",
     heading: "RAP’s maximum obligation",
     body: [
-      "RAP’s entire obligation under this guarantee is limited to authorizing the single one-time comfort exchange described above, subject to the restocking fee and any price difference.",
+      "RAP’s entire obligation under this guarantee is limited to authorizing the single one-time comfort exchange described above, subject to the comfort exchange fee and any price difference.",
       "RAP is not responsible for incidental, consequential, or other indirect costs, and its total liability will not exceed the original purchase price of the mattress.",
     ],
   },

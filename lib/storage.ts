@@ -12,6 +12,42 @@ import type { PhotoAngle } from "./types";
 export const CLAIM_PHOTO_BUCKET = "claim-photos";
 
 /**
+ * Hard ceiling on one uploaded photo (audit 2026-07-28, #8). The bytes are read
+ * whole into the server action's memory, so an unbounded file is a memory/cost
+ * DoS. 12 MB is generous for a phone capture (the client already downscales).
+ */
+export const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
+
+/** Image content types a capture may carry. */
+export const ALLOWED_PHOTO_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+];
+
+/**
+ * Validate a capture BEFORE its bytes are read into memory. Returns a calm
+ * message when the file is too large or is not an allowed image, else null.
+ * Lenient on a missing content type (some browsers omit it) — the size cap and
+ * the sanitized, deterministic object path still apply.
+ */
+export function photoUploadIssue(
+  contentType: string | undefined,
+  size: number
+): string | null {
+  if (size > MAX_PHOTO_BYTES) {
+    return "That photo is too large. Please use one under 12 MB.";
+  }
+  const type = (contentType ?? "").toLowerCase();
+  if (type && !ALLOWED_PHOTO_TYPES.includes(type)) {
+    return "That file type isn't supported. Please use a photo (JPG, PNG, or HEIC).";
+  }
+  return null;
+}
+
+/**
  * True when photo bytes can actually be persisted. Mirrors
  * `isSupabaseConfigured()` but reads the env directly so this module stays free
  * of next/headers and unit-testable.
@@ -47,6 +83,34 @@ function extensionFor(contentType: string | undefined, fileName?: string | null)
   if (contentType?.includes("webp")) return "webp";
   if (contentType?.includes("heic")) return "heic";
   return "jpg";
+}
+
+/**
+ * Short-lived signed URLs for already-persisted claim photos, keyed by angle —
+ * so returning to the photos step shows the captures instead of empty tiles
+ * (review 2026-07-22: "the pictures disappear, but it does say retake").
+ * Best-effort: any storage failure simply yields fewer thumbnails.
+ */
+export async function claimPhotoThumbs(
+  photos: { angle: PhotoAngle; storagePath?: string | null; captured: boolean }[]
+): Promise<Partial<Record<PhotoAngle, string>>> {
+  const persisted = photos.filter((p) => p.captured && p.storagePath);
+  if (!isPhotoStorageConfigured() || persisted.length === 0) return {};
+  try {
+    const { createServiceClient } = await import("./supabase/server");
+    const db = createServiceClient();
+    const { data, error } = await db.storage
+      .from(CLAIM_PHOTO_BUCKET)
+      .createSignedUrls(persisted.map((p) => p.storagePath as string), 60 * 60);
+    if (error || !data) return {};
+    const thumbs: Partial<Record<PhotoAngle, string>> = {};
+    data.forEach((entry, i) => {
+      if (entry.signedUrl && !entry.error) thumbs[persisted[i].angle] = entry.signedUrl;
+    });
+    return thumbs;
+  } catch {
+    return {};
+  }
 }
 
 export interface UploadInput {

@@ -1,12 +1,13 @@
 // lib/data/fitting-repository.test.ts
-// Draft save/resume, item/photo persistence, and RA issuance against the
-// in-memory repository — the backend the app actually runs on today.
+// Draft save/resume, item/photo persistence, and claim-number issuance against
+// the in-memory repository — the backend the app actually runs on today.
+// (v3: submit mints the CG claim number; RA/tracking are no longer minted.)
 
 import { describe, expect, it } from "vitest";
 import { MemoryRepository } from "./memory-repository";
 import { SEED_GUARANTEES } from "./seed";
 import { CONFIRMATION_KEYS, canSubmit, photoTargetsFor, resumeStep } from "../fitting";
-import { isRaNumber, isTrackingNumber } from "../ra";
+import { isClaimNumber } from "../ra";
 
 const GUARANTEE_ID = SEED_GUARANTEES[0].id;
 
@@ -163,7 +164,7 @@ describe("photos", () => {
   });
 });
 
-describe("submitting — the RA", () => {
+describe("submitting — the claim number", () => {
   async function completedDraft(preVerified = false) {
     const r = repo();
     const claim = await r.createDraftClaim({ guaranteeId: GUARANTEE_ID, preVerified });
@@ -202,12 +203,18 @@ describe("submitting — the RA", () => {
     ).toBe(true);
   });
 
-  it("generates an RA number and a tracking number", async () => {
+  // v3: submit mints the CG###### claim number ONLY. RA issuance is a manual
+  // admin action (M-S4) and the tracking number is retired.
+  it("mints a claim number — and no RA or tracking number (v3)", async () => {
     const { r, claimId } = await completedDraft();
     const result = await r.submitClaim(claimId);
 
-    expect(isRaNumber(result.raNumber)).toBe(true);
-    expect(isTrackingNumber(result.trackingNumber)).toBe(true);
+    expect(isClaimNumber(result.claimNumber)).toBe(true);
+    expect(result.raNumber).toBeNull();
+    expect(result.trackingNumber).toBeNull();
+    expect(result.claim.claimNumber).toBe(result.claimNumber);
+    expect(result.claim.raNumber).toBeNull();
+    expect(result.claim.trackingNumber).toBeNull();
     expect(result.claim.status).toBe("submitted");
     expect(result.claim.step).toBe("submitted");
     expect(result.claim.submittedAt).toBeTruthy();
@@ -225,12 +232,11 @@ describe("submitting — the RA", () => {
     expect(await r.listClaimPhotos(claimId)).toHaveLength(photoTargetsFor(false).length);
   });
 
-  it("is idempotent — a second submit reuses the same numbers", async () => {
+  it("is idempotent — a second submit reuses the same claim number", async () => {
     const { r, claimId } = await completedDraft();
     const first = await r.submitClaim(claimId);
     const second = await r.submitClaim(claimId);
-    expect(second.raNumber).toBe(first.raNumber);
-    expect(second.trackingNumber).toBe(first.trackingNumber);
+    expect(second.claimNumber).toBe(first.claimNumber);
   });
 
   it("closes the draft — a new fitting starts fresh", async () => {

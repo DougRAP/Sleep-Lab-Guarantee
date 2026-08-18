@@ -28,6 +28,8 @@ export interface StaffView {
   demo: boolean;
   /** The real auth user id; null on the demo fallback. */
   userId: string | null;
+  /** The signed-in email for the header identity; null on the demo fallback. */
+  email: string | null;
 }
 
 export type StaffResolution =
@@ -53,9 +55,14 @@ export async function resolveStaffView(): Promise<StaffResolution> {
   // --- Real auth: the untouched guardAdminRoute + getViewer path ---
   if (isAuthConfigured()) {
     const viewer = await getViewer();
-    const linked = viewer
-      ? Boolean(await getRepository().getGuaranteeForUser(viewer.userId))
-      : false;
+    // B-18 fix 3: staff routing never depends on a linked purchase —
+    // guardAdminRoute answers for staff before reading `linked` — so don't
+    // pay a guarantees read that gets discarded. Consumers who wander into
+    // /admin still need it to be routed to their home vs /link.
+    const linked =
+      viewer && !isStaff(viewer.role)
+        ? Boolean(await getRepository().getGuaranteeForUser(viewer.userId))
+        : false;
     const to = guardAdminRoute({
       authConfigured: true,
       authenticated: Boolean(viewer),
@@ -75,6 +82,7 @@ export async function resolveStaffView(): Promise<StaffResolution> {
         dealerLocationId: viewer.dealerLocationId,
         demo: false,
         userId: viewer.userId,
+        email: viewer.email,
       },
     };
   }
@@ -89,6 +97,7 @@ export async function resolveStaffView(): Promise<StaffResolution> {
       dealerLocationId: demo.dealerLocationId,
       demo: true,
       userId: null,
+      email: null,
     },
   };
 }

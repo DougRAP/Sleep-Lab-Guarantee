@@ -4,8 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  generateClaimNumber,
   generateRaNumber,
   generateTrackingNumber,
+  isClaimNumber,
   isRaNumber,
   isTrackingNumber,
 } from "./ra";
@@ -59,6 +61,41 @@ describe("generateTrackingNumber", () => {
   it("is unique enough to hand out", () => {
     const seen = new Set(Array.from({ length: 500 }, () => generateTrackingNumber()));
     expect(seen.size).toBe(500);
+  });
+});
+
+describe("generateClaimNumber", () => {
+  it("is CG plus six alphabet characters — no space, no dash (v3)", () => {
+    const claimNumber = generateClaimNumber(sequence([0]));
+    expect(claimNumber).toBe("CG222222");
+    expect(isClaimNumber(claimNumber)).toBe(true);
+  });
+
+  it("always matches the claim-number format", () => {
+    for (let i = 0; i < 200; i++) {
+      expect(isClaimNumber(generateClaimNumber())).toBe(true);
+    }
+  });
+
+  it("is unique enough to hand out", () => {
+    const seen = new Set(Array.from({ length: 500 }, () => generateClaimNumber()));
+    expect(seen.size).toBe(500);
+  });
+
+  it("draws from the spoken-safe alphabet (no I, O, U, 0, 1)", () => {
+    for (let i = 0; i < 300; i++) {
+      expect(generateClaimNumber().slice(2)).not.toMatch(/[IOU01]/);
+    }
+  });
+
+  it("rejects malformed values", () => {
+    expect(isClaimNumber("CG 22222")).toBe(false); // no space (v3 spec §4)
+    expect(isClaimNumber("CG-222222")).toBe(false); // no dash
+    expect(isClaimNumber("CG22222")).toBe(false); // too short
+    expect(isClaimNumber("CG2222222")).toBe(false); // too long
+    expect(isClaimNumber("cg222222")).toBe(false); // canonical form is upper
+    expect(isClaimNumber("CG222220")).toBe(false); // 0 not in the alphabet
+    expect(isClaimNumber("RA-260719-2222")).toBe(false);
   });
 });
 

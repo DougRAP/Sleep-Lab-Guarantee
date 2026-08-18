@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { Field } from "../ui/field";
+import { PasswordField } from "../ui/password-field";
 import { Button } from "../ui/button";
 import { AuthMessage } from "./auth-shell";
 import { signInAction, signUpAction } from "../../lib/actions/auth";
@@ -48,9 +49,8 @@ export function AccountForm({ mode }: { mode: "signup" | "login" }) {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
-      <Field
+      <PasswordField
         label="Password"
-        type="password"
         autoComplete={isSignUp ? "new-password" : "current-password"}
         value={password}
         onChange={(e) => setPassword(e.target.value)}

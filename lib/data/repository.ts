@@ -7,10 +7,13 @@ import type {
   CheckIn,
   Claim,
   ClaimItem,
+  ClaimLink,
+  ClaimLinkKind,
   ClaimNote,
   ClaimNoteAuthor,
   ClaimPhoto,
   ClaimStatus,
+  EarlyPreference,
   ConciergeMessage,
   ConciergeRole,
   ConciergeThread,
@@ -30,6 +33,7 @@ import type {
 } from "../types";
 import type { TipQuery } from "../tips";
 import { journeyDay } from "../eligibility";
+import { CLAIM_NUMBER_PREFIX, CODE_ALPHABET } from "../ra";
 
 /** Verify inputs for the two entry paths (PRD §3.1). */
 export type VerifyInput =
@@ -79,6 +83,30 @@ export interface UpdateClaimInput {
   atDeliveryAddress?: boolean | null;
   newAddress?: string | null;
   stillOwns?: boolean | null;
+  // --- v3 anonymous intake: purchase details + the protector checkbox ---
+  salesOrderNumber?: string | null;
+  modelNumber?: string | null;
+  /** ISO date (YYYY-MM-DD), self-reported. */
+  purchaseDate?: string | null;
+  /** ISO date (YYYY-MM-DD), self-reported. */
+  deliveryDate?: string | null;
+  /** Informational — never gates submission. */
+  protectorUsed?: boolean | null;
+}
+
+/**
+ * v3: opening an anonymous claim (spec §2.2) — no account, no guarantee link.
+ * The three identity fields double as the auto-match key later.
+ */
+export interface CreateAnonymousClaimInput {
+  firstName: string;
+  lastName: string;
+  deliveryZip: string;
+}
+
+/** Options carried into submit. v3: the before-day-31 choice, when made. */
+export interface SubmitClaimOptions {
+  earlyPreference?: EarlyPreference | null;
 }
 
 /** One mattress on the request (max 2). Replaces the stored set wholesale. */
@@ -98,11 +126,17 @@ export interface RecordClaimPhotoInput {
   fileName?: string | null;
 }
 
-/** The result of submitting — the RA is the dealer-facing view of the claim. */
+/**
+ * The result of submitting. v3: the claim number is the single customer
+ * reference — RA and tracking numbers are NO LONGER minted at submit (RA
+ * issuance became a manual admin action). Both stay on the result, null on new
+ * claims, so rows minted under the old rule still round-trip.
+ */
 export interface SubmitClaimResult {
   claim: Claim;
-  raNumber: string;
-  trackingNumber: string;
+  claimNumber: string;
+  raNumber: string | null;
+  trackingNumber: string | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -166,13 +200,36 @@ export function toClaimRecord(
  *   - last name: the existing lastNameMatches rule ("Denise Calloway" finds
  *     the record whose last name is Calloway)
  *   - customer name: case-insensitive substring of "First Last"
+ *   - email: exact-ish (trimmed, case-insensitive) — Emmy 2026-07-23
+ *   - phone: full-number match on digits only, so "(704) 555-0214" finds
+ *     7045550214; a short digit fragment is not a phone — Emmy 2026-07-23
+ *   - zip: an exactly-5-digit query matches customer_zip (Doug 2026-07-23:
+ *     "ZIP for admin/store records search"); empty until the bulk import
+ *     fills the address columns, so it simply finds nothing before then
+ *   - claim number (v3): exact-ish against the claim's `CG######`, case-
+ *     insensitive, with or without the CG prefix — pass the claim to enable it
  * An empty/blank query matches everything (the unfiltered list).
  */
-export function claimSearchMatches(query: string, guarantee: Guarantee): boolean {
+export function claimSearchMatches(
+  query: string,
+  guarantee: Guarantee,
+  claim?: Pick<Claim, "claimNumber">
+): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
+  const asClaimNumber = claimNumberQuery(query);
+  if (
+    asClaimNumber &&
+    (claim?.claimNumber ?? "").trim().toUpperCase() === asClaimNumber
+  ) {
+    return true;
+  }
   if (guarantee.salesOrderNumber.trim().toLowerCase() === q) return true;
   if ((guarantee.guaranteeNumber ?? "").trim().toLowerCase() === q) return true;
+  if ((guarantee.customerEmail ?? "").trim().toLowerCase() === q) return true;
+  if (zipQuery(q) && (guarantee.customerZip ?? "").trim() === q) return true;
+  const digits = phoneDigits(q);
+  if (digits && digits === phoneDigits(guarantee.customerPhone ?? "")) return true;
   if (lastNameMatches(query, guarantee.customerLastName)) return true;
   const fullName = [guarantee.customerFirstName, guarantee.customerLastName]
     .filter(Boolean)
@@ -181,8 +238,119 @@ export function claimSearchMatches(query: string, guarantee: Guarantee): boolean
   return fullName.includes(q);
 }
 
+/**
+ * A query reads as a phone number when it strips to at least 7 digits (the
+ * shortest dialable number). Returns the digits, or null when it isn't one.
+ */
+export function phoneDigits(value: string): string | null {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 7 ? digits : null;
+}
+
+/** A query reads as a US ZIP when it is exactly five digits. */
+export function zipQuery(value: string): boolean {
+  return /^\d{5}$/.test(value.trim());
+}
+
+const CLAIM_NUMBER_BODY_RE = new RegExp(`^[${CODE_ALPHABET}]{6}$`);
+
+/**
+ * Canonicalize a claim-number-ish value to `CG######`, or null when it doesn't
+ * read as one. Case-insensitive; the CG prefix is optional — both backends and
+ * getClaimByNumber share this rule so "cg7mkq42" and "7MKQ42" find the same
+ * claim.
+ */
+export function claimNumberQuery(value: string): string | null {
+  const raw = value.trim().toUpperCase();
+  const body = raw.startsWith(CLAIM_NUMBER_PREFIX)
+    ? raw.slice(CLAIM_NUMBER_PREFIX.length)
+    : raw;
+  return CLAIM_NUMBER_BODY_RE.test(body) ? `${CLAIM_NUMBER_PREFIX}${body}` : null;
+}
+
+/** The self-reported identity an anonymous claim carries into auto-match. */
+export interface MatchGuaranteeInput {
+  lastName: string;
+  deliveryZip: string;
+  salesOrderNumber?: string | null;
+}
+
+/**
+ * v3 auto-match (spec §3): exact last name (case-insensitive) + delivery ZIP;
+ * when a sales order number was given it must match too. Pure and conservative:
+ * anything short of exactly ONE surviving candidate returns null — an ambiguous
+ * match is not a confident match, and no-match never blocks a claim (the RAP
+ * agent matches manually).
+ */
+export function matchGuarantee(
+  guarantees: Guarantee[],
+  input: MatchGuaranteeInput
+): Guarantee | null {
+  const lastName = input.lastName.trim().toLowerCase();
+  const zip = input.deliveryZip.trim();
+  const salesOrder = (input.salesOrderNumber ?? "").trim().toLowerCase();
+  if (!lastName || !zip) return null;
+  const candidates = guarantees.filter((g) => {
+    if (g.customerLastName.trim().toLowerCase() !== lastName) return false;
+    if ((g.customerZip ?? "").trim() !== zip) return false;
+    if (salesOrder && g.salesOrderNumber.trim().toLowerCase() !== salesOrder) {
+      return false;
+    }
+    return true;
+  });
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 /** Most rows a staff search returns — plenty for a desk, never a dump. */
 export const CLAIM_SEARCH_LIMIT = 50;
+
+/**
+ * Standard staff filters (review 2026-07-22: "the standard date range search
+ * fields and status"). Dates are plain YYYY-MM-DD, inclusive, matched against
+ * the day part of `submittedAt`.
+ */
+export interface ClaimRecordFilters {
+  status?: ClaimStatus | null;
+  submittedFrom?: string | null;
+  submittedTo?: string | null;
+}
+
+/** Pure filter rule, shared by both backends so they agree. */
+export function claimRecordFilterMatches(
+  filters: ClaimRecordFilters | undefined,
+  claim: Pick<Claim, "status" | "submittedAt">
+): boolean {
+  if (!filters) return true;
+  if (filters.status && claim.status !== filters.status) return false;
+  const day = (claim.submittedAt ?? "").slice(0, 10);
+  if (filters.submittedFrom && (!day || day < filters.submittedFrom)) return false;
+  if (filters.submittedTo && (!day || day > filters.submittedTo)) return false;
+  return true;
+}
+
+/**
+ * Statuses from which the dealer may record the exchange sales order (their
+ * ONE write besides notes, review 2026-07-22): only after RAP has authorized
+ * the exchange, plus `completed` so a wrong number can be corrected.
+ */
+export const EXCHANGE_RECORDABLE_STATUSES: ReadonlySet<ClaimStatus> = new Set([
+  "approved",
+  "dealer_scheduled",
+  "completed",
+]);
+
+/** Shared guard for recording the exchange sales order. Throws on refusal. */
+export function assertExchangeRecordable(
+  current: ClaimStatus,
+  salesOrderNumber: string
+): void {
+  if (!salesOrderNumber.trim()) {
+    throw new Error("An exchange sales order number is required");
+  }
+  if (!EXCHANGE_RECORDABLE_STATUSES.has(current)) {
+    throw new Error(`Cannot record an exchange on a ${current} claim`);
+  }
+}
 
 /** One row's activity timestamps — all `byMostRecent` needs to sort. */
 interface Timestamped {
@@ -201,7 +369,12 @@ export function byMostRecent(a: Timestamped, b: Timestamped): number {
   return bt.localeCompare(at);
 }
 
-/** Statuses a claim never leaves — the request's story is over (PRD §4). */
+/**
+ * Statuses where a request's story is normally over (PRD §4). Still used for
+ * display semantics, but since the 2026-07-22 review they no longer lock the
+ * claim: only rap_admin can adjudicate, and Doug wants admin able to reopen a
+ * declined/completed request to make an accommodation.
+ */
 export const TERMINAL_CLAIM_STATUSES: ReadonlySet<ClaimStatus> = new Set([
   "completed",
   "denied",
@@ -211,8 +384,16 @@ export const TERMINAL_CLAIM_STATUSES: ReadonlySet<ClaimStatus> = new Set([
 
 /**
  * The status-transition guard, shared by both backends so they refuse the same
- * moves: nothing leaves a terminal status, and nothing ever returns to `draft`
- * (a draft is an in-progress fitting, not an adjudication state).
+ * moves. One hard rule remains: nothing ever returns to `draft` (a draft is an
+ * in-progress fitting, not an adjudication state). Terminal statuses are open
+ * to adjudication again (review 2026-07-22: "we shouldn't lock that in case
+ * you want to make an accommodation") — the ROLE gate stays in the staff
+ * action: dealers never adjudicate at all.
+ *
+ * v3 adds `inspection_scheduled` (a tech visit) with its own narrow edges:
+ * entered only from `in_review`, and exits only to `approved`, `denied`, or
+ * back to `in_review` (the visit fell through). The general permissiveness
+ * above stays for every other status.
  */
 export function assertClaimStatusTransition(
   current: ClaimStatus,
@@ -221,8 +402,16 @@ export function assertClaimStatusTransition(
   if (next === "draft") {
     throw new Error(`Cannot move a claim back to draft`);
   }
-  if (TERMINAL_CLAIM_STATUSES.has(current)) {
-    throw new Error(`Cannot change a ${current} claim`);
+  if (next === "inspection_scheduled" && current !== "in_review") {
+    throw new Error(
+      `Cannot schedule an inspection on a ${current} claim (review it first)`
+    );
+  }
+  if (
+    current === "inspection_scheduled" &&
+    !["approved", "denied", "in_review"].includes(next)
+  ) {
+    throw new Error(`Cannot move an inspection_scheduled claim to ${next}`);
   }
 }
 
@@ -233,6 +422,7 @@ export function assertClaimStatusTransition(
 export const ADJUDICATION_STATUSES: readonly ClaimStatus[] = [
   "submitted",
   "in_review",
+  "inspection_scheduled",
   "approved",
   "dealer_scheduled",
   "completed",
@@ -264,6 +454,19 @@ export interface AddClaimNoteInput {
   body: string;
   /** The real auth user id when one exists; null on the demo fallback. */
   authorId?: string | null;
+}
+
+/**
+ * A document link being attached by staff (v3 §4). Same trust posture as
+ * AddClaimNoteInput: identity comes from the server-resolved staff view, never
+ * from a form.
+ */
+export interface AddClaimLinkInput {
+  kind: ClaimLinkKind;
+  url: string;
+  label?: string | null;
+  /** The real staff auth user id when one exists; null on the demo fallback. */
+  createdBy?: string | null;
 }
 
 export interface GuaranteeRepository {
@@ -331,17 +534,54 @@ export interface GuaranteeRepository {
   /** Record a capture. Re-capturing the same angle replaces the row (retake). */
   recordClaimPhoto(input: RecordClaimPhotoInput): Promise<ClaimPhoto>;
   /**
-   * Finalize: generate the RA + tracking number and move the claim to
-   * `submitted`. Idempotent — re-submitting returns the existing numbers.
+   * Finalize: mint the `CG######` claim number and move the claim to
+   * `submitted` (v3 — RA/tracking numbers are no longer minted here).
+   * Also snapshots `daysInServiceAtSubmit` from the self-reported delivery
+   * date when present, stores the optional early-window preference, and
+   * attempts the guarantee auto-match on anonymous claims (never blocking).
+   * Idempotent — re-submitting returns the existing claim number.
    */
-  submitClaim(claimId: string): Promise<SubmitClaimResult>;
+  submitClaim(claimId: string, options?: SubmitClaimOptions): Promise<SubmitClaimResult>;
+
+  // --- v3 (M-S1): anonymous claim-first intake ---
+  /**
+   * Open an anonymous draft claim (no account, no guarantee): identity fields
+   * only, `guaranteeId` null, scoped to the default dealer location.
+   */
+  createAnonymousClaim(input: CreateAnonymousClaimInput): Promise<Claim>;
+  /**
+   * The claim a customer's `CG######` names, or null. Forgiving on input:
+   * case-insensitive, CG prefix optional (see claimNumberQuery).
+   */
+  getClaimByNumber(claimNumber: string): Promise<Claim | null>;
+  /**
+   * Auto-match an anonymous claim to a registered guarantee (last name + ZIP,
+   * plus sales order # when given — see matchGuarantee) and link it when the
+   * match is unambiguous. NEVER throws on no-match: the claim is returned
+   * unchanged and a RAP agent matches manually. No-op on linked claims.
+   */
+  linkClaimToGuaranteeIfMatched(claimId: string): Promise<Claim>;
+  /** Every link attached to a claim, oldest first. */
+  listClaimLinks(claimId: string): Promise<ClaimLink[]>;
+  /**
+   * Attach a document link (agent action, v3 §4). Mirrors addClaimNote's
+   * posture: server-resolved identity, throws on an unknown claim id.
+   */
+  addClaimLink(claimId: string, input: AddClaimLinkInput): Promise<ClaimLink>;
   /**
    * Move a claim to a new status (adjudication seam) and let `updatedAt`
-   * refresh. Guarded by `assertClaimStatusTransition`: terminal statuses
-   * (completed/denied/expired/withdrawn) are final, and no claim returns to
-   * `draft`. Throws on an unknown claim id or a refused transition.
+   * refresh. Guarded by `assertClaimStatusTransition`: no claim ever returns
+   * to `draft`; terminal statuses reopen for admin accommodations (review
+   * 2026-07-22). Throws on an unknown claim id or a refused transition.
    */
   updateClaimStatus(claimId: string, status: ClaimStatus): Promise<Claim>;
+  /**
+   * The dealer's one write: record the sales order number of the in-store
+   * exchange (review 2026-07-22). Allowed only after RAP authorized the
+   * exchange (approved/dealer_scheduled; completed for corrections) and moves
+   * the claim to `completed`. Throws on refusal or an unknown claim id.
+   */
+  recordExchangeSalesOrder(claimId: string, salesOrderNumber: string): Promise<Claim>;
 
   // --- M5b: the shop coupon (issued on request, four-week expiry) ---
   /** The guarantee's current coupon, or null when there is none or it expired. */
@@ -356,9 +596,15 @@ export interface GuaranteeRepository {
   // --- M6: real auth — the user <-> guarantee link ---
   /**
    * The guarantee linked to this Supabase auth user, or null when they haven't
-   * linked a purchase yet (which routes them to the link step).
+   * linked a purchase yet (which routes them to the link step). With multiple
+   * purchases (B-28) this is the most recent — the default active one.
    */
   getGuaranteeForUser(userId: string): Promise<Guarantee | null>;
+  /**
+   * Every guarantee linked to this account, most recent first (B-28: an account
+   * may hold several purchases). Empty when none are linked.
+   */
+  listGuaranteesForUser(userId: string): Promise<Guarantee[]>;
   /**
    * Link an authenticated user to a guarantee (sets `guarantees.consumer_id`).
    * Server-authoritative. Returns null when the guarantee doesn't exist or is
@@ -375,7 +621,11 @@ export interface GuaranteeRepository {
    * guarantee #, last name, partial customer name); empty/absent = the full
    * list. The scope is applied inside the read, never by the caller's UI.
    */
-  listClaimRecords(scope: ClaimRecordScope, query?: string): Promise<ClaimRecord[]>;
+  listClaimRecords(
+    scope: ClaimRecordScope,
+    query?: string,
+    filters?: ClaimRecordFilters
+  ): Promise<ClaimRecord[]>;
   /**
    * One request for the staff detail page. Scope-aware: a dealer asking about
    * a claim from another location gets null — indistinguishable from a claim
@@ -403,6 +653,63 @@ export interface GuaranteeRepository {
     role: ConciergeRole,
     body: string
   ): Promise<ConciergeMessage>;
+
+  // --- B-11: coach usage telemetry (privacy-adjusted 2026-07-24) ---
+  /**
+   * Persist one reply's summed token usage. Numbers + thread_id only — no
+   * guarantee_id, no text (the privacy panel's design: the join to a person,
+   * when ever needed, is a deliberate staff-side query via concierge_messages,
+   * not a stored column). Must never throw into the caller's chat path.
+   */
+  recordConciergeUsage(input: ConciergeUsageInput): Promise<void>;
+  /**
+   * The per-day aggregate for the admin report, most recent day first,
+   * covering the last `days` days (default 30). No identifiers of any kind.
+   */
+  listConciergeUsageDaily(days?: number): Promise<ConciergeUsageDay[]>;
+
+  // --- B-13: tunable limits + rate limiting + chat quotas ---
+  /**
+   * All tunable-limit rows as a key→value map (B-13 Pieza 5). The caller pairs
+   * this with resolveSetting(), so a missing table just yields code defaults.
+   */
+  getAppSettings(): Promise<Record<string, number>>;
+  /**
+   * Atomically increment the fixed-window counter for (bucket, key,
+   * windowStart) and return the new value. Backs enforceRateLimit(); must be a
+   * single atomic op so concurrent serverless instances can't undercount.
+   */
+  bumpRateCounter(bucket: string, key: string, windowStartIso: string): Promise<number>;
+  /** Assistant replies sent to one guarantee since `sinceIso` (per-day quota). */
+  countConciergeRepliesSince(guaranteeId: string, sinceIso: string): Promise<number>;
+  /** Assistant replies sent program-wide since `sinceIso` (global fuse). */
+  countConciergeRepliesGlobalSince(sinceIso: string): Promise<number>;
+}
+
+/** One reply's billed usage (every API round summed). Raw telemetry row. */
+export interface ConciergeUsageInput {
+  /** Nullable: the row must survive a thread/customer deletion, unlinked. */
+  threadId: string | null;
+  model: string;
+  apiCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+}
+
+/** One report line: a calendar day's totals, identifier-free. */
+export interface ConciergeUsageDay {
+  /** YYYY-MM-DD (UTC, matching created_at::date in Postgres). */
+  day: string;
+  /** Assistant replies (rows). */
+  replies: number;
+  /** API round-trips (a tool-use reply makes several). */
+  apiCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
 }
 
 /** Case/whitespace-insensitive last-name match; tolerates a full name entered. */

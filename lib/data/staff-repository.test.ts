@@ -15,6 +15,11 @@ const ALL: ClaimRecordScope = { kind: "all" };
 const SHELBY: ClaimRecordScope = { kind: "dealer_location", dealerLocationId: "101" };
 const ELSEWHERE: ClaimRecordScope = { kind: "dealer_location", dealerLocationId: "202" };
 
+// The seeded ANONYMOUS claim (v3) has no guarantee row, and the staff list
+// renders claims via their guarantee until M-S4's unlinked-claim handling —
+// so the list today shows only the linked seeds.
+const LINKED_SEED_CLAIMS = SEED_CLAIMS.filter((c) => c.guaranteeId);
+
 /** A guarantee at a DIFFERENT dealer location, for scope-exclusion tests. */
 const WHITFIELD: Guarantee = {
   id: "test-guarantee-whitfield",
@@ -57,7 +62,7 @@ describe("listClaimRecords — search semantics", () => {
   it("empty and blank queries are the unfiltered list", async () => {
     const r = new MemoryRepository();
     const all = await r.listClaimRecords(ALL);
-    expect(all).toHaveLength(SEED_CLAIMS.length);
+    expect(all).toHaveLength(LINKED_SEED_CLAIMS.length);
     expect((await r.listClaimRecords(ALL, "")).map((x) => x.claimId)).toEqual(
       all.map((x) => x.claimId)
     );
@@ -106,6 +111,47 @@ describe("listClaimRecords — search semantics", () => {
     ]);
   });
 
+  it("matches an email address exactly, case-insensitively (Emmy 2026-07-23)", async () => {
+    const r = new MemoryRepository();
+    expect(
+      (await r.listClaimRecords(ALL, "D.Calloway@Example.com")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-calloway"]);
+    // A fragment never surfaces someone else's record.
+    expect(await r.listClaimRecords(ALL, "calloway@")).toEqual([]);
+  });
+
+  it("matches a phone number by its digits, tolerant of formatting (Emmy 2026-07-23)", async () => {
+    const r = new MemoryRepository();
+    expect(
+      (await r.listClaimRecords(ALL, "7045550214")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-calloway"]);
+    expect(
+      (await r.listClaimRecords(ALL, "(704) 555-0214")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-calloway"]);
+    // A short digit fragment is not a phone — it must not match one.
+    expect(await r.listClaimRecords(ALL, "0214")).toEqual([]);
+  });
+
+  it("matches a 5-digit ZIP against the customer zip (Doug 2026-07-23)", async () => {
+    const zipped: Guarantee = {
+      ...WHITFIELD,
+      id: "test-guarantee-zip",
+      salesOrderNumber: "2022000002Q",
+      guaranteeNumber: "RAP-90-2022000002Q",
+      customerLastName: "Quintero",
+      dealerLocationId: "101",
+      customerZip: "28150",
+    };
+    const repo = new MemoryRepository([...SEED_GUARANTEES, zipped]);
+    const draft = await repo.createDraftClaim({ guaranteeId: zipped.id, preVerified: false });
+    await repo.submitClaim(draft.id);
+
+    const hits = await repo.listClaimRecords(ALL, "28150");
+    expect(hits.some((x) => x.customerName.includes("Quintero"))).toBe(true);
+    // The seeds carry no zip yet — a zip that matches nobody finds nothing.
+    expect(await repo.listClaimRecords(ALL, "99999")).toEqual([]);
+  });
+
   it("returns a calm empty list when nothing matches", async () => {
     const r = new MemoryRepository();
     expect(await r.listClaimRecords(ALL, "zzz-no-such-customer")).toEqual([]);
@@ -125,7 +171,7 @@ describe("listClaimRecords — search semantics", () => {
     const { repo, otherClaimId } = await repoWithOtherLocation();
     const shelby = await repo.listClaimRecords(SHELBY);
     expect(shelby.map((x) => x.claimId)).not.toContain(otherClaimId);
-    expect(shelby).toHaveLength(SEED_CLAIMS.length);
+    expect(shelby).toHaveLength(LINKED_SEED_CLAIMS.length);
   });
 });
 
@@ -261,15 +307,114 @@ describe("permittedClaimStatusTransitions", () => {
   });
 
   it.each(["completed", "denied", "expired", "withdrawn"] as const)(
-    "offers nothing from a %s claim — terminal statuses are final",
+    "offers moves out of a %s claim — admin can always accommodate (review 2026-07-22)",
     (terminal) => {
-      expect(permittedClaimStatusTransitions(terminal)).toEqual([]);
+      const moves = permittedClaimStatusTransitions(terminal);
+      expect(moves.length).toBeGreaterThan(0);
+      expect(moves).toContain("in_review");
+      expect(moves).not.toContain("draft");
+      expect(moves).not.toContain(terminal);
     }
   );
 
   it("never offers draft, from anywhere", () => {
-    for (const status of ["submitted", "in_review", "approved", "dealer_scheduled"] as const) {
+    for (const status of [
+      "submitted",
+      "in_review",
+      "approved",
+      "dealer_scheduled",
+      "completed",
+      "denied",
+    ] as const) {
       expect(permittedClaimStatusTransitions(status)).not.toContain("draft");
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Standard filters — status + submitted date range (review 2026-07-22)       */
+/* -------------------------------------------------------------------------- */
+
+describe("listClaimRecords — filters", () => {
+  it("filters by status", async () => {
+    const r = new MemoryRepository();
+    const hits = await r.listClaimRecords(ALL, undefined, { status: "approved" });
+    expect(hits.map((x) => x.claimId)).toEqual(["seed-claim-natarajan"]);
+  });
+
+  it("filters by submitted date range (inclusive, plain dates)", async () => {
+    const r = new MemoryRepository();
+    const all = await r.listClaimRecords(ALL);
+    const target = all.find((x) => x.claimId === "seed-claim-boyd")!;
+    const day = (target.submittedAt as string).slice(0, 10);
+    const hits = await r.listClaimRecords(ALL, undefined, {
+      submittedFrom: day,
+      submittedTo: day,
+    });
+    expect(hits.map((x) => x.claimId)).toContain("seed-claim-boyd");
+    for (const hit of hits) {
+      expect((hit.submittedAt ?? "").slice(0, 10)).toBe(day);
+    }
+  });
+
+  it("combines search, scope and filters", async () => {
+    const r = new MemoryRepository();
+    expect(
+      await r.listClaimRecords(SHELBY, "kowal", { status: "denied" })
+    ).toEqual([]);
+    expect(
+      (
+        await r.listClaimRecords(SHELBY, "kowal", { status: "dealer_scheduled" })
+      ).map((x) => x.claimId)
+    ).toEqual(["seed-claim-kowalski"]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* The exchange sales order — the dealer's one write (review 2026-07-22)      */
+/* -------------------------------------------------------------------------- */
+
+describe("recordExchangeSalesOrder", () => {
+  it("records the number on an approved claim and completes it", async () => {
+    const r = new MemoryRepository();
+    const updated = await r.recordExchangeSalesOrder(
+      "seed-claim-natarajan",
+      "1011099999X"
+    );
+    expect(updated.exchangeSalesOrderNumber).toBe("1011099999X");
+    expect(updated.status).toBe("completed");
+    expect((await r.getClaimById("seed-claim-natarajan"))?.status).toBe("completed");
+  });
+
+  it("records on a scheduled claim too", async () => {
+    const r = new MemoryRepository();
+    const updated = await r.recordExchangeSalesOrder(
+      "seed-claim-kowalski",
+      "1011099998Y"
+    );
+    expect(updated.status).toBe("completed");
+  });
+
+  it("lets a completed claim's number be corrected without changing status", async () => {
+    const r = new MemoryRepository();
+    await r.recordExchangeSalesOrder("seed-claim-natarajan", "1011099999X");
+    const fixed = await r.recordExchangeSalesOrder("seed-claim-natarajan", "1011099997Z");
+    expect(fixed.exchangeSalesOrderNumber).toBe("1011099997Z");
+    expect(fixed.status).toBe("completed");
+  });
+
+  it("refuses before RAP has approved — no exchange without authorization", async () => {
+    const r = new MemoryRepository();
+    await expect(
+      r.recordExchangeSalesOrder("seed-claim-calloway", "1011099996W")
+    ).rejects.toThrow();
+    expect((await r.getClaimById("seed-claim-calloway"))?.status).toBe("submitted");
+  });
+
+  it("refuses a blank number", async () => {
+    const r = new MemoryRepository();
+    await expect(
+      r.recordExchangeSalesOrder("seed-claim-natarajan", "   ")
+    ).rejects.toThrow();
   });
 });

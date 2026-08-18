@@ -9,6 +9,7 @@ import type {
   CheckIn,
   Claim,
   ClaimItem,
+  ClaimLink,
   ClaimNote,
   ClaimPhoto,
   ClaimStatus,
@@ -24,34 +25,45 @@ import type {
   Tip,
 } from "../types";
 import { journeyDay, journeyPhase } from "../eligibility";
-import { generateRaNumber, generateTrackingNumber } from "../ra";
+import { generateClaimNumber } from "../ra";
 import { couponExpiresAt, generateCouponCode, isCouponExpired } from "../coupon";
 import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import {
+  type AddClaimLinkInput,
   type AddClaimNoteInput,
   type ClaimItemInput,
   type ClaimRecord,
+  type ClaimRecordFilters,
   type ClaimRecordScope,
+  type ConciergeUsageDay,
+  type ConciergeUsageInput,
+  type CreateAnonymousClaimInput,
   type CreateDraftClaimInput,
   type GuaranteeRepository,
   type RecordClaimPhotoInput,
   type SaveCheckInInput,
   type SaveConcernInput,
   type SaveInitialImpressionInput,
+  type SubmitClaimOptions,
   type SubmitClaimResult,
   type UpdateClaimInput,
   type VerifyInput,
   CLAIM_SEARCH_LIMIT,
   assertClaimStatusTransition,
+  assertExchangeRecordable,
   byMostRecent,
+  claimNumberQuery,
+  claimRecordFilterMatches,
   claimSearchMatches,
   lastNameMatches,
+  matchGuarantee,
   sameCalendarDate,
   toClaimRecord,
   todayIso,
 } from "./repository";
 import {
+  DEFAULT_DEALER_LOCATION_ID,
   SEED_CLAIM_ITEMS,
   SEED_CLAIM_NOTES,
   SEED_CLAIMS,
@@ -68,12 +80,16 @@ export class MemoryRepository implements GuaranteeRepository {
   private checkIns: CheckIn[] = [];
   private threads: ConciergeThread[] = [];
   private messages: ConciergeMessage[] = [];
+  private usageRows: (ConciergeUsageInput & { createdAt: string })[] = [];
+  private rateCounters = new Map<string, number>();
+  private appSettings: Record<string, number> = {};
   private impressions: InitialImpressionRecord[];
   private concerns: { guaranteeId: string; body: string; createdAt: string }[] = [];
   private claims: Claim[] = [];
   private claimItems: ClaimItem[] = [];
   private claimPhotos: ClaimPhoto[] = [];
   private claimNotes: ClaimNote[] = [];
+  private claimLinks: ClaimLink[] = [];
   private coupons: Coupon[] = [];
   private seq = 0;
 
@@ -291,11 +307,81 @@ export class MemoryRepository implements GuaranteeRepository {
       stillOwns: null,
       raNumber: null,
       trackingNumber: null,
+      claimNumber: null,
       submittedAt: null,
       createdAt: now,
       updatedAt: now,
     };
     this.claims.push(row);
+    return { ...row };
+  }
+
+  // --- v3: anonymous claim-first intake ---
+
+  async createAnonymousClaim(input: CreateAnonymousClaimInput): Promise<Claim> {
+    const now = new Date().toISOString();
+    const row: Claim = {
+      id: this.nextId("claim"),
+      guaranteeId: null,
+      dealerLocationId: DEFAULT_DEALER_LOCATION_ID,
+      status: "draft",
+      step: "intake",
+      confirmations: [],
+      preVerified: false,
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      deliveryZip: input.deliveryZip.trim(),
+      salesOrderNumber: null,
+      modelNumber: null,
+      purchaseDate: null,
+      deliveryDate: null,
+      protectorUsed: null,
+      daysInServiceAtSubmit: null,
+      earlyPreference: null,
+      reasonExperience: null,
+      preferredReplacement: null,
+      contactPhone: null,
+      contactPhoneKind: null,
+      contactEmail: null,
+      atDeliveryAddress: null,
+      newAddress: null,
+      stillOwns: null,
+      raNumber: null,
+      trackingNumber: null,
+      claimNumber: null,
+      submittedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.claims.push(row);
+    return { ...row };
+  }
+
+  async getClaimByNumber(claimNumber: string): Promise<Claim | null> {
+    const needle = claimNumberQuery(claimNumber);
+    if (!needle) return null;
+    const found = this.claims.find(
+      (c) => (c.claimNumber ?? "").trim().toUpperCase() === needle
+    );
+    return found ? { ...found } : null;
+  }
+
+  async linkClaimToGuaranteeIfMatched(claimId: string): Promise<Claim> {
+    const row = this.claims.find((c) => c.id === claimId);
+    if (!row) throw new Error(`No claim ${claimId}`);
+    // Already linked, or nothing to match on — leave it alone, never throw.
+    if (row.guaranteeId || !row.lastName || !row.deliveryZip) return { ...row };
+    const match = matchGuarantee(this.guarantees, {
+      lastName: row.lastName,
+      deliveryZip: row.deliveryZip,
+      salesOrderNumber: row.salesOrderNumber ?? null,
+    });
+    if (!match) return { ...row };
+    row.guaranteeId = match.id;
+    // Carry the linked account (when the guarantee has one) so ownership reads
+    // resolve, mirroring linkGuaranteeToUser's backfill.
+    if (!row.consumerId && match.consumerId) row.consumerId = match.consumerId;
+    row.updatedAt = new Date().toISOString();
     return { ...row };
   }
 
@@ -328,6 +414,11 @@ export class MemoryRepository implements GuaranteeRepository {
     if (patch.atDeliveryAddress !== undefined) row.atDeliveryAddress = patch.atDeliveryAddress;
     if (patch.newAddress !== undefined) row.newAddress = patch.newAddress;
     if (patch.stillOwns !== undefined) row.stillOwns = patch.stillOwns;
+    if (patch.salesOrderNumber !== undefined) row.salesOrderNumber = patch.salesOrderNumber;
+    if (patch.modelNumber !== undefined) row.modelNumber = patch.modelNumber;
+    if (patch.purchaseDate !== undefined) row.purchaseDate = patch.purchaseDate;
+    if (patch.deliveryDate !== undefined) row.deliveryDate = patch.deliveryDate;
+    if (patch.protectorUsed !== undefined) row.protectorUsed = patch.protectorUsed;
     row.updatedAt = new Date().toISOString();
     return { ...row };
   }
@@ -382,23 +473,50 @@ export class MemoryRepository implements GuaranteeRepository {
     return { ...row };
   }
 
-  async submitClaim(claimId: string): Promise<SubmitClaimResult> {
+  async submitClaim(
+    claimId: string,
+    options?: SubmitClaimOptions
+  ): Promise<SubmitClaimResult> {
     const row = this.claims.find((c) => c.id === claimId);
     if (!row) throw new Error(`No claim ${claimId}`);
-    // Idempotent: a second submit returns the numbers already issued.
-    if (row.raNumber && row.trackingNumber) {
-      return { claim: { ...row }, raNumber: row.raNumber, trackingNumber: row.trackingNumber };
+    // Idempotent: a second submit returns the number already issued (v3 — the
+    // claim number is the single reference; RA/tracking are no longer minted).
+    if (row.claimNumber && row.submittedAt) {
+      return {
+        claim: { ...row },
+        claimNumber: row.claimNumber,
+        raNumber: row.raNumber ?? null,
+        trackingNumber: row.trackingNumber ?? null,
+      };
     }
-    const raNumber = generateRaNumber();
-    const trackingNumber = generateTrackingNumber();
+    if (!row.claimNumber) {
+      // Regenerate on the (astronomically rare) in-memory collision — the
+      // Supabase impl gets the same guarantee from the unique constraint.
+      let minted = generateClaimNumber();
+      while (this.claims.some((c) => c.claimNumber === minted)) {
+        minted = generateClaimNumber();
+      }
+      row.claimNumber = minted;
+    }
     const now = new Date().toISOString();
-    row.raNumber = raNumber;
-    row.trackingNumber = trackingNumber;
+    if (row.deliveryDate) {
+      row.daysInServiceAtSubmit = journeyDay(row.deliveryDate, new Date());
+    }
+    if (options?.earlyPreference !== undefined) {
+      row.earlyPreference = options.earlyPreference;
+    }
     row.status = "submitted";
     row.step = "submitted";
     row.submittedAt = now;
     row.updatedAt = now;
-    return { claim: { ...row }, raNumber, trackingNumber };
+    // Auto-match anonymous claims to a registered guarantee — never blocking.
+    if (!row.guaranteeId) await this.linkClaimToGuaranteeIfMatched(row.id);
+    return {
+      claim: { ...row },
+      claimNumber: row.claimNumber,
+      raNumber: row.raNumber ?? null,
+      trackingNumber: row.trackingNumber ?? null,
+    };
   }
 
   async updateClaimStatus(claimId: string, status: ClaimStatus): Promise<Claim> {
@@ -407,6 +525,23 @@ export class MemoryRepository implements GuaranteeRepository {
     assertClaimStatusTransition(row.status, status);
     row.status = status;
     row.updatedAt = new Date().toISOString();
+    return { ...row };
+  }
+
+  async recordExchangeSalesOrder(
+    claimId: string,
+    salesOrderNumber: string
+  ): Promise<Claim> {
+    const row = this.claims.find((c) => c.id === claimId);
+    if (!row) throw new Error(`No claim ${claimId}`);
+    assertExchangeRecordable(row.status, salesOrderNumber);
+    const now = new Date().toISOString();
+    row.exchangeSalesOrderNumber = salesOrderNumber.trim();
+    if (row.status !== "completed") {
+      row.status = "completed";
+      row.completedAt = now;
+    }
+    row.updatedAt = now;
     return { ...row };
   }
 
@@ -446,10 +581,18 @@ export class MemoryRepository implements GuaranteeRepository {
   // --- M6: the user <-> guarantee link ---
 
   async getGuaranteeForUser(userId: string): Promise<Guarantee | null> {
+    // The most recent purchase = the default active one (B-28).
+    const list = await this.listGuaranteesForUser(userId);
+    return list[0] ?? null;
+  }
+
+  async listGuaranteesForUser(userId: string): Promise<Guarantee[]> {
     const needle = (userId ?? "").trim();
-    if (!needle) return null;
-    const found = this.guarantees.find((g) => g.consumerId === needle);
-    return found ? { ...found } : null;
+    if (!needle) return [];
+    return this.guarantees
+      .filter((g) => g.consumerId === needle)
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .map((g) => ({ ...g }));
   }
 
   async linkGuaranteeToUser(
@@ -468,7 +611,8 @@ export class MemoryRepository implements GuaranteeRepository {
 
   async listClaimRecords(
     scope: ClaimRecordScope,
-    query?: string
+    query?: string,
+    filters?: ClaimRecordFilters
   ): Promise<ClaimRecord[]> {
     const needle = (query ?? "").trim();
     const rows: ClaimRecord[] = [];
@@ -484,7 +628,8 @@ export class MemoryRepository implements GuaranteeRepository {
       ) {
         continue;
       }
-      if (needle && !claimSearchMatches(needle, guarantee)) continue;
+      if (needle && !claimSearchMatches(needle, guarantee, claim)) continue;
+      if (!claimRecordFilterMatches(filters, claim)) continue;
       rows.push(toClaimRecord(claim, guarantee));
     }
     const sorted = rows.sort(byMostRecent);
@@ -536,6 +681,31 @@ export class MemoryRepository implements GuaranteeRepository {
     return { ...row };
   }
 
+  // --- v3: claim links (EA docs / tech reports) ---
+
+  async listClaimLinks(claimId: string): Promise<ClaimLink[]> {
+    return this.claimLinks
+      .filter((l) => l.claimId === claimId)
+      .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
+      .map((l) => ({ ...l }));
+  }
+
+  async addClaimLink(claimId: string, input: AddClaimLinkInput): Promise<ClaimLink> {
+    const claim = this.claims.find((c) => c.id === claimId);
+    if (!claim) throw new Error(`No claim ${claimId}`);
+    const row: ClaimLink = {
+      id: this.nextId("claim-link"),
+      claimId,
+      kind: input.kind,
+      url: input.url.trim(),
+      label: input.label?.trim() || null,
+      createdBy: input.createdBy ?? null,
+      createdAt: new Date().toISOString(),
+    };
+    this.claimLinks.push(row);
+    return { ...row };
+  }
+
   // --- M3: tips ---
 
   async getTip(query: TipQuery): Promise<Tip | null> {
@@ -576,5 +746,72 @@ export class MemoryRepository implements GuaranteeRepository {
     };
     this.messages.push(row);
     return row;
+  }
+
+  // --- B-11: coach usage telemetry ---
+
+  async recordConciergeUsage(input: ConciergeUsageInput): Promise<void> {
+    this.usageRows.push({ ...input, createdAt: new Date().toISOString() });
+  }
+
+  async listConciergeUsageDaily(days = 30): Promise<ConciergeUsageDay[]> {
+    const cutoff = new Date(Date.now() - days * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const byDay = new Map<string, ConciergeUsageDay>();
+    for (const row of this.usageRows) {
+      const day = row.createdAt.slice(0, 10);
+      if (day < cutoff) continue;
+      const agg =
+        byDay.get(day) ??
+        {
+          day,
+          replies: 0,
+          apiCalls: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+        };
+      agg.replies += 1;
+      agg.apiCalls += row.apiCalls;
+      agg.inputTokens += row.inputTokens;
+      agg.outputTokens += row.outputTokens;
+      agg.cacheCreationTokens += row.cacheCreationTokens;
+      agg.cacheReadTokens += row.cacheReadTokens;
+      byDay.set(day, agg);
+    }
+    return [...byDay.values()].sort((a, b) => b.day.localeCompare(a.day));
+  }
+
+  // --- B-13: settings + rate limiting + chat quotas ---
+
+  async getAppSettings(): Promise<Record<string, number>> {
+    return { ...this.appSettings };
+  }
+
+  async bumpRateCounter(bucket: string, key: string, windowStartIso: string): Promise<number> {
+    const k = `${bucket}\u0000${key}\u0000${windowStartIso}`;
+    const next = (this.rateCounters.get(k) ?? 0) + 1;
+    this.rateCounters.set(k, next);
+    return next;
+  }
+
+  async countConciergeRepliesSince(guaranteeId: string, sinceIso: string): Promise<number> {
+    const threadIds = new Set(
+      this.threads.filter((t) => t.guaranteeId === guaranteeId).map((t) => t.id)
+    );
+    return this.messages.filter(
+      (m) =>
+        m.role === "assistant" &&
+        threadIds.has(m.threadId) &&
+        (m.createdAt ?? "") >= sinceIso
+    ).length;
+  }
+
+  async countConciergeRepliesGlobalSince(sinceIso: string): Promise<number> {
+    return this.messages.filter(
+      (m) => m.role === "assistant" && (m.createdAt ?? "") >= sinceIso
+    ).length;
   }
 }

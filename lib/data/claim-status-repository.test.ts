@@ -55,19 +55,26 @@ describe("updateClaimStatus", () => {
   });
 
   it.each(["completed", "denied", "expired", "withdrawn"] as const)(
-    "refuses to move a %s claim — terminal statuses are final",
+    "lets adjudication reopen a %s claim — an accommodation is always possible (review 2026-07-22)",
     async (terminal) => {
       const r = new MemoryRepository();
       const claim = await submittedClaim(r);
       await r.updateClaimStatus(claim.id, terminal);
 
-      await expect(r.updateClaimStatus(claim.id, "in_review")).rejects.toThrow(
-        `Cannot change a ${terminal} claim`
-      );
-      // The refusal changed nothing.
-      expect((await r.getClaimById(claim.id))?.status).toBe(terminal);
+      const reopened = await r.updateClaimStatus(claim.id, "in_review");
+      expect(reopened.status).toBe("in_review");
+      expect((await r.getClaimById(claim.id))?.status).toBe("in_review");
     }
   );
+
+  it("still never sends a terminal claim back to draft", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+    await r.updateClaimStatus(claim.id, "denied");
+    await expect(r.updateClaimStatus(claim.id, "draft")).rejects.toThrow(
+      "Cannot move a claim back to draft"
+    );
+  });
 
   it("refuses to send any claim back to draft", async () => {
     const r = new MemoryRepository();

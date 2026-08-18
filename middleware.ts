@@ -120,8 +120,16 @@ export async function middleware(req: NextRequest) {
 
   let userId: string | null = null;
   try {
-    const { data } = await supabase.auth.getUser();
-    userId = data?.user?.id ?? null;
+    // B-18 fix 1: read the session locally instead of a network round-trip to
+    // the auth server on EVERY request (pages, prefetches, navigations — each
+    // paid ~110 ms). getSession() reads the cookie and only touches the
+    // network to refresh an expired token, which is exactly job #2 above.
+    // This gate decides ONE thing: "is someone signed in?". The page-level
+    // guards (lib/auth/app-session.ts) remain authoritative and still
+    // re-validate against the auth server with getUser() — a forged cookie
+    // gets past this cheap check and is then rejected by the page.
+    const { data } = await supabase.auth.getSession();
+    userId = data?.session?.user?.id ?? null;
   } catch {
     // Auth backend unreachable — treat as signed out rather than erroring.
     userId = null;

@@ -60,6 +60,10 @@ export function buildSystemPrompt(
     "- Never ask for or repeat sensitive details (order numbers, email, phone, address, or payment).",
     "- Narrate any task gently ('let's take a look together') rather than presenting a form.",
     "- Stay within sleep, mattress comfort, and the 90-night comfort guarantee. Gently redirect anything else. You do not give medical advice.",
+    // B-13 Pieza 9 (soft version): warmth for distress, no crisis-line scripting.
+    // The model's own safety training already handles clear crisis on its own,
+    // so we only set the TONE and avoid over-triggering on figures of speech.
+    "- If someone shares serious emotional distress or a health concern, respond with warmth, acknowledge how hard that sounds, and gently suggest they talk to a doctor or counselor; then, if it feels natural, return to their sleep comfort. Do not treat figures of speech like 'this mattress is killing me' as distress.",
     `Journey: it is day ${ctx.day} of 90 for this customer. Phase: ${phaseLabel(ctx.phase)}.`,
   ];
 
@@ -176,6 +180,20 @@ export function fallbackReply(ctx: FallbackContext): string {
   return `${opener}${tail(tipBody)} How did last night feel?`;
 }
 
+/**
+ * Token usage summed across EVERY API round of one reply (B-11). A tool-use
+ * reply makes several calls; reporting only one would under-count exactly the
+ * most expensive messages. Numbers only — no content, no customer identifiers.
+ */
+export interface ConciergeUsageTotals {
+  model: string;
+  apiCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+}
+
 export interface GenerateParams {
   /** Server-side key. Undefined/empty → scripted fallback, no network call. */
   apiKey?: string;
@@ -191,6 +209,13 @@ export interface GenerateParams {
    */
   tools?: ConciergeToolDef[];
   dispatch?: ToolDispatch;
+  /**
+   * Usage sink (B-11 cost report). Called at most once per reply, only when at
+   * least one API call was made — so never on the no-key fallback, but yes on
+   * a mid-flight failure (those rounds were billed). A throwing sink is
+   * swallowed; it can never break the reply.
+   */
+  onUsage?: (usage: ConciergeUsageTotals) => void | Promise<void>;
 }
 
 /** Cap on tool-use round trips per reply (defensive; normal replies use 0–2). */
@@ -207,6 +232,25 @@ const MAX_TOOL_ITERATIONS = 6;
 export async function generateConciergeReply(params: GenerateParams): Promise<string> {
   const key = params.apiKey?.trim();
   if (!key) return fallbackReply(params.fallback);
+
+  // B-11: one accumulator across every round of this reply. Reported in the
+  // finally block so billed tokens are counted even when a later round fails.
+  const totals: ConciergeUsageTotals = {
+    model: params.model,
+    apiCalls: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+  };
+  const track = (res: Anthropic.Message) => {
+    const u: Partial<Anthropic.Usage> = res.usage ?? {};
+    totals.apiCalls += 1;
+    totals.inputTokens += u.input_tokens ?? 0;
+    totals.outputTokens += u.output_tokens ?? 0;
+    totals.cacheCreationTokens += u.cache_creation_input_tokens ?? 0;
+    totals.cacheReadTokens += u.cache_read_input_tokens ?? 0;
+  };
 
   try {
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
@@ -234,6 +278,7 @@ export async function generateConciergeReply(params: GenerateParams): Promise<st
         system: params.system,
         messages,
       });
+      track(res);
       return collectText(res) || fallbackReply(params.fallback);
     }
 
@@ -252,6 +297,7 @@ export async function generateConciergeReply(params: GenerateParams): Promise<st
         tools,
         messages: convo,
       });
+      track(res);
 
       if (res.stop_reason !== "tool_use") {
         return collectText(res) || fallbackReply(params.fallback);
@@ -279,6 +325,16 @@ export async function generateConciergeReply(params: GenerateParams): Promise<st
   } catch {
     // Missing/invalid key, network error, unsupported param, etc. — degrade calmly.
     return fallbackReply(params.fallback);
+  } finally {
+    // Report exactly once, only if something was actually billed. A throwing
+    // sink is swallowed — usage capture must never break the conversation.
+    if (totals.apiCalls > 0 && params.onUsage) {
+      try {
+        await params.onUsage(totals);
+      } catch {
+        // Deliberately ignored.
+      }
+    }
   }
 }
 

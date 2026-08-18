@@ -87,6 +87,11 @@ export interface PhotoTarget {
   coaching: string;
   /** True when this target is only asked for in some cases (the receipt). */
   conditional?: boolean;
+  /**
+   * True when the capture is welcome but never blocks the request (review
+   * 2026-07-22: "if they want to add the receipt, fine; if they don't, fine").
+   */
+  optional?: boolean;
 }
 
 /** The two tag shots + five uncovered mattress angles, in capture order. */
@@ -136,20 +141,22 @@ export const RECEIPT_PHOTO_TARGET: PhotoTarget = {
   angle: "receipt",
   label: "Receipt",
   coaching:
-    "Because we looked your order up by hand, one photo of the receipt confirms the purchase.",
+    "Optional — if the receipt is handy, one photo helps confirm the purchase. Skip it if it isn't.",
   conditional: true,
+  optional: true,
 };
 
 /**
- * A receipt photo is required ONLY when the sales order was not pre-verified —
+ * The receipt photo is OFFERED only when the sales order was not pre-verified —
  * i.e. the customer looked themselves up rather than arriving on the
- * dashboard/CRM token link, where the order is already confirmed.
+ * dashboard/CRM token link, where the order is already confirmed. Since the
+ * 2026-07-22 review it is optional either way: offered, never required.
  */
 export function requiresReceiptPhoto(preVerified: boolean | null | undefined): boolean {
   return !preVerified;
 }
 
-/** The photo targets for this request, receipt included only when needed. */
+/** The photo targets for this request, receipt offered only when useful. */
 export function photoTargetsFor(preVerified: boolean | null | undefined): PhotoTarget[] {
   return requiresReceiptPhoto(preVerified)
     ? [...BASE_PHOTO_TARGETS, RECEIPT_PHOTO_TARGET]
@@ -198,12 +205,38 @@ export function confirmationsStatus(confirmations: ConfirmationKey[] | undefined
   };
 }
 
+/**
+ * True when a claim is worth showing in the consumer's Requests list. Every
+ * non-draft claim is; a DRAFT only once it holds real progress (typed intake,
+ * a mattress, a capture, or a tapped confirmation). Emmy's ghost fix
+ * (2026-07-23): an untouched draft born from merely opening the fitting must
+ * not clutter the list as "Not yet submitted".
+ */
+export function draftHasContent(
+  claim: Pick<Claim, "status" | "reasonExperience" | "preferredReplacement" | "confirmations">,
+  items: Pick<ClaimItem, "modelNumber">[],
+  photos: Pick<ClaimPhoto, "captured">[]
+): boolean {
+  if (claim.status !== "draft") return true;
+  return (
+    nonEmpty(claim.reasonExperience) ||
+    nonEmpty(claim.preferredReplacement) ||
+    items.some((i) => nonEmpty(i.modelNumber)) ||
+    photos.some((p) => p.captured) ||
+    (claim.confirmations?.length ?? 0) > 0
+  );
+}
+
 export function photosStatus(
   photos: ClaimPhoto[],
   preVerified: boolean | null | undefined
 ): StepStatus {
   const captured = new Set(photos.filter((p) => p.captured).map((p) => p.angle));
-  const missing = photoTargetsFor(preVerified).filter((t) => !captured.has(t.angle));
+  // Optional targets (the receipt) are offered but never counted against
+  // completeness — they must not block the request.
+  const missing = photoTargetsFor(preVerified).filter(
+    (t) => !t.optional && !captured.has(t.angle)
+  );
   return {
     complete: missing.length === 0,
     stillNeeded: missing.map((t) => t.label),

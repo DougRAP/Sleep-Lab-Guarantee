@@ -28,6 +28,8 @@ export interface FittingFlowProps {
   greeting: string;
   photoTargets: PhotoTargetView[];
   capturedAngles: PhotoAngle[];
+  /** Signed URLs for persisted photos, keyed by angle (may be empty). */
+  photoThumbs?: Partial<Record<PhotoAngle, string>>;
   items: ClaimItem[];
   confirmations: ConfirmationKey[];
   intake: { reasonExperience: string; preferredReplacement: string };
@@ -45,7 +47,8 @@ export interface FittingFlowProps {
 /**
  * The fitting — one calm step per screen. The current step is persisted after
  * every move, so leaving and coming back resumes here rather than restarting.
- * Rendered outside the (app) route group: full-bleed, no bottom nav.
+ * Since the 2026-07-22 review the page around it keeps the sticky header and
+ * bottom nav visible — the footer is the customer's escape route.
  */
 export function FittingFlow(props: FittingFlowProps) {
   const [step, setStep] = useState<FittingStep>(props.initialStep);
@@ -129,6 +132,7 @@ export function FittingFlow(props: FittingFlowProps) {
           targets={props.photoTargets}
           capturedAngles={props.capturedAngles}
           storageConfigured={props.storageConfigured}
+          initialThumbs={props.photoThumbs}
           onDone={() => go("verify")}
         />
       )}

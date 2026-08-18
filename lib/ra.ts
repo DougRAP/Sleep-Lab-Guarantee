@@ -16,6 +16,7 @@ export const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTVWXYZ";
 
 export const RA_PREFIX = "RA";
 export const TRACKING_PREFIX = "RAP";
+export const CLAIM_NUMBER_PREFIX = "CG";
 
 /** Source of randomness; injectable for deterministic tests. */
 export type RandomSource = () => number;
@@ -53,8 +54,18 @@ export function generateTrackingNumber(random: RandomSource = Math.random): stri
   return `${TRACKING_PREFIX}-${code(8, random)}`;
 }
 
+/**
+ * Claim number: `CG7MKQ42` — v3's single customer reference, minted at submit.
+ * No space, no dash (spec v3 §4): it gets typed into a search box and read
+ * aloud, so it is one unbroken token from the spoken-safe alphabet.
+ */
+export function generateClaimNumber(random: RandomSource = Math.random): string {
+  return `${CLAIM_NUMBER_PREFIX}${code(6, random)}`;
+}
+
 const RA_RE = new RegExp(`^${RA_PREFIX}-\\d{6}-[${CODE_ALPHABET}]{4}$`);
 const TRACKING_RE = new RegExp(`^${TRACKING_PREFIX}-[${CODE_ALPHABET}]{8}$`);
+const CLAIM_NUMBER_RE = new RegExp(`^${CLAIM_NUMBER_PREFIX}[${CODE_ALPHABET}]{6}$`);
 
 export function isRaNumber(value: string): boolean {
   return RA_RE.test(value);
@@ -62,4 +73,8 @@ export function isRaNumber(value: string): boolean {
 
 export function isTrackingNumber(value: string): boolean {
   return TRACKING_RE.test(value);
+}
+
+export function isClaimNumber(value: string): boolean {
+  return CLAIM_NUMBER_RE.test(value);
 }

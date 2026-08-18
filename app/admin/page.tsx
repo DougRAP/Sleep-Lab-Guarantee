@@ -16,12 +16,24 @@ import {
   type StaffView,
 } from "../../lib/auth/staff-view";
 import { formatDayMonth } from "../../lib/dates";
+import { statusLabel } from "../../lib/claim-status";
 import { cn } from "../../lib/utils";
+import { ADJUDICATION_STATUSES } from "../../lib/data/repository";
 import type { ClaimRecord } from "../../lib/data/repository";
+import type { ClaimStatus } from "../../lib/types";
+
+/** YYYY-MM-DD or nothing — date filters never throw on garbage input. */
+function isPlainDate(value: string | undefined): boolean {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
 
 // Never prerender: what this screen shows depends on the visitor's session and
 // role, so it must be resolved per request regardless of build-time env.
 export const dynamic = "force-dynamic";
+
+// The desk is about exchange requests — the tab should say so too (review
+// 2026-07-22: "should probably rename that Exchange Requests").
+export const metadata = { title: "Exchange requests · RAP Sleep Lab" };
 
 /**
  * The staff requests desk — an OFFICE tool, so the layout is desktop-first
@@ -38,10 +50,18 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; from?: string; to?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, status, from, to } = await searchParams;
   const query = (q ?? "").trim();
+  // Standard filters (review 2026-07-22): status + submitted date range.
+  // Unknown values degrade to "no filter", never to an error.
+  const statusFilter = ADJUDICATION_STATUSES.includes(status as ClaimStatus)
+    ? (status as ClaimStatus)
+    : null;
+  const fromFilter = isPlainDate(from) ? (from as string) : null;
+  const toFilter = isPlainDate(to) ? (to as string) : null;
+  const filtered = Boolean(statusFilter || fromFilter || toFilter);
 
   const resolved = await resolveStaffView();
   if (resolved.kind === "redirect") redirect(resolved.to);
@@ -49,10 +69,18 @@ export default async function AdminPage({
   const view = resolved.view;
 
   const repo = getRepository();
-  const records = await repo.listClaimRecords(staffScope(view), query || undefined);
-  const dealerName = view.dealerLocationId
-    ? (await repo.getDealerLocationById(view.dealerLocationId))?.name ?? null
-    : null;
+  // B-18 fix 2: the list and the dealer's name are independent reads — in
+  // parallel they cost one round-trip instead of two.
+  const [records, dealerName] = await Promise.all([
+    repo.listClaimRecords(staffScope(view), query || undefined, {
+      status: statusFilter,
+      submittedFrom: fromFilter,
+      submittedTo: toFilter,
+    }),
+    view.dealerLocationId
+      ? repo.getDealerLocationById(view.dealerLocationId).then((d) => d?.name ?? null)
+      : Promise.resolve(null),
+  ]);
 
   return (
     <>
@@ -61,11 +89,19 @@ export default async function AdminPage({
         id="main"
         className="relative mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col px-6 pb-12 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <Logo />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
-            {view.role === "dealer" ? "Dealer" : "RAP"}
-          </span>
+          <div className="flex min-w-0 items-center gap-4">
+            {view.email && (
+              <span
+                title={view.email}
+                className="min-w-0 truncate font-mono text-[11px] tracking-[0.02em] text-mist"
+              >
+                {view.email}
+              </span>
+            )}
+            {!view.demo && <SignOut className="shrink-0" />}
+          </div>
         </div>
 
         {view.demo && <DemoViewBanner label={viewLabel(view, dealerName)} />}
@@ -79,32 +115,85 @@ export default async function AdminPage({
               ? "Requests from your location. Adjudication stays in RAP's systems."
               : "Every submitted request. Adjudication stays in RAP's existing systems."}
           </p>
+          {view.role === "rap_admin" && (
+            <p className="text-[13px]">
+              <Link
+                href="/admin/coach"
+                className="text-mist underline-offset-4 hover:underline"
+              >
+                Coach usage &rarr;
+              </Link>
+            </p>
+          )}
         </div>
 
-        <form method="get" action="/admin" className="mt-6 flex items-end gap-3">
-          <div className="min-w-0 flex-1">
-            <Field
-              label="Search"
-              name="q"
-              defaultValue={query}
-              placeholder="Order #, guarantee #, or customer name"
-              autoComplete="off"
-            />
+        <form method="get" action="/admin" className="mt-6 space-y-3">
+          <div className="flex items-end gap-3">
+            <div className="min-w-0 flex-1">
+              <Field
+                label="Search"
+                name="q"
+                defaultValue={query}
+                placeholder="Order #, guarantee #, name, email, or phone"
+                autoComplete="off"
+              />
+            </div>
+            <Button type="submit" variant="ghost" size="md" className="h-12 shrink-0">
+              Search
+            </Button>
+            {(query || filtered) && (
+              <Link
+                href="/admin"
+                className={cn(
+                  buttonVariants({ variant: "quiet", size: "md" }),
+                  "h-12 shrink-0"
+                )}
+              >
+                Clear
+              </Link>
+            )}
           </div>
-          <Button type="submit" variant="ghost" size="md" className="h-12 shrink-0">
-            Search
-          </Button>
-          {query && (
-            <Link
-              href="/admin"
-              className={cn(
-                buttonVariants({ variant: "quiet", size: "md" }),
-                "h-12 shrink-0"
-              )}
-            >
-              Clear
-            </Link>
-          )}
+
+          {/* The standard filters (review 2026-07-22): status + date range. */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-44">
+              <label
+                htmlFor="status-filter"
+                className="mb-1.5 block font-mono text-[11px] uppercase tracking-[0.12em] text-mist"
+              >
+                Status
+              </label>
+              <select
+                id="status-filter"
+                name="status"
+                defaultValue={statusFilter ?? ""}
+                className="h-12 w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-3 text-[16px] text-cloud outline-none transition-colors focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
+              >
+                <option value="">All statuses</option>
+                {ADJUDICATION_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {statusLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-44">
+              <Field
+                label="Submitted from"
+                name="from"
+                type="date"
+                defaultValue={fromFilter ?? ""}
+              />
+            </div>
+            <div className="w-44">
+              <Field
+                label="Submitted to"
+                name="to"
+                type="date"
+                defaultValue={toFilter ?? ""}
+              />
+            </div>
+          </div>
         </form>
 
         <div className="mt-6 space-y-3">
@@ -126,14 +215,13 @@ export default async function AdminPage({
             {records.length} {records.length === 1 ? "request" : "requests"}
             {query ? ` · “${query}”` : ""}
           </span>
-          {!view.demo && <SignOut />}
         </div>
       </main>
     </>
   );
 }
 
-/** "Dealer — Demo Bedding Co." / "RAP admin" for the demo-view indicator. */
+/** "Dealer — City Mattress" / "RAP admin" for the demo-view indicator. */
 function viewLabel(view: StaffView, dealerName: string | null): string {
   if (view.role === "dealer") {
     return dealerName ? `Dealer — ${dealerName}` : "Dealer";
@@ -215,7 +303,7 @@ function DemoRolePicker() {
           </p>
           <form action={chooseDemoStaffViewAction} className="space-y-3">
             <Button type="submit" name="role" value="dealer" variant="ghost" size="lg">
-              View as Dealer &mdash; Demo Bedding Co.
+              View as Dealer &mdash; City Mattress
             </Button>
             <Button type="submit" name="role" value="rap_admin" variant="ghost" size="lg">
               View as RAP admin

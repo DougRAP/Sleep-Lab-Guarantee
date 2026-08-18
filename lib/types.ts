@@ -22,12 +22,25 @@ export type ClaimStatus =
   | "draft"
   | "submitted"
   | "in_review"
+  // v3: a technician visit is on the calendar (entered from in_review; exits to
+  // approved/denied, or back to in_review if the visit falls through).
+  | "inspection_scheduled"
   | "approved"
   | "dealer_scheduled"
   | "completed"
   | "denied"
   | "expired"
   | "withdrawn";
+
+/**
+ * v3: the choice a customer makes when filing before day 31 — hold the claim
+ * and auto-submit at day 31, or have an agent call. Null when the claim was
+ * submitted in-window. Surfaced to agents; no scheduler acts on it (spec §7).
+ */
+export type EarlyPreference = "auto_submit_day_31" | "agent_call";
+
+/** v3: what kind of document an agent attached to a claim. */
+export type ClaimLinkKind = "exchange_authorization" | "tech_report" | "other";
 
 /**
  * Photo targets. The first four are the original M2 set (kept for existing
@@ -96,6 +109,16 @@ export interface Guarantee {
   customerLastName: string;
   customerEmail?: string | null;
   customerPhone?: string | null;
+  /**
+   * Customer address, mirroring the bulk-import file spec (CUST_STREET/2/CIT/
+   * ST/ZIP). Empty until the City Mattress import fills them (Doug 2026-07-23:
+   * ZIP powers the staff records search; the rest sit ready for later).
+   */
+  customerStreet?: string | null;
+  customerStreet2?: string | null;
+  customerCity?: string | null;
+  customerState?: string | null;
+  customerZip?: string | null;
   dealerName?: string | null;
   /** Scopes dealer-role access via RLS. */
   dealerLocationId?: string | null;
@@ -169,13 +192,47 @@ export interface Tip {
 
 export interface Claim {
   id: string;
-  guaranteeId: string;
+  /**
+   * Null on a v3 anonymous claim until (unless) it is matched to a registered
+   * guarantee — an unlinked claim is still a real claim (spec v3 §3).
+   */
+  guaranteeId: string | null;
   consumerId?: string | null;
   status: ClaimStatus;
-  /** Return Authorization number — generated on submit, shared with the dealer. */
+  /**
+   * Return Authorization number. v3: NO LONGER minted at submit — RA issuance
+   * is a manual admin action (M-S4). Kept for rows that already have one.
+   */
   raNumber?: string | null;
-  /** Customer-facing tracking number for the request (M5). */
+  /**
+   * Customer-facing tracking number (M5). v3: retired as the customer
+   * reference and no longer minted; `claimNumber` is the single reference.
+   */
   trackingNumber?: string | null;
+  /** v3: `CG######` — the single customer reference, minted at submit. */
+  claimNumber?: string | null;
+  // --- v3 anonymous intake: identity + purchase details, self-reported ---
+  firstName?: string | null;
+  lastName?: string | null;
+  /** ZIP where the mattress was delivered (identity + auto-match key). */
+  deliveryZip?: string | null;
+  salesOrderNumber?: string | null;
+  modelNumber?: string | null;
+  /** ISO date (YYYY-MM-DD), self-reported. */
+  purchaseDate?: string | null;
+  /** ISO date (YYYY-MM-DD), self-reported. Drives the day-count calc. */
+  deliveryDate?: string | null;
+  /** Informational only — never gates submission (Doug, spec v3 §2.5). */
+  protectorUsed?: boolean | null;
+  /** Snapshot of journeyDay(deliveryDate) at submit (delivery = day 0). */
+  daysInServiceAtSubmit?: number | null;
+  /** Set only when submitted before day 31. */
+  earlyPreference?: EarlyPreference | null;
+  /**
+   * Scopes an UNLINKED claim to a dealer (defaults to City Mattress, spec v3
+   * §4). Linked claims keep scoping through their guarantee as before.
+   */
+  dealerLocationId?: string | null;
   /** Why they want to exchange, in their own words (structured intake). */
   reasonExperience?: string | null;
   /** What they'd rather have — the preferred replacement, in their own words. */
@@ -199,6 +256,11 @@ export interface Claim {
   /** Confirms they still personally own the mattress. */
   stillOwns?: boolean | null;
   denialReason?: string | null;
+  /**
+   * Sales order number of the in-store exchange, recorded by the dealer when
+   * the customer reselects (review 2026-07-22). Setting it completes the claim.
+   */
+  exchangeSalesOrderNumber?: string | null;
   restockingFee?: number | null;
   priceDifference?: number | null;
   submittedAt?: string | null;
@@ -261,6 +323,22 @@ export interface ClaimNote {
   author?: ClaimNoteAuthor | null;
   body: string;
   isInternal: boolean;
+  createdAt?: string;
+}
+
+/**
+ * A document link an agent attached to a claim (v3 §4) — exchange
+ * authorization, tech report, or other. This is how RAP's manual adjudication
+ * lands back in the app; sending it to the customer stays manual for now.
+ */
+export interface ClaimLink {
+  id: string;
+  claimId: string;
+  kind: ClaimLinkKind;
+  url: string;
+  label?: string | null;
+  /** The staff auth user who attached it; null on the demo fallback. */
+  createdBy?: string | null;
   createdAt?: string;
 }
 

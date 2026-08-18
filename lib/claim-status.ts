@@ -14,9 +14,12 @@ export function statusLabel(status: ClaimStatus): string {
     draft: "In progress",
     submitted: "Submitted",
     in_review: "In review",
+    inspection_scheduled: "Inspection scheduled",
     approved: "Approved",
     dealer_scheduled: "Scheduled",
-    completed: "Completed",
+    // "Redeemed" per Doug (2026-07-23): the machine status stays `completed`;
+    // only the human label changed.
+    completed: "Redeemed",
     denied: "Declined",
     expired: "Expired",
     withdrawn: "Withdrawn",
@@ -32,6 +35,8 @@ export function statusNextStep(status: ClaimStatus): string {
       "RAP has your request. You'll hear from your dealer about next steps.",
     in_review:
       "RAP is reading it over. There's nothing you need to do right now.",
+    inspection_scheduled:
+      "A technician visit is being arranged. We'll call you before anyone comes out.",
     approved:
       "It's approved. Your dealer will be in touch to arrange the exchange.",
     dealer_scheduled:

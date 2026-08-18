@@ -1,11 +1,12 @@
 // lib/demo.ts
 // Demo day-jumper — pure helpers (no next/headers, unit-testable).
 //
-// Production IS the demo right now, so this defaults ON. It never mutates a real
-// record: the chosen day lives in its own cookie and is converted into an
-// *effective reference date* that is passed to the existing journey/eligibility
-// engine (which already accepts `referenceDate`). Switch it off at launch by
-// setting NEXT_PUBLIC_DEMO_MODE to anything other than "true" (e.g. "false").
+// Fail-closed (audit 2026-07-28): demo mode is OFF unless NEXT_PUBLIC_DEMO_MODE
+// is explicitly "true". It never mutates a real record: the chosen day lives in
+// its own cookie and is converted into an *effective reference date* passed to
+// the existing journey/eligibility engine (which already accepts `referenceDate`).
+// Turning it on lets the day-jumper move the eligibility window (a demo tool), so
+// it must be an explicit opt-in — an unconfigured deploy stays safe by default.
 
 /** Separate from the session cookie on purpose — never touches real state. */
 export const DEMO_DAY_COOKIE = "rap_demo_day";
@@ -18,15 +19,15 @@ export const DEMO_DAY_MIN = 0;
 export const DEMO_DAY_MAX = 365;
 
 /**
- * True when the demo control is active. Unset defaults to "true" (the current
- * production state is the demo); any other value turns it off entirely.
+ * True when the demo control is active. FAIL-CLOSED (audit 2026-07-28): the
+ * day-jumper can move the eligibility window, so it is OFF unless explicitly
+ * enabled with NEXT_PUBLIC_DEMO_MODE="true". An unset or empty value is off, so
+ * a deploy that forgets the flag can't expose the day-jumper to real customers.
  */
 export function isDemoMode(
   value: string | undefined = process.env.NEXT_PUBLIC_DEMO_MODE
 ): boolean {
-  const raw = value?.trim();
-  if (raw === undefined || raw === "") return true;
-  return raw.toLowerCase() === "true";
+  return value?.trim().toLowerCase() === "true";
 }
 
 /**

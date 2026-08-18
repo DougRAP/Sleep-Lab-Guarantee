@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LivingSky } from "../../../../components/living-sky";
-import { Logo } from "../../../../components/Logo";
+import { AppHeader } from "../../../../components/app-header";
 import { DayCount } from "../../../../components/day-count";
 import { ConciergeCard } from "../../../../components/concierge-card";
 import { FrostedCard } from "../../../../components/ui/frosted-card";
@@ -13,7 +13,7 @@ import { getRepository } from "../../../../lib/data";
 // dealer_locations (via the session's guarantee), with a calm fallback if none
 // is on file.
 export default async function GuaranteeHelpPage() {
-  const { guarantee } = await requireGuarantee();
+  const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
 
   const journey = await repo.getJourney(guarantee.id);
@@ -26,12 +26,9 @@ export default async function GuaranteeHelpPage() {
       <LivingSky day={day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <div className="flex items-center justify-between">
-          <Logo />
-          <DayCount day={day} />
-        </div>
+        <AppHeader email={session.email} />
 
         <Link
           href="/guarantee"
@@ -41,7 +38,8 @@ export default async function GuaranteeHelpPage() {
         </Link>
 
         <div className="mt-8 space-y-6">
-          <h1 className="font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
+          <DayCount day={day} className="block" />
+          <h1 className="!mt-2 font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
             Something other than comfort
           </h1>
 

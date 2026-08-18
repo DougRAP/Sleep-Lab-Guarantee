@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
-import { Logo } from "../../../components/Logo";
-import { DayCount } from "../../../components/day-count";
+import { AppHeader } from "../../../components/app-header";
 import { ConciergeCard } from "../../../components/concierge-card";
 import { CheckIn } from "../../../components/tonight/check-in";
 import { InitialImpression } from "../../../components/tonight/initial-impression";
@@ -18,7 +17,7 @@ import type { Guarantee, JourneyPhase } from "../../../lib/types";
 // persisted check-in, tonight's tip, and a quiet path to the concierge — the
 // poster design is unchanged.
 export default async function TonightPage() {
-  const { guarantee } = await requireGuarantee();
+  const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
 
   // Real "now" unless the demo day-jumper has set a preview day.
@@ -45,14 +44,13 @@ export default async function TonightPage() {
       <LivingSky day={day} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.25rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <div className="flex items-center justify-between">
-          <Logo />
-          <DayCount day={day} />
-        </div>
+        <AppHeader email={session.email} />
 
-        <div className="flex flex-1 flex-col justify-end gap-6">
+        {/* Review 2026-07-22: content flows from the top — the old bottom-anchored
+            poster left "way too much padding above" on tall phones. */}
+        <div className="flex flex-col gap-6 pt-8">
           <div className="font-mono text-[52px] font-medium leading-none tracking-tight text-cloud">
             {day}
             <span className="text-[20px] text-mist"> / 90 nights</span>

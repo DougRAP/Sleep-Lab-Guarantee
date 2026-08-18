@@ -18,12 +18,14 @@ import { evaluateEligibility, journeyDay } from "./eligibility";
 const DELIVERY = "2026-01-10";
 
 describe("isDemoMode", () => {
-  it("defaults on when the env is unset (production is the demo right now)", () => {
-    expect(isDemoMode(undefined)).toBe(true);
-    expect(isDemoMode("")).toBe(true);
+  it("defaults OFF when the env is unset (fail-closed, audit 2026-07-28)", () => {
+    // The day-jumper can move the eligibility window, so an unconfigured deploy
+    // must NOT enable it. Only an explicit opt-in turns it on.
+    expect(isDemoMode(undefined)).toBe(false);
+    expect(isDemoMode("")).toBe(false);
   });
 
-  it("is on only for 'true' once the env is set", () => {
+  it("is on only for an explicit 'true'", () => {
     expect(isDemoMode("true")).toBe(true);
     expect(isDemoMode("TRUE")).toBe(true);
     expect(isDemoMode("false")).toBe(false);

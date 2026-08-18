@@ -12,7 +12,7 @@ describe("dealer_locations — placeholder seed", () => {
     const d = SEED_DEALER_LOCATIONS[0];
     expect(d).toMatchObject({
       id: "101",
-      name: "Demo Bedding Co.",
+      name: "City Mattress",
       phone: "(555) 012-3456",
       email: "care@demobedding.example",
       siteUrl: "https://example.com/shop",
@@ -32,7 +32,7 @@ describe("MemoryRepository — dealer locations", () => {
 
   it("getDealerLocationById returns the placeholder dealer", async () => {
     const d = await repo.getDealerLocationById("101");
-    expect(d?.name).toBe("Demo Bedding Co.");
+    expect(d?.name).toBe("City Mattress");
     expect(d?.couponCode).toBe("SLEEPLAB20");
   });
 
@@ -48,7 +48,7 @@ describe("MemoryRepository — dealer locations", () => {
   it("resolves both demo guarantees to the same dealer (Demo + Rivera)", async () => {
     const a = await repo.getDealerLocationForGuarantee(demo.id);
     const b = await repo.getDealerLocationForGuarantee(rivera.id);
-    expect(a?.name).toBe("Demo Bedding Co.");
+    expect(a?.name).toBe("City Mattress");
     expect(b?.id).toBe("101");
   });
 

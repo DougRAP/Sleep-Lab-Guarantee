@@ -11,7 +11,18 @@ import type { GuaranteeRepository } from "./repository";
 import { MemoryRepository } from "./memory-repository";
 import { SupabaseRepository } from "./supabase-repository";
 
-let cached: GuaranteeRepository | null = null;
+/**
+ * The cache lives on globalThis, NOT in a module variable: Next.js compiles
+ * separate module instances per server layer (RSC pages vs server actions
+ * invoked from client components), so a module-level singleton would give the
+ * in-memory backend TWO stores — actions writing to one copy while pages read
+ * the other (found via the ghost-draft e2e, 2026-07-23). One process, one
+ * repository, whichever layer asks. Supabase is stateless so it never cared,
+ * but it shares the single instance too.
+ */
+const globalCache = globalThis as typeof globalThis & {
+  __rapSleepLabRepository?: GuaranteeRepository;
+};
 
 /**
  * True when Supabase keys are present; false → local in-memory fallback.
@@ -27,10 +38,12 @@ export function isSupabaseConfigured(): boolean {
 }
 
 export function getRepository(): GuaranteeRepository {
-  if (cached) return cached;
+  if (globalCache.__rapSleepLabRepository) return globalCache.__rapSleepLabRepository;
   // SupabaseRepository is only constructed (and its client created) when keys exist.
-  cached = isSupabaseConfigured() ? new SupabaseRepository() : new MemoryRepository();
-  return cached;
+  globalCache.__rapSleepLabRepository = isSupabaseConfigured()
+    ? new SupabaseRepository()
+    : new MemoryRepository();
+  return globalCache.__rapSleepLabRepository;
 }
 
 export type { GuaranteeRepository, VerifyInput } from "./repository";

@@ -165,7 +165,7 @@ function Prose({
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         aria-describedby={`${id}-hint`}
-        className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 py-3 text-[15px] leading-relaxed text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
+        className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 py-3 text-[16px] leading-relaxed text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
       />
       <p id={`${id}-hint`} className="text-[13px] text-mist">
         {hint}
@@ -255,7 +255,7 @@ function ConversationalIntake({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Tell your guide…"
-          className="h-12 flex-1 rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 text-[15px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
+          className="h-12 flex-1 rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 text-[16px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
         />
         <Button type="submit" variant="ghost" size="md" disabled={pending || !draft.trim()}>
           Send

@@ -1,0 +1,37 @@
+import { defineConfig, devices } from "@playwright/test";
+
+/**
+ * Smoke e2e for the 2026-07-22 review punch list. Runs against `next dev` on
+ * its own port with the Supabase env BLANKED, so everything exercises the
+ * in-memory fallback: light-verify entry, seeded requests, the demo staff
+ * picker. Nothing here touches the real database.
+ */
+export default defineConfig({
+  testDir: "./e2e",
+  timeout: 45_000,
+  fullyParallel: false,
+  workers: 1,
+  retries: 1,
+  reporter: [["list"]],
+  use: {
+    baseURL: "http://localhost:3100",
+    trace: "retain-on-failure",
+  },
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  webServer: {
+    command: "npm run dev -- -p 3100",
+    url: "http://localhost:3100",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    env: {
+      // Blank strings beat .env.local (Next.js never overrides existing env),
+      // forcing the zero-config in-memory backend.
+      NEXT_PUBLIC_SUPABASE_URL: "",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+      SUPABASE_SERVICE_ROLE_KEY: "",
+      ANTHROPIC_API_KEY: "",
+      NEXT_PUBLIC_DEMO_MODE: "true",
+      NEXT_PUBLIC_CLAIMS_MODE: "",
+    },
+  },
+});

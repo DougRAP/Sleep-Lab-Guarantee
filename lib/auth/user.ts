@@ -6,6 +6,7 @@
 // return null rather than crashing. An unconfigured or unreachable auth backend
 // must degrade to the light-verify fallback, never to a stack trace.
 
+import { cache } from "react";
 import { createClient, createServiceClient } from "../supabase/server";
 import { isAuthConfigured } from "./config";
 import type { Profile, Role } from "../types";
@@ -19,23 +20,30 @@ export interface Viewer {
   dealerLocationId: string | null;
 }
 
-/** The Supabase auth user, verified against the auth server. Null if none. */
-export async function getAuthUser(): Promise<{ id: string; email: string | null } | null> {
-  if (!isAuthConfigured()) return null;
-  try {
-    const supabase = await createClient();
-    // getUser() re-validates with the auth server; getSession() would trust the
-    // cookie contents, which is not good enough for an authorization decision.
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data?.user) return null;
-    return { id: data.user.id, email: data.user.email ?? null };
-  } catch {
-    return null;
+/**
+ * The Supabase auth user, verified against the auth server. Null if none.
+ * Wrapped in React cache() (B-18 fix 4): resolved once per request and shared
+ * by every layout/page/helper in that render, instead of repeating the
+ * auth + profile round-trips. The cache never crosses requests.
+ */
+export const getAuthUser = cache(
+  async (): Promise<{ id: string; email: string | null } | null> => {
+    if (!isAuthConfigured()) return null;
+    try {
+      const supabase = await createClient();
+      // getUser() re-validates with the auth server; getSession() would trust the
+      // cookie contents, which is not good enough for an authorization decision.
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) return null;
+      return { id: data.user.id, email: data.user.email ?? null };
+    } catch {
+      return null;
+    }
   }
-}
+);
 
-/** The authenticated viewer with their profile role, or null. */
-export async function getViewer(): Promise<Viewer | null> {
+/** The authenticated viewer with their profile role, or null. Per-request cached. */
+export const getViewer = cache(async (): Promise<Viewer | null> => {
   const user = await getAuthUser();
   if (!user) return null;
   const profile = await ensureProfile(user.id, user.email);
@@ -45,7 +53,7 @@ export async function getViewer(): Promise<Viewer | null> {
     role: profile?.role ?? "consumer",
     dealerLocationId: profile?.dealerLocationId ?? null,
   };
-}
+});
 
 /**
  * Read the profile row, creating a `consumer` one if it's missing. The schema

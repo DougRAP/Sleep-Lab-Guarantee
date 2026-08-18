@@ -11,18 +11,20 @@
 
 import { revalidatePath } from "next/cache";
 import { getRepository } from "../data";
-import { getAppSession } from "../auth/app-session";
+import { getAppSession, isPreVerifiedSession } from "../auth/app-session";
 import { effectiveReferenceDate } from "../demo-server";
+import { evaluateEligibility } from "../eligibility";
 import {
   MAX_ITEMS,
   canSubmit,
   normalizeConfirmations,
   photoTargetsFor,
 } from "../fitting";
-import { uploadClaimPhoto } from "../storage";
+import { photoUploadIssue, uploadClaimPhoto } from "../storage";
 import {
   buildIntakeSystemPrompt,
   createIntakeDispatch,
+  INTAKE_RESTING_REPLY,
   INTAKE_TOOLS,
   intakeFallbackReply,
   type IntakeContext,
@@ -32,6 +34,9 @@ import {
   generateConciergeReply,
   hasAnthropicKey,
 } from "../concierge";
+import { resolveSetting } from "../app-settings";
+import { capInput } from "../chat-quota";
+import { enforceRateLimit } from "../rate-limit";
 import type {
   Claim,
   ConfirmationKey,
@@ -49,6 +54,12 @@ const NO_SESSION = "Your session has ended. Please sign in again.";
 const NO_RECORD = "We couldn't find your record.";
 const NO_DRAFT = "We couldn't find your request. Start again and we'll pick it back up.";
 
+// Audit 2026-07-28 (#8): length ceilings on free-text fields written from the
+// client, so a script can't store megabytes per field. Generous for real input.
+const MAX_STORY_CHARS = 2000; // reason / preferred replacement (a paragraph)
+const MAX_LINE_CHARS = 200; // phone, email, model number (a single line)
+const MAX_ADDRESS_CHARS = 300; // a delivery address
+
 type DraftContext =
   | { ok: false; error: string }
   | {
@@ -60,7 +71,15 @@ type DraftContext =
 
 type GuaranteeRepositoryLike = ReturnType<typeof getRepository>;
 
-/** Resolve session → guarantee → open draft. The one gate every action shares. */
+/**
+ * Resolve session → guarantee → open draft. The one gate every action shares.
+ *
+ * The draft is created LAZILY here, on the first real interaction — not when
+ * the fitting page is merely opened (Emmy's ghost fix, 2026-07-23: an
+ * untouched visit used to leave an empty "Not yet submitted" behind). Because
+ * creation moved server-action-side, the page's eligibility gate is re-checked
+ * here before creating: no draft is ever born outside the day 31–90 window.
+ */
 async function currentDraft(): Promise<DraftContext> {
   const session = await getAppSession();
   if (!session) return { ok: false, error: NO_SESSION };
@@ -69,8 +88,23 @@ async function currentDraft(): Promise<DraftContext> {
   const guarantee = await repo.getGuaranteeById(session.guaranteeId);
   if (!guarantee) return { ok: false, error: NO_RECORD };
 
-  const claim = await repo.getDraftClaim(guarantee.id);
-  if (!claim) return { ok: false, error: NO_DRAFT };
+  let claim = await repo.getDraftClaim(guarantee.id);
+  if (!claim) {
+    // B-29 (Doug 2026-07-27): the server-side gate for lazy draft creation now
+    // only enforces the window + the one-time (resolved) rule; a prior
+    // submitted request no longer blocks minting a fresh draft.
+    const exchangeResolved = await repo.hasResolvedExchange(guarantee.id);
+    const elig = evaluateEligibility({
+      deliveryDate: guarantee.deliveryDate,
+      referenceDate: await effectiveReferenceDate(guarantee.deliveryDate),
+      exchangeResolved,
+    });
+    if (!elig.eligible) return { ok: false, error: NO_DRAFT };
+    claim = await repo.createDraftClaim({
+      guaranteeId: guarantee.id,
+      preVerified: isPreVerifiedSession(session),
+    });
+  }
 
   return { ok: true, repo, guarantee, claim };
 }
@@ -96,8 +130,8 @@ export async function saveIntake(input: {
   if (!ctx.ok) return { ok: false, error: ctx.error };
 
   await ctx.repo.updateClaim(ctx.claim.id, {
-    reasonExperience: input.reasonExperience.trim() || null,
-    preferredReplacement: input.preferredReplacement.trim() || null,
+    reasonExperience: capInput(input.reasonExperience.trim(), MAX_STORY_CHARS) || null,
+    preferredReplacement: capInput(input.preferredReplacement.trim(), MAX_STORY_CHARS) || null,
     step: "items",
   });
   revalidatePath("/fitting");
@@ -127,6 +161,42 @@ export async function sendIntakeMessage(
   const ctx = await currentDraft();
   if (!ctx.ok) return { ok: false, error: ctx.error };
 
+  // Audit 2026-07-28 (#5): this path calls the model just like the coach, but
+  // shipped with no spend guard. Cap the message and enforce a per-guarantee
+  // hourly limit BEFORE the model call. Generous enough that no real customer
+  // trips it; a script rests calmly instead of running up Anthropic cost.
+  // Fail-open, mirroring the lookup guard: a limiter outage never blocks intake.
+  const settings = await ctx.repo.getAppSettings();
+  const capped = capInput(text, resolveSetting("chat_max_input_chars", settings));
+  const bump = ctx.repo.bumpRateCounter.bind(ctx.repo);
+  // Two fuses, mirroring the coach: a per-guarantee hourly limit AND a
+  // program-wide hourly fuse, so a distributed caller can't bypass the
+  // per-guarantee cap by spreading requests across many guarantees.
+  const [perGuarantee, global] = await Promise.all([
+    enforceRateLimit(bump, {
+      bucket: "intake_message",
+      key: ctx.guarantee.id,
+      windowSeconds: 3600,
+      limit: resolveSetting("intake_messages_per_hour", settings),
+    }),
+    enforceRateLimit(bump, {
+      bucket: "intake_message_global",
+      key: "all",
+      windowSeconds: 3600,
+      limit: resolveSetting("intake_messages_global_per_hour", settings),
+    }),
+  ]);
+  if (!perGuarantee.allowed || !global.allowed) {
+    return {
+      ok: true,
+      data: {
+        reply: INTAKE_RESTING_REPLY,
+        haveReason: Boolean(ctx.claim.reasonExperience?.trim()),
+        havePreference: Boolean(ctx.claim.preferredReplacement?.trim()),
+      },
+    };
+  }
+
   const journey = await ctx.repo.getJourney(
     ctx.guarantee.id,
     await effectiveReferenceDate(ctx.guarantee.deliveryDate)
@@ -146,13 +216,13 @@ export async function sendIntakeMessage(
     apiKey: process.env.ANTHROPIC_API_KEY,
     model: conciergeModel(),
     system: buildIntakeSystemPrompt(intakeCtx),
-    history: [...history, { role: "user", body: text }],
+    history: [...history, { role: "user", body: capped }],
     // The concierge fallback shape is reused; the intake script is what matters.
     fallback: {
       firstName: intakeCtx.firstName,
       day: intakeCtx.day,
       phase: journey?.phase ?? "safety_net",
-      userText: text,
+      userText: capped,
       tip: null,
     },
     tools: withTools ? INTAKE_TOOLS : undefined,
@@ -188,7 +258,7 @@ export async function saveItems(items: ClaimItemInput[]): Promise<ActionResult> 
     .slice(0, MAX_ITEMS)
     .filter((i) => i && typeof i.modelNumber === "string" && i.modelNumber.trim())
     .map((i) => ({
-      modelNumber: i.modelNumber.trim(),
+      modelNumber: capInput(i.modelNumber.trim(), MAX_LINE_CHARS),
       notSoiled: Boolean(i.notSoiled),
       noOdors: Boolean(i.noOdors),
       notDamaged: Boolean(i.notDamaged),
@@ -253,6 +323,10 @@ export async function capturePhoto(
   let storagePath: string | null = null;
   let stored = false;
   if (hasBytes) {
+    // Audit 2026-07-28 (#8): reject oversized/non-image files BEFORE reading the
+    // bytes into memory, so a huge upload can't exhaust the server action.
+    const issue = photoUploadIssue((file as File).type, (file as File).size);
+    if (issue) return { ok: false, error: issue };
     const uploaded = await uploadClaimPhoto({
       claimId: ctx.claim.id,
       angle,
@@ -304,11 +378,14 @@ export async function saveVerify(input: {
   if (!ctx.ok) return { ok: false, error: ctx.error };
 
   await ctx.repo.updateClaim(ctx.claim.id, {
-    contactPhone: input.contactPhone.trim() || null,
+    contactPhone: capInput(input.contactPhone.trim(), MAX_LINE_CHARS) || null,
     contactPhoneKind: input.contactPhoneKind,
-    contactEmail: input.contactEmail.trim() || null,
+    contactEmail: capInput(input.contactEmail.trim(), MAX_LINE_CHARS) || null,
     atDeliveryAddress: input.atDeliveryAddress,
-    newAddress: input.atDeliveryAddress === false ? input.newAddress.trim() || null : null,
+    newAddress:
+      input.atDeliveryAddress === false
+        ? capInput(input.newAddress.trim(), MAX_ADDRESS_CHARS) || null
+        : null,
     stillOwns: input.stillOwns,
   });
   revalidatePath("/fitting");
@@ -350,8 +427,10 @@ export async function submitFitting(): Promise<ActionResult<SubmittedRequest>> {
   return {
     ok: true,
     data: {
-      raNumber: result.raNumber,
-      trackingNumber: result.trackingNumber,
+      // v3: submit no longer mints RA/tracking numbers, so these are empty for
+      // new requests — the legacy fitting UI is replaced in M-S2/M-S3.
+      raNumber: result.raNumber ?? "",
+      trackingNumber: result.trackingNumber ?? "",
       dealerName: dealer?.name ?? ctx.guarantee.dealerName ?? null,
     },
   };
