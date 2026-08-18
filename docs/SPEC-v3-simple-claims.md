@@ -17,10 +17,16 @@
 
 Reuse the existing fitting step components wherever noted. Design stays locked (`DESIGN.md`) — existing kit only.
 
-1. **Landing** — "Request an exchange" + "or call/email us" + guarantee essentials link. No account gate.
-2. **Identify** *(new small step)* — first name, last name, ZIP where mattress was delivered.
-3. **Contact** *(adapt `verify-step`)* — best contact: email and/or mobile. **At least one required** (EA is delivered by text or email). Explain why we need it.
-4. **Purchase details** *(adapt `items-step`)* — sales order number, mattress model number, date of purchase, **date of delivery** (date received).
+1. **Landing** *(Doug 2026-08-18)* — welcome + **link to the full Comfort Guarantee terms** (self-hosted copy of `docs/CMFG-90-CITY-GS.html`) + the entry form (step 2) on the same page. No account gate, no coach/companion language. Copy basis (Doug's words, lightly edited at build):
+   > Your purchase includes a 90-Night Comfort Guarantee. Requesting an exchange, asking advice, or getting other helpful information starts here. To get started, enter the information below. At any time, call us at (800) 111-1110 [placeholder] or email us at comfort@raptns.com.
+
+   *(Note: the guarantee document says claims@raptns.com; Doug specified comfort@raptns.com for the app — flagged, Doug's copy wins until he says otherwise. Phone is a placeholder.)*
+2. **Identify + contact** *(single form, on the landing page)* —
+   - **Sales order number OR delivery ZIP** (either one; both accepted)
+   - **Last name** (required); first name asked, required
+   - **Email or mobile phone** (at least one required — the EA is delivered by text or email)
+3. *(merged into 2)*
+4. **Purchase details** *(adapt `items-step`)* — mattress model number, date of purchase, **date of delivery** (date received); sales order number here if not given at entry.
    - On delivery date entry, **auto-calculate time in service in days** (delivery = day 0, reuse `lib/eligibility.ts` engine on the self-reported date) and display with the appropriate message:
      - **< 31 days:** allow submission. Advise it's not quite 31 nights yet, and ask the customer to choose: **auto-submit when day 31 is reached**, or **request a call from an agent**. Choice stored on the claim (`early_preference`).
      - **31–90:** "you're in your exchange window, day {n} of 90."
@@ -51,7 +57,8 @@ Reuse the existing fitting step components wherever noted. Design stays locked (
 ## 3. Session & matching
 
 - Anonymous intake carried by a lightweight signed cookie holding `claimId` (same HMAC machinery as `lib/session.ts`); draft resumable like today.
-- **Auto-match** claimant (last name + ZIP, plus sales order # when given) against registered `guarantees`; link `claims.guarantee_id` when confident. **Never block on no-match** — unlinked claims go through; RAP agent matches manually.
+- **Auto-match** claimant against registered `guarantees` on (sales order # + last name) or (ZIP + last name); link `claims.guarantee_id` when the match is unique. **Never block on no-match** — unlinked claims go through; RAP agent matches manually.
+- **Full terms self-hosted**: `docs/CMFG-90-CITY-GS.html` is served by the app itself (resolves the old `example.com` placeholder). Dealer-requested changes replace that file.
 - Post-submit tracking: account links a claim by **claim number + last name** (parallel to today's sales-order linking).
 
 ## 4. Data model changes (`supabase/schema.sql` + both repositories)
