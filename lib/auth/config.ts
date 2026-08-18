@@ -11,12 +11,23 @@
 // repository still needs SUPABASE_SERVICE_ROLE_KEY (see lib/data/index.ts) —
 // in a correctly configured deployment all three are set together.
 
+/**
+ * The anon/publishable key under either of Supabase's names. New projects'
+ * connect dialog hands out NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ * (sb_publishable_…); older docs and this codebase use
+ * NEXT_PUBLIC_SUPABASE_ANON_KEY. Both are static references so Next.js
+ * inlines them at build time (edge-safe).
+ */
+export function supabaseAnonKey(): string | undefined {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  );
+}
+
 /** True when Supabase Auth can actually be used. */
 export function isAuthConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && supabaseAnonKey());
 }
 
 /**
