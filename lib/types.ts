@@ -211,6 +211,12 @@ export interface Claim {
   trackingNumber?: string | null;
   /** v3: `CG######` — the single customer reference, minted at submit. */
   claimNumber?: string | null;
+  /**
+   * RAP production (TTC) claim number — written back to Supabase by RAP's
+   * integration after the claim is pulled into the production database.
+   * Read-only from the app's point of view.
+   */
+  ttcClaim?: string | null;
   // --- v3 anonymous intake: identity + purchase details, self-reported ---
   firstName?: string | null;
   lastName?: string | null;

@@ -338,6 +338,7 @@ export class MemoryRepository implements GuaranteeRepository {
       protectorUsed: null,
       daysInServiceAtSubmit: null,
       earlyPreference: null,
+      ttcClaim: null,
       reasonExperience: null,
       preferredReplacement: null,
       contactPhone: null,

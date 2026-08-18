@@ -148,6 +148,7 @@ function toClaim(row: any): Claim {
     raNumber: row.ra_number,
     trackingNumber: row.tracking_number,
     claimNumber: row.claim_number ?? null,
+    ttcClaim: row.ttc_claim ?? null,
     firstName: row.first_name ?? null,
     lastName: row.last_name ?? null,
     deliveryZip: row.delivery_zip ?? null,

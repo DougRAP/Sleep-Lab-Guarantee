@@ -140,6 +140,11 @@ create table if not exists public.claims (
   ra_number text,
   tracking_number text,
   claim_number text unique,
+  -- RAP production (TTC) claim number. RAP pulls the CG###### claim into its
+  -- production database, generates its own claim number there, and writes it
+  -- back here to tie the two systems together. Written by RAP's integration
+  -- (service role), never by the app or the customer.
+  ttc_claim text,
   -- v3 anonymous intake: self-reported identity + purchase details.
   first_name text,
   last_name text,
@@ -211,6 +216,7 @@ alter table public.claims add column if not exists exchange_sales_order_number t
 -- database and the claims table gains the anonymous-intake shape.
 alter table public.claims alter column guarantee_id drop not null;
 alter table public.claims add column if not exists claim_number text;
+alter table public.claims add column if not exists ttc_claim text;
 alter table public.claims add column if not exists first_name text;
 alter table public.claims add column if not exists last_name text;
 alter table public.claims add column if not exists delivery_zip text;
