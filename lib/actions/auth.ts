@@ -101,14 +101,24 @@ export async function signOutAction(): Promise<void> {
   if (isAuthConfigured()) {
     try {
       const supabase = await createClient();
-      await supabase.auth.signOut();
+      // Local scope: end THIS browser's session. The default (global) asks the
+      // auth server to revoke everything and, when that call fails, returns an
+      // error WITHOUT clearing cookies — leaving the person visibly stuck
+      // signed in. Local always clears the cookie-stored session.
+      await supabase.auth.signOut({ scope: "local" });
     } catch {
       // Already gone, or the auth backend is unreachable — clearing below is
       // still the right outcome for the person in front of us.
     }
   }
-  // Also drop the light-verify cookie so the fallback path signs out too.
   const store = await cookies();
+  // Belt and braces: drop every Supabase auth cookie (sb-<ref>-auth-token and
+  // its chunked variants) ourselves, so sign-out works even if the client
+  // above failed before touching them.
+  for (const c of store.getAll()) {
+    if (c.name.startsWith("sb-")) store.delete(c.name);
+  }
+  // Also drop the light-verify cookie so the fallback path signs out too.
   store.delete("rap_session");
   store.delete(PENDING_TOKEN_COOKIE);
   redirect(ENTRY_PATH);
