@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import * as React from "react";
 import { cn } from "../../lib/utils";
 import { isClaimsMode } from "../../lib/demo";
+import { isCoachEnabled, navHrefs } from "../../lib/shell";
 
 // Persistent bottom navigation (DESIGN.md "Bottom navigation").
 // Frosted/translucent bar, one hairline top border, safe-area inset. Four utility
@@ -73,12 +74,14 @@ const TABS: Tab[] = [
 export function BottomNav() {
   const pathname = usePathname() || "";
 
-  // Claims-mode demo cut: only the guarantee/claims destinations exist, and the
-  // Coach is hidden with them. Same bar, same tabs — just fewer of them.
+  // One bar, two modes (lib/shell.ts owns which destinations exist). Claims
+  // mode — the v3 default — shows Guarantee · Requests · Shop and no Coach;
+  // the companion product keeps Tonight and the guide. Same component either
+  // way, so the bar never forks.
   const claimsMode = isClaimsMode();
-  const tabs = claimsMode
-    ? TABS.filter((tab) => tab.href === "/guarantee" || tab.href === "/requests")
-    : TABS;
+  const hrefs = navHrefs(claimsMode);
+  const tabs = TABS.filter((tab) => hrefs.includes(tab.href));
+  const coach = isCoachEnabled(claimsMode);
 
   const isActive = (tab: Tab) =>
     tab.match ? tab.match(pathname) : pathname === tab.href;
@@ -111,8 +114,8 @@ export function BottomNav() {
         })}
 
         {/* The Coach — set apart by a hairline; the guide's presence, not a tab.
-            Hidden with the rest of the companion layer in claims mode. */}
-        {!claimsMode && (
+            Gone entirely in claims mode — hidden AND unreachable. */}
+        {coach && (
           <Link
             href="/concierge"
             aria-current={coachActive ? "page" : undefined}

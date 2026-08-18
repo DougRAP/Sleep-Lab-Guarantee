@@ -8,32 +8,33 @@ import { isClaimsMode } from "../../lib/demo";
 import { cn } from "../../lib/utils";
 
 /**
- * The closing screen. The RA and tracking number are the only "lab layer"
- * numerals here — set in mono, quiet, never presented as a ticket. No
+ * The closing screen. v3 (M-S3): the CG claim number is the single customer
+ * reference — submit no longer mints an RA or a tracking number, and no
+ * consumer surface speaks that language. The number is the only "lab layer"
+ * numeral here, set in mono, quiet, never presented as a ticket. No
  * congratulation, no confetti; the guide simply tells them it's handed over.
  */
 export function SubmittedStep({
-  raNumber,
-  trackingNumber,
+  claimNumber,
   dealerName,
 }: {
-  raNumber: string;
-  trackingNumber: string;
+  claimNumber: string;
   dealerName: string | null;
 }) {
   return (
     <div className="space-y-6">
       <ConciergeCard>
-        That&apos;s everything. Your return authorization is written up and shared
-        with {dealerName ?? "your dealer"} — they&apos;ll take it from here, and
-        you can follow along whenever you like.
+        That&apos;s everything. Your request is with us and shared with{" "}
+        {dealerName ?? "your dealer"} — we&apos;ll take it from here, and you
+        can follow along whenever you like.
       </ConciergeCard>
 
       <FrostedCard className="animate-settle space-y-4">
-        <Stat label="Return authorization" value={raNumber} />
-        <div className="border-t border-[var(--line)] pt-4">
-          <Stat label="Tracking number" value={trackingNumber} />
-        </div>
+        <Stat label="Your claim number" value={claimNumber} />
+        <p className="text-[13px] leading-relaxed text-mist">
+          Save this number — it&apos;s how we&apos;ll both refer to your request
+          from here. Have it handy if you call or email.
+        </p>
       </FrostedCard>
 
       <p className="text-[14px] leading-relaxed text-mist">

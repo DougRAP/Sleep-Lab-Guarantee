@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { LivingSky } from "../../../components/living-sky";
 import { AppHeader } from "../../../components/app-header";
 import { DayCount } from "../../../components/day-count";
@@ -7,12 +8,19 @@ import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { conciergeGreeting } from "../../../lib/concierge";
+import { CLAIMS_REDIRECT_PATH, isCoachEnabled } from "../../../lib/shell";
 
 // The AI sleep concierge. Session-guarded like /tonight (redirect to / if no
 // session). The conversation is server-authoritative: threads/messages persist
 // via the repository, and the guide's replies come from the concierge action
 // (Anthropic when a key is set, scripted fallback otherwise).
 export default async function ConciergePage() {
+  // v3 (M-S3): the Coach is disabled in claims mode. The middleware turns this
+  // request away first; this is the page-level guard that makes it true even if
+  // the request never passed through it (DEV-NOTES: page guards are
+  // authoritative). The code stays — only the door is closed.
+  if (!isCoachEnabled()) redirect(CLAIMS_REDIRECT_PATH);
+
   const { session, guarantee } = await requireGuarantee();
   const repo = getRepository();
 

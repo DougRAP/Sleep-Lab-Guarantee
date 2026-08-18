@@ -16,6 +16,10 @@ import { staffScope } from "./auth/staff-view";
 
 // Production shape: Supabase configured. The unconfigured fallback is covered
 // by the fields too, but the matrix documents the real deployment.
+//
+// v3 (M-S3): claims mode is the default deployment, so a consumer's home is
+// /guarantee rather than /tonight. The rows below were updated deliberately for
+// that cutover — the redirects themselves are unchanged.
 const V = (over: Partial<ViewerState>): ViewerState => ({
   authConfigured: true,
   authenticated: false,
@@ -52,7 +56,7 @@ describe("access matrix — /admin", () => {
     expect(guardAdminRoute(anon)).toBe("/login");
   });
   it("a consumer is bounced to their own home, never into the desk", () => {
-    expect(guardAdminRoute(consumer)).toBe("/tonight");
+    expect(guardAdminRoute(consumer)).toBe("/guarantee");
     // v3 (M-S5): unlinked consumers home on the tracking list, not /link.
     expect(guardAdminRoute(authUnlinked)).toBe("/requests");
   });
@@ -66,12 +70,12 @@ describe("access matrix — /link and /login|/signup", () => {
   it("link is for authenticated, unlinked consumers only", () => {
     expect(guardLinkRoute(anon)).toBe("/login");
     expect(guardLinkRoute(authUnlinked)).toBeNull();
-    expect(guardLinkRoute(consumer)).toBe("/tonight");
+    expect(guardLinkRoute(consumer)).toBe("/guarantee");
     expect(guardLinkRoute(dealer)).toBe("/admin");
   });
   it("the auth screens turn away anyone already signed in", () => {
     expect(guardAuthRoute(anon)).toBeNull();
-    expect(guardAuthRoute(consumer)).toBe("/tonight");
+    expect(guardAuthRoute(consumer)).toBe("/guarantee");
     expect(guardAuthRoute(admin)).toBe("/admin");
   });
 });

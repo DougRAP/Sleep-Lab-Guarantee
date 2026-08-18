@@ -31,15 +31,21 @@ export function isDemoMode(
 }
 
 /**
- * Claims-mode demo cut: hides the sleep-companion layer (Tonight, Coach, Shop)
- * so only the guarantee/claims surfaces show. Unlike the demo day-jumper this
- * defaults OFF — it is on only when NEXT_PUBLIC_CLAIMS_MODE is exactly "true".
- * No code is removed anywhere; every surface is gated on this flag.
+ * Claims mode — the v3 product (spec v3, M-S3). The simplified claims app is
+ * what City Mattress ships, so this DEFAULTS ON: the companion layer (Tonight,
+ * the Coach) is hidden and disabled unless someone explicitly opts back out
+ * with NEXT_PUBLIC_CLAIMS_MODE="false". Nothing is deleted anywhere — every
+ * companion surface is gated on this one flag, so flipping the env brings the
+ * whole companion world back.
+ *
+ * Deliberately the mirror image of isDemoMode(): the day-jumper can move the
+ * eligibility window, so it fails closed; the claims cut only ever HIDES
+ * surfaces, so an unconfigured deploy safely lands on the simple app.
  */
 export function isClaimsMode(
   value: string | undefined = process.env.NEXT_PUBLIC_CLAIMS_MODE
 ): boolean {
-  return value?.trim() === "true";
+  return value?.trim().toLowerCase() !== "false";
 }
 
 /** Parse a cookie/form value into a valid effective day, or null if unusable. */

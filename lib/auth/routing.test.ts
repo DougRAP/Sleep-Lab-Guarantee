@@ -15,6 +15,11 @@ import {
   type ViewerState,
 } from "./routing";
 
+// v3 (M-S3): claims mode is the DEFAULT, so homePath() answers CLAIMS_HOME_PATH
+// unless a spec explicitly opts back out with NEXT_PUBLIC_CLAIMS_MODE="false".
+// The expectations below were flipped deliberately for that cutover; the
+// companion answers are still asserted, under an explicit opt-out.
+
 /** Supabase configured, nobody signed in. */
 function state(overrides: Partial<ViewerState> = {}): ViewerState {
   return {
@@ -72,7 +77,7 @@ describe("/admin is gated by role", () => {
   it("turns a consumer away calmly, to somewhere useful", () => {
     expect(
       guardAdminRoute(state({ authenticated: true, linked: true, role: "consumer" }))
-    ).toBe(HOME_PATH);
+    ).toBe(CLAIMS_HOME_PATH);
     expect(guardAdminRoute(state({ authenticated: true, role: "consumer" }))).toBe(
       REQUESTS_PATH
     );
@@ -91,7 +96,9 @@ describe("the link step", () => {
   });
 
   it("is skipped once a purchase is linked", () => {
-    expect(guardLinkRoute(state({ authenticated: true, linked: true }))).toBe(HOME_PATH);
+    expect(guardLinkRoute(state({ authenticated: true, linked: true }))).toBe(
+      CLAIMS_HOME_PATH
+    );
   });
 
   it("is shown to an authenticated consumer with nothing linked", () => {
@@ -100,10 +107,10 @@ describe("the link step", () => {
 });
 
 describe("where authentication lands you", () => {
-  it("a linked consumer goes straight to tonight", () => {
+  it("a linked consumer goes straight to their home — the guarantee (v3 default)", () => {
     expect(
       routeAfterAuth(state({ authenticated: true, linked: true, role: "consumer" }))
-    ).toBe(HOME_PATH);
+    ).toBe(CLAIMS_HOME_PATH);
   });
 
   it("an unlinked consumer goes to the tracking list — never a /link bounce (v3 M-S5)", () => {
@@ -124,7 +131,7 @@ describe("where authentication lands you", () => {
   it("keeps an already-signed-in visitor off the login/signup screens", () => {
     expect(
       guardAuthRoute(state({ authenticated: true, linked: true, role: "consumer" }))
-    ).toBe(HOME_PATH);
+    ).toBe(CLAIMS_HOME_PATH);
     expect(guardAuthRoute(state())).toBeNull();
   });
 });
@@ -150,18 +157,28 @@ describe("fallback when Supabase is NOT configured", () => {
   });
 });
 
-describe("claims mode moves home from /tonight to /guarantee", () => {
+describe("claims mode (the v3 default) homes on /guarantee, not /tonight", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("homePath is /tonight normally and /guarantee in claims mode", () => {
-    expect(homePath(false)).toBe(HOME_PATH);
+  it("homePath is /guarantee in claims mode and /tonight in the companion product", () => {
     expect(homePath(true)).toBe(CLAIMS_HOME_PATH);
+    expect(homePath(false)).toBe(HOME_PATH);
   });
 
-  it("reads the env-backed default: off unless exactly 'true'", () => {
-    expect(homePath()).toBe(HOME_PATH);
-    vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "true");
+  it("reads the env-backed default: claims unless explicitly opted out (M-S3)", () => {
     expect(homePath()).toBe(CLAIMS_HOME_PATH);
+    vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "false");
+    expect(homePath()).toBe(HOME_PATH);
+  });
+
+  it("still routes the whole companion journey when opted out", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "false");
+    expect(
+      routeAfterAuth(state({ authenticated: true, linked: true, role: "consumer" }))
+    ).toBe(HOME_PATH);
+    expect(guardLinkRoute(state({ authenticated: true, linked: true }))).toBe(HOME_PATH);
+    expect(guardAdminRoute(state({ authenticated: true, linked: true, role: "consumer" })))
+      .toBe(HOME_PATH);
   });
 
   it("lands a linked consumer on the guarantee after authentication", () => {
@@ -186,5 +203,32 @@ describe("claims mode moves home from /tonight to /guarantee", () => {
     expect(routeAfterAuth(state({ authenticated: true, role: "rap_admin" }))).toBe(
       ADMIN_PATH
     );
+  });
+});
+
+describe("the signed-in front door under the v3 default (M-S3 task 5)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("sends a linked consumer to the guarantee", () => {
+    // The middleware bounces "/" to the claims home; the page guard agrees.
+    expect(homePath()).toBe(CLAIMS_HOME_PATH);
+    expect(
+      guardAppRoute(state({ authenticated: true, linked: true, role: "consumer" }))
+    ).toBeNull();
+  });
+
+  it("sends an account with nothing linked to the tracking list, not a dead end", () => {
+    // "/" -> /guarantee (middleware) -> /requests (page guard, M-S5). Both
+    // steps are asserted here so the chain can't silently break.
+    expect(routeAfterAuth(state({ authenticated: true, role: "consumer" }))).toBe(
+      REQUESTS_PATH
+    );
+    expect(guardAppRoute(state({ authenticated: true, role: "consumer" }))).toBe(
+      REQUESTS_PATH
+    );
+  });
+
+  it("still sends staff to their desk", () => {
+    expect(routeAfterAuth(state({ authenticated: true, role: "dealer" }))).toBe(ADMIN_PATH);
   });
 });

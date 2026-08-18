@@ -29,11 +29,7 @@ export function VerifyStep({
     newAddress: string;
     stillOwns: boolean;
   };
-  onSubmitted: (result: {
-    raNumber: string;
-    trackingNumber: string;
-    dealerName: string | null;
-  }) => void;
+  onSubmitted: (result: { claimNumber: string; dealerName: string | null }) => void;
 }) {
   const [phone, setPhone] = useState(initial.contactPhone);
   const [phoneKind, setPhoneKind] = useState<PhoneKind | null>(initial.contactPhoneKind);

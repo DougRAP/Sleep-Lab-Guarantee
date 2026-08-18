@@ -19,6 +19,7 @@ import {
 import { CONCIERGE_TOOLS, createToolDispatch } from "../concierge-tools";
 import { resolveSetting } from "../app-settings";
 import { RESTING_MESSAGE, capInput, decideChatQuota } from "../chat-quota";
+import { isCoachEnabled } from "../shell";
 
 export type SendResult =
   | { ok: true; reply: string }
@@ -27,6 +28,13 @@ export type SendResult =
   | { ok: false; error: string };
 
 export async function sendConciergeMessage(body: string): Promise<SendResult> {
+  // v3 (M-S3): the Coach is disabled in claims mode. The page redirects, but
+  // the action is a door of its own, so it closes here too — calmly, never an
+  // error. The code stays; only the door is closed.
+  if (!isCoachEnabled()) {
+    return { ok: false, error: "The guide is resting. Give us a call and we will help." };
+  }
+
   const raw = (body ?? "").trim();
   if (!raw) return { ok: false, error: "Say a little more and I'll help." };
 

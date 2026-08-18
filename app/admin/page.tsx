@@ -17,6 +17,7 @@ import {
 } from "../../lib/auth/staff-view";
 import { formatDayMonth } from "../../lib/dates";
 import { statusLabel } from "../../lib/claim-status";
+import { isCoachEnabled } from "../../lib/shell";
 import { cn } from "../../lib/utils";
 import { ADJUDICATION_STATUSES } from "../../lib/data/repository";
 import type { ClaimRecord } from "../../lib/data/repository";
@@ -115,7 +116,9 @@ export default async function AdminPage({
               ? "Requests from your location. Adjudication stays in RAP's systems."
               : "Every submitted request. Adjudication stays in RAP's existing systems."}
           </p>
-          {view.role === "rap_admin" && (
+          {/* The Coach usage report — hidden in claims mode, where there is no
+              coach to spend anything (v3 M-S3). The page itself stays. */}
+          {view.role === "rap_admin" && isCoachEnabled() && (
             <p className="text-[13px]">
               <Link
                 href="/admin/coach"

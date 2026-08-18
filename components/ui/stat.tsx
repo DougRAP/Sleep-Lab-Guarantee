@@ -2,8 +2,9 @@ import { cn } from "../../lib/utils";
 
 /**
  * The lab layer: a quiet mono label over one apricot numeral line. Used for the
- * RA and tracking numbers wherever they appear — the closing screen of the
- * fitting and the request detail — so the same number never changes register.
+ * CG claim number wherever a customer meets it — the closing screen of the
+ * fitting or the claim, and the request detail — so the same number never
+ * changes register. (Staff surfaces still set RA/tracking numbers with it.)
  */
 export function Stat({
   label,

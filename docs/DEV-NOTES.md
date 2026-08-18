@@ -1,8 +1,46 @@
 # RAP Sleep Lab — Developer Notes
 
 **Audience:** the RAP dev team (and any engineer picking this up).
-**Last updated:** 2026-07-19 · **Production:** https://rap-sleeplab.netlify.app (`main`)
+**Last updated:** 2026-08-18 · **Production:** https://rap-sleeplab.netlify.app (`main`)
 
+---
+
+## 0. v3 (August 2026) — read this first
+
+The product turned. City Mattress asked for something simpler than the sleep companion, so **v3 is
+claims-first**: an anonymous customer files an exchange request, gets a **CG###### claim number**,
+and a RAP agent adjudicates in RAP's own systems and updates the app by hand. The spec is
+**`docs/SPEC-v3-simple-claims.md`** — approved, and authoritative wherever it disagrees with the
+sections below.
+
+What that changes about everything you're about to read:
+
+- **Claims mode is the DEFAULT** (`isClaimsMode()`, `lib/demo.ts`), no env var needed. The
+  companion layer — `/tonight` and the Coach (`/concierge`) — is **hidden and unreachable**, and
+  the bottom nav is Guarantee · Requests · Shop. Nothing was deleted: `NEXT_PUBLIC_CLAIMS_MODE=false`
+  restores the whole companion product, coach included. Which surfaces exist per mode lives in one
+  place, **`lib/shell.ts`**, and the middleware, the nav and the page guards all read it.
+- **The front door is the claim.** `/` is the identify + contact form; `/claim` is the guided
+  request (purchase details → qualification → optional photos → what happens next → submit).
+  `/fitting` remains the exchange flow for a *linked* signed-in purchase.
+- **CG###### is the only customer reference.** Submit no longer mints an RA or a tracking number —
+  RA/EA issuance is a manual admin action, and `tracking_number` is retired as customer-facing.
+  Pre-v3 rows keep their RA on the request detail; nothing new speaks that language.
+- **Photos are optional** and never gate submission. Claims can be **unlinked** (`guarantee_id` is
+  nullable) — auto-matching on (sales order # + last name) or (ZIP + last name) never blocks.
+- **`RESTOCKING_FEE` is now `COMFORT_EXCHANGE_FEE`** (`lib/eligibility.ts`, $199) — §3b below is
+  out of date on the name.
+- **`/admin` is no longer read-only** — §8 "Planned, not built" is stale. It has search, filters,
+  status transitions, staff notes, claimant detail for unlinked claims, and claim links (exchange
+  authorization / tech report URLs).
+- **The full terms are self-hosted** (`/comfort-guarantee.html`), so the `example.com` placeholder
+  noted in §8 is resolved.
+
+Still true from v2: the repository seam, the eligibility engine, real auth, the design lock.
+
+Milestones M-S1…M-S5 and their handoff briefs live in `docs/handoffs/`.
+
+---
 ---
 
 ## 1. What this app is
@@ -107,6 +145,7 @@ npm run build      # production build
 | `ANTHROPIC_API_KEY` | enables the live concierge + conversational structured capture |
 | `ANTHROPIC_MODEL` | optional override (default `claude-sonnet-5`) |
 | `NEXT_PUBLIC_DEMO_MODE` | demo day-jumper (M5a) — **turn off at launch** |
+| `NEXT_PUBLIC_CLAIMS_MODE` | v3: claims mode is the **default**; set to `false` to restore the companion product |
 
 ---
 
@@ -153,6 +192,8 @@ npm run build      # production build
 - `DESIGN.md` — design system, voice, anti-patterns. **Source of truth; do not redesign.**
 - `docs/PRD-comfort-guarantee-v1.md` — v1 companion scope.
 - `docs/PRD-v2-expansion.md` — v2 scope, information architecture, and the **authoritative fitting spec**.
+- `docs/SPEC-v3-simple-claims.md` — **v3 (current):** simplified claims intake. Authoritative where it disagrees with the v1/v2 docs.
+- `docs/handoffs/` — the M-S1…M-S5 build briefs.
 
 ## 10. Conventions
 

@@ -23,6 +23,7 @@ import {
   PENDING_TOKEN_MAX_AGE,
 } from "./lib/auth/config";
 import { isClaimsMode } from "./lib/demo";
+import { CLAIMS_REDIRECT_PATH, isHiddenInClaimsMode } from "./lib/shell";
 
 /** Consumer app surfaces — everything behind the front door. */
 const APP_PREFIXES = [
@@ -36,9 +37,6 @@ const APP_PREFIXES = [
 
 /** Account routes, meaningless without Supabase. */
 const AUTH_PREFIXES = ["/login", "/signup", "/forgot-password", "/new-password"];
-
-/** Companion surfaces hidden entirely in the claims-mode demo cut. */
-const CLAIMS_HIDDEN_PREFIXES = ["/tonight", "/shop", "/concierge"];
 
 function startsWithAny(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -82,10 +80,11 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  // 1b. Claims-mode demo cut: the companion surfaces are hidden; land on the
-  // guarantee instead. Session gating still applies to the /guarantee request.
-  if (isClaimsMode() && startsWithAny(pathname, CLAIMS_HIDDEN_PREFIXES)) {
-    return redirectTo(req, res, "/guarantee");
+  // 1b. Claims mode (the v3 default): Tonight and the Coach are hidden AND
+  // unreachable — land on the guarantee instead. Shop stays. Session gating
+  // still applies to the /guarantee request. See lib/shell.ts.
+  if (isHiddenInClaimsMode(pathname)) {
+    return redirectTo(req, res, CLAIMS_REDIRECT_PATH);
   }
 
   // 2. No Supabase: the original light-verify flow is the authentication.
@@ -147,7 +146,7 @@ export async function middleware(req: NextRequest) {
   // offer. /tonight re-routes to /link or /admin if that's where they belong.
   // (In claims mode /tonight is hidden, so land on /guarantee directly.)
   if (userId && (pathname === "/" || startsWithAny(pathname, ["/login", "/signup"]))) {
-    return redirectTo(req, res, isClaimsMode() ? "/guarantee" : "/tonight");
+    return redirectTo(req, res, isClaimsMode() ? CLAIMS_REDIRECT_PATH : "/tonight");
   }
 
   return res;

@@ -9,6 +9,7 @@ import { requireGuarantee } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { timeOfDayFor } from "../../../lib/tips";
+import { isCoachEnabled } from "../../../lib/shell";
 import { cn } from "../../../lib/utils";
 import type { Guarantee, JourneyPhase } from "../../../lib/types";
 
@@ -73,12 +74,16 @@ export default async function TonightPage() {
             </div>
           )}
 
-          <Link
-            href="/concierge"
-            className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
-          >
-            Talk to your guide
-          </Link>
+          {/* The Coach is gone in claims mode (v3 M-S3) — this whole page is
+              hidden there too, but the link never dangles. */}
+          {isCoachEnabled() && (
+            <Link
+              href="/concierge"
+              className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
+            >
+              Talk to your guide
+            </Link>
+          )}
         </div>
       </main>
     </>

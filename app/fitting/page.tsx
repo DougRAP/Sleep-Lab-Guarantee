@@ -122,10 +122,11 @@ export default async function FittingPage() {
               stillOwns: claim?.stillOwns === true,
             }}
             submitted={
-              claim?.raNumber && claim?.trackingNumber
+              /* v3 (M-S3): the CG claim number is the reference a submitted
+                 request carries — RA/tracking are no longer minted here. */
+              claim?.claimNumber
                 ? {
-                    raNumber: claim.raNumber,
-                    trackingNumber: claim.trackingNumber,
+                    claimNumber: claim.claimNumber,
                     dealerName: dealer?.name ?? guarantee.dealerName ?? null,
                   }
                 : null

@@ -41,7 +41,8 @@ export interface FittingFlowProps {
     newAddress: string;
     stillOwns: boolean;
   };
-  submitted: { raNumber: string; trackingNumber: string; dealerName: string | null } | null;
+  /** v3: the CG claim number a submitted request already carries, if any. */
+  submitted: { claimNumber: string; dealerName: string | null } | null;
 }
 
 /**
@@ -72,11 +73,7 @@ export function FittingFlow(props: FittingFlowProps) {
 
   if (step === "submitted" && result) {
     return (
-      <SubmittedStep
-        raNumber={result.raNumber}
-        trackingNumber={result.trackingNumber}
-        dealerName={result.dealerName}
-      />
+      <SubmittedStep claimNumber={result.claimNumber} dealerName={result.dealerName} />
     );
   }
 

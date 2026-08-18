@@ -397,12 +397,16 @@ export async function saveVerify(input: {
 /* -------------------------------------------------------------------------- */
 
 export interface SubmittedRequest {
-  raNumber: string;
-  trackingNumber: string;
+  /** The CG###### claim number — the single customer reference (spec v3 §4). */
+  claimNumber: string;
   dealerName: string | null;
 }
 
-/** Finalize: generate the RA + tracking number and hand the request to the dealer. */
+/**
+ * Finalize: mint the CG claim number and hand the request over. v3 no longer
+ * mints an RA or a tracking number at submit — RA/EA issuance is a manual
+ * admin action, and the claim number is what the customer holds.
+ */
 export async function submitFitting(): Promise<ActionResult<SubmittedRequest>> {
   const ctx = await currentDraft();
   if (!ctx.ok) return { ok: false, error: ctx.error };
@@ -427,10 +431,7 @@ export async function submitFitting(): Promise<ActionResult<SubmittedRequest>> {
   return {
     ok: true,
     data: {
-      // v3: submit no longer mints RA/tracking numbers, so these are empty for
-      // new requests — the legacy fitting UI is replaced in M-S2/M-S3.
-      raNumber: result.raNumber ?? "",
-      trackingNumber: result.trackingNumber ?? "",
+      claimNumber: result.claimNumber,
       dealerName: dealer?.name ?? ctx.guarantee.dealerName ?? null,
     },
   };

@@ -35,22 +35,25 @@ describe("isDemoMode", () => {
 });
 
 describe("isClaimsMode", () => {
-  it("defaults OFF when the env is unset — the full companion is the product", () => {
-    expect(isClaimsMode(undefined)).toBe(false);
-    expect(isClaimsMode("")).toBe(false);
+  it("defaults ON when the env is unset — the simplified claims app IS the product (v3 M-S3)", () => {
+    expect(isClaimsMode(undefined)).toBe(true);
+    expect(isClaimsMode("")).toBe(true);
   });
 
-  it("is on only when set exactly to 'true'", () => {
-    expect(isClaimsMode("true")).toBe(true);
-    expect(isClaimsMode(" true ")).toBe(true);
-  });
-
-  it("stays off for anything that is not exactly 'true'", () => {
-    expect(isClaimsMode("TRUE")).toBe(false);
-    expect(isClaimsMode("1")).toBe(false);
-    expect(isClaimsMode("on")).toBe(false);
-    expect(isClaimsMode("yes")).toBe(false);
+  it("only an explicit opt-out brings the companion world back", () => {
     expect(isClaimsMode("false")).toBe(false);
+    expect(isClaimsMode(" false ")).toBe(false);
+    // Env vars get typed by hand — case must not decide the product.
+    expect(isClaimsMode("FALSE")).toBe(false);
+    expect(isClaimsMode("False")).toBe(false);
+  });
+
+  it("stays on for anything that is not an opt-out, including the old opt-in", () => {
+    // Deploys that already set "true" keep working, unchanged.
+    expect(isClaimsMode("true")).toBe(true);
+    expect(isClaimsMode("1")).toBe(true);
+    expect(isClaimsMode("off")).toBe(true);
+    expect(isClaimsMode("no")).toBe(true);
   });
 });
 
