@@ -217,6 +217,16 @@ export interface Claim {
    * Read-only from the app's point of view.
    */
   ttcClaim?: string | null;
+  /**
+   * Customer address block — entered/completed by RAP agents via the
+   * production write-back (service role), like `ttcClaim`. Read-only in the
+   * app. `deliveryZip` stays the customer's self-reported entry.
+   */
+  customerStreet?: string | null;
+  customerStreet2?: string | null;
+  customerCity?: string | null;
+  customerState?: string | null;
+  customerZip?: string | null;
   // --- v3 anonymous intake: identity + purchase details, self-reported ---
   firstName?: string | null;
   lastName?: string | null;

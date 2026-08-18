@@ -178,6 +178,27 @@ export default async function StaffRequestDetailPage({
                   }
                 />
                 <Cell label="Email" value={claim?.contactEmail ?? "—"} />
+                {/* Agent-entered address (production write-back, like TTC). */}
+                <Cell
+                  label="Address"
+                  value={
+                    claim?.customerStreet
+                      ? [
+                          claim.customerStreet,
+                          claim.customerStreet2,
+                          [
+                            claim.customerCity,
+                            claim.customerState,
+                            claim.customerZip,
+                          ]
+                            .filter(Boolean)
+                            .join(", "),
+                        ]
+                          .filter(Boolean)
+                          .join(", ")
+                      : "—"
+                  }
+                />
                 <Cell label="Sales order" value={record.salesOrderNumber ?? "—"} />
                 <Cell label="Model number" value={claim?.modelNumber ?? "—"} />
                 <Cell

@@ -145,6 +145,15 @@ create table if not exists public.claims (
   -- back here to tie the two systems together. Written by RAP's integration
   -- (service role), never by the app or the customer.
   ttc_claim text,
+  -- Customer address block, entered/completed by RAP agents (service-role
+  -- write-back from the production system, like ttc_claim). Mirrors the
+  -- guarantees.customer_* naming. delivery_zip below stays the customer's
+  -- self-reported entry; customer_zip is the agent-verified one.
+  customer_street text,
+  customer_street2 text,
+  customer_city text,
+  customer_state text,
+  customer_zip text,
   -- v3 anonymous intake: self-reported identity + purchase details.
   first_name text,
   last_name text,
@@ -217,6 +226,11 @@ alter table public.claims add column if not exists exchange_sales_order_number t
 alter table public.claims alter column guarantee_id drop not null;
 alter table public.claims add column if not exists claim_number text;
 alter table public.claims add column if not exists ttc_claim text;
+alter table public.claims add column if not exists customer_street text;
+alter table public.claims add column if not exists customer_street2 text;
+alter table public.claims add column if not exists customer_city text;
+alter table public.claims add column if not exists customer_state text;
+alter table public.claims add column if not exists customer_zip text;
 alter table public.claims add column if not exists first_name text;
 alter table public.claims add column if not exists last_name text;
 alter table public.claims add column if not exists delivery_zip text;
