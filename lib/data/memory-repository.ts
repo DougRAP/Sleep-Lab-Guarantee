@@ -330,7 +330,7 @@ export class MemoryRepository implements GuaranteeRepository {
       preVerified: false,
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      deliveryZip: input.deliveryZip.trim(),
+      deliveryZip: input.deliveryZip?.trim() || null,
       salesOrderNumber: null,
       modelNumber: null,
       purchaseDate: null,
@@ -371,10 +371,17 @@ export class MemoryRepository implements GuaranteeRepository {
     const row = this.claims.find((c) => c.id === claimId);
     if (!row) throw new Error(`No claim ${claimId}`);
     // Already linked, or nothing to match on — leave it alone, never throw.
-    if (row.guaranteeId || !row.lastName || !row.deliveryZip) return { ...row };
+    // Either key works: (sales order # + last name) or (ZIP + last name).
+    if (
+      row.guaranteeId ||
+      !row.lastName ||
+      (!row.deliveryZip && !row.salesOrderNumber)
+    ) {
+      return { ...row };
+    }
     const match = matchGuarantee(this.guarantees, {
       lastName: row.lastName,
-      deliveryZip: row.deliveryZip,
+      deliveryZip: row.deliveryZip ?? null,
       salesOrderNumber: row.salesOrderNumber ?? null,
     });
     if (!match) return { ...row };
@@ -420,6 +427,7 @@ export class MemoryRepository implements GuaranteeRepository {
     if (patch.purchaseDate !== undefined) row.purchaseDate = patch.purchaseDate;
     if (patch.deliveryDate !== undefined) row.deliveryDate = patch.deliveryDate;
     if (patch.protectorUsed !== undefined) row.protectorUsed = patch.protectorUsed;
+    if (patch.earlyPreference !== undefined) row.earlyPreference = patch.earlyPreference;
     row.updatedAt = new Date().toISOString();
     return { ...row };
   }

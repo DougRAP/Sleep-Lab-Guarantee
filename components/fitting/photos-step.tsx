@@ -51,6 +51,10 @@ export function PhotosStep({
   storageConfigured,
   initialThumbs,
   onDone,
+  capture = capturePhoto,
+  finish = finishPhotos,
+  intro,
+  nextLabel = "Next — your details",
 }: {
   targets: PhotoTargetView[];
   capturedAngles: PhotoAngle[];
@@ -59,6 +63,13 @@ export function PhotosStep({
    *  back shows the captures instead of an empty "Retake" tile. */
   initialThumbs?: Partial<Record<PhotoAngle, string>>;
   onDone: () => void;
+  /** Injectable actions (v3): the anonymous /claim flow passes its own
+   *  claimant-session-scoped pair; the fitting keeps its defaults. */
+  capture?: typeof capturePhoto;
+  finish?: typeof finishPhotos;
+  /** Step intro copy override (v3 uses its own); default is the fitting's. */
+  intro?: React.ReactNode;
+  nextLabel?: string;
 }) {
   const [captured, setCaptured] = useState<Set<PhotoAngle>>(new Set(capturedAngles));
   const [thumbs, setThumbs] = useState<Record<string, string>>(
@@ -115,7 +126,7 @@ export function PhotosStep({
       // them. The thumbnail above keeps the capture visible for the session.
       if (storageConfigured) form.set("file", prepared);
 
-      const res = await capturePhoto(form);
+      const res = await capture(form);
       if (res.ok) {
         setCaptured((c) => new Set(c).add(target.angle));
       } else {
@@ -134,7 +145,7 @@ export function PhotosStep({
   function submit() {
     if (!ready || pending) return;
     startTransition(async () => {
-      const res = await finishPhotos();
+      const res = await finish();
       if (res.ok) onDone();
       else setNote(res.error);
     });
@@ -143,8 +154,12 @@ export function PhotosStep({
   return (
     <div className="space-y-6">
       <ConciergeCard>
-        Let&apos;s take a look together. Sheets off for the mattress shots — I&apos;ll
-        tell you what each one is as we go.
+        {intro ?? (
+          <>
+            Let&apos;s take a look together. Sheets off for the mattress shots —
+            I&apos;ll tell you what each one is as we go.
+          </>
+        )}
       </ConciergeCard>
 
       <div className="space-y-2.5">
@@ -265,7 +280,7 @@ export function PhotosStep({
       {note && <p className="text-[13px] text-mist">{note}</p>}
 
       <Button onClick={submit} disabled={!ready || pending}>
-        Next — your details
+        {nextLabel}
       </Button>
     </div>
   );

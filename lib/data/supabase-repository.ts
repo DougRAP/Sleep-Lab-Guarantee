@@ -549,6 +549,7 @@ export class SupabaseRepository implements GuaranteeRepository {
     if (patch.purchaseDate !== undefined) row.purchase_date = patch.purchaseDate;
     if (patch.deliveryDate !== undefined) row.delivery_date = patch.deliveryDate;
     if (patch.protectorUsed !== undefined) row.protector_used = patch.protectorUsed;
+    if (patch.earlyPreference !== undefined) row.early_preference = patch.earlyPreference;
 
     const { data } = await this.db
       .from("claims")
@@ -692,7 +693,7 @@ export class SupabaseRepository implements GuaranteeRepository {
         pre_verified: false,
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
-        delivery_zip: input.deliveryZip.trim(),
+        delivery_zip: input.deliveryZip?.trim() || null,
         dealer_location_id: DEFAULT_DEALER_LOCATION_ID,
         submitted_at: null,
       })
@@ -716,15 +717,39 @@ export class SupabaseRepository implements GuaranteeRepository {
     const claim = await this.getClaimById(claimId);
     if (!claim) throw new Error(`No claim ${claimId}`);
     // Already linked, or nothing to match on — leave it alone, never throw.
-    if (claim.guaranteeId || !claim.lastName || !claim.deliveryZip) return claim;
-    const { data: rows } = await this.db
-      .from("guarantees")
-      .select("*")
-      .eq("customer_zip", claim.deliveryZip.trim());
-    const match = matchGuarantee((rows ?? []).map(toGuarantee), {
+    // Either key works: (sales order # + last name) or (ZIP + last name).
+    const zip = claim.deliveryZip?.trim() || null;
+    const salesOrder = claim.salesOrderNumber?.trim() || null;
+    if (claim.guaranteeId || !claim.lastName || (!zip && !salesOrder)) return claim;
+    // Candidates for either key, merged; matchGuarantee applies the shared
+    // exact-ish rules over them. ilike with escaped wildcards = eq, case-blind.
+    const reads = [];
+    if (zip) {
+      reads.push(this.db.from("guarantees").select("*").eq("customer_zip", zip));
+    }
+    if (salesOrder) {
+      reads.push(
+        this.db
+          .from("guarantees")
+          .select("*")
+          .ilike("sales_order_number", ilikeNeedle(salesOrder))
+      );
+    }
+    const results = await Promise.all(reads);
+    const seen = new Set<string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = [];
+    for (const { data } of results) {
+      for (const row of data ?? []) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        rows.push(row);
+      }
+    }
+    const match = matchGuarantee(rows.map(toGuarantee), {
       lastName: claim.lastName,
-      deliveryZip: claim.deliveryZip,
-      salesOrderNumber: claim.salesOrderNumber ?? null,
+      deliveryZip: zip,
+      salesOrderNumber: salesOrder,
     });
     if (!match) return claim;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

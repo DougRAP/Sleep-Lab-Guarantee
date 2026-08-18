@@ -147,6 +147,43 @@ export const RECEIPT_PHOTO_TARGET: PhotoTarget = {
 };
 
 /**
+ * v3 anonymous intake (spec §2.6): the trimmed, ALL-OPTIONAL set — photos are
+ * welcome and speed the review, but never block a request (a technician can
+ * complete them later). Separate list on purpose; the legacy fitting keeps its
+ * own targets and rules untouched.
+ */
+export const CLAIM_PHOTO_TARGETS: PhotoTarget[] = [
+  {
+    angle: "law_tag",
+    label: "Law tag",
+    coaching:
+      "Bedding, linens, and any protector off first. The law tag is the fabric tag sewn to the side or the foot — close enough to read it, and we're set.",
+    optional: true,
+  },
+  {
+    angle: "model_tag",
+    label: "Model tag",
+    coaching:
+      "The model tag usually sits near the law tag. Let's get the model name and number in frame.",
+    optional: true,
+  },
+  {
+    angle: "top_down",
+    label: "Top-down",
+    coaching:
+      "With the mattress uncovered, as square over the middle as you can manage, so the whole surface shows.",
+    optional: true,
+  },
+  {
+    angle: "receipt",
+    label: "Receipt",
+    coaching:
+      "If the receipt is handy, one photo helps confirm the purchase. Skip it if it isn't.",
+    optional: true,
+  },
+];
+
+/**
  * The receipt photo is OFFERED only when the sales order was not pre-verified —
  * i.e. the customer looked themselves up rather than arriving on the
  * dashboard/CRM token link, where the order is already confirmed. Since the

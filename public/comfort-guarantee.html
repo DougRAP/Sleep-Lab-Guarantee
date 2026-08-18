@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIMITED 90-NIGHT COMFORT GUARANTEE</title>
+
+<style>
+    /* ========================================
+       CSS CUSTOM PROPERTIES
+       ======================================== */
+    :root {
+      --primary-color: #2563eb;
+      --primary-dark: #1e40af;
+      --secondary-color: #34495e;
+      --text-color: #333;
+      --background-light: #f9f9f9;
+      --border-color: #ddd;
+      --error-color: #dc2626;
+      --focus-color: #1e40af;
+      --focus-outline: 3px solid var(--focus-color);
+      --focus-offset: 2px;
+    }
+
+    /* ========================================
+       BASE STYLES
+       ======================================== */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.5;
+      color: var(--text-color);
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px 20px 40px;
+      background-color: var(--background-light);
+    }
+
+    main {
+      outline: none;
+    }
+
+    h1 {
+      color: var(--primary-dark);
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 1.8em;
+      letter-spacing: 0.5px;
+      border-bottom: 3px solid var(--primary-color);
+      padding-bottom: 12px;
+    }
+
+    h2 {
+      color: var(--secondary-color);
+      margin-top: 30px;
+      margin-bottom: 15px;
+      font-size: 1.2em;
+      background-color: #ecf0f1;
+      padding: 10px;
+      border-left: 4px solid var(--primary-color);
+    }
+
+    p {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+
+    ul {
+      margin-bottom: 15px;
+      padding-left: 30px;
+    }
+
+    li {
+      margin-bottom: 10px;
+      text-align: justify;
+    }
+
+    /* run-in bold headings, as printed */
+    .run-in {
+      font-weight: 700;
+      color: var(--secondary-color);
+    }
+
+    .underline {
+      text-decoration: underline;
+    }
+
+    .caps-block {
+      font-weight: 700;
+    }
+
+    /* ========================================
+       LINKS & FOCUS
+       ======================================== */
+    a {
+      color: var(--primary-dark);
+      text-decoration: underline;
+      font-weight: 700;
+    }
+
+    a:hover {
+      text-decoration: none;
+    }
+
+    a:focus,
+    button:focus,
+    input:focus {
+      outline: var(--focus-outline);
+      outline-offset: var(--focus-offset);
+    }
+
+    /* ========================================
+       REGISTRATION BLOCK
+       ======================================== */
+    .registration-block {
+      background-color: #fffbf0;
+      border: 2px solid #f59e0b;
+      padding: 20px;
+      margin-top: 20px;
+      margin-bottom: 25px;
+      border-radius: 8px;
+    }
+
+    .registration-block:focus-within {
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
+    }
+
+    .reg-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 8px 0;
+      border-bottom: 1px dotted #ccc;
+    }
+
+    .reg-row:last-child {
+      border-bottom: none;
+    }
+
+    .reg-label {
+      font-weight: bold;
+      color: #2c3e50;
+      flex: 0 0 40%;
+    }
+
+    .reg-input {
+      flex: 0 0 55%;
+      text-align: right;
+      font-weight: bold;
+      font-size: inherit;
+      font-family: inherit;
+      color: var(--primary-dark);
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 6px 10px;
+    }
+
+    .reg-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+
+    .reg-input::placeholder {
+      color: var(--error-color);
+      font-style: italic;
+      font-weight: normal;
+    }
+
+    .records-notice {
+      font-weight: 700;
+      text-align: left;
+    }
+
+    /* ========================================
+       PRINT BUTTON
+       ======================================== */
+    .print-bar {
+      text-align: center;
+      margin-top: 35px;
+    }
+
+    .print-button {
+      background-color: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-family: inherit;
+      font-weight: 600;
+      padding: 12px 28px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .print-button:hover {
+      background-color: var(--primary-dark);
+    }
+
+    /* ========================================
+       FOOTER
+       ======================================== */
+    footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 0.9em;
+      color: #666;
+      border-top: 2px solid var(--border-color);
+      padding-top: 20px;
+    }
+
+    footer p {
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    /* ========================================
+       ACCESSIBILITY
+       ======================================== */
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary-dark);
+      color: white;
+      padding: 8px;
+      text-decoration: none;
+      z-index: 100;
+      border-radius: 0 0 4px 0;
+    }
+
+    .skip-link:focus {
+      top: 0;
+    }
+
+    /* ========================================
+       PRINT STYLES
+       ======================================== */
+    @media print {
+      body {
+        background-color: white;
+        max-width: 100%;
+        padding: 0;
+        orphans: 3;
+        widows: 3;
+      }
+
+      .skip-link,
+      .print-bar {
+        display: none !important;
+      }
+
+      h1 {
+        page-break-after: avoid;
+      }
+
+      h2 {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+        orphans: 4;
+        widows: 4;
+      }
+
+      p {
+        orphans: 2;
+        widows: 2;
+        page-break-inside: avoid;
+      }
+
+      ul {
+        page-break-inside: auto;
+      }
+
+      li {
+        page-break-inside: avoid;
+        orphans: 2;
+        widows: 2;
+      }
+
+      .registration-block,
+      .reg-row {
+        page-break-inside: avoid;
+      }
+
+      .reg-input {
+        border: none;
+        border-bottom: 1px solid #000;
+        background: transparent;
+        border-radius: 0;
+        padding: 0;
+        box-shadow: none;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+
+      footer {
+        page-break-inside: avoid;
+      }
+
+      a {
+        text-decoration: underline;
+        color: inherit;
+      }
+    }
+
+    /* ========================================
+       MOBILE RESPONSIVE
+       ======================================== */
+    @media (max-width: 768px) {
+      body {
+        padding: 10px 10px 30px;
+      }
+
+      h1 {
+        font-size: 1.3em;
+      }
+
+      h2 {
+        font-size: 1.05em;
+      }
+
+      .reg-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .reg-input {
+        text-align: left;
+        margin-top: 5px;
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+</style>
+
+</head>
+<body>
+
+ <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <main id="main-content" tabindex="-1">
+    <h1>LIMITED 90-NIGHT COMFORT GUARANTEE</h1>
+
+    <p>This Limited 90-Night Comfort Guarantee (the "Guarantee") is offered at no additional cost by Risk Assurance Partners, LLC, 1625 S. Congress Avenue, Delray Beach, Florida 33445 ("RAP," "We," "Us," or "Our"), to the
+      original purchaser named in the Registration Information ("You" or "Your") in connection with Your purchase of a new
+      qualifying mattress and/or matching base ("Mattress Set") identified in Your original sales receipt from
+      [insert Dealer Name] (the "Dealer").</p>
+
+    <p><span class="run-in">We want You to love Your mattress.</span> Because it takes more than a few nights for Your body
+      to adjust to a new mattress, We recommend a 30-day adjustment period before considering an exchange under this
+      Guarantee. Please read the terms of this Guarantee carefully. Call Us toll free at 1-855-513-5435 or email Us at
+      claims@raptns.com with any questions.</p>
+
+    <h2>The Guarantee</h2>
+
+    <p>If after 30 days You are not sleeping soundly on Your new Mattress Set, subject to the terms of this Guarantee, You
+      may make a one-time exchange of Your Mattress Set for a new mattress (and if applicable base) of equal or greater
+      value that is a better fit for You.</p>
+
+    <ul>
+      <li>Exchanges under this Guarantee are not available until the 31st day after the date You first take delivery of Your
+        Mattress Set and must occur on or before the 90th day after that delivery date.</li>
+      <li>All exchanges must be made with and in a location operated by the Dealer that sold You the Mattress Set.</li>
+      <li>This Guarantee provides a one-time exchange credit only; no refunds are available under this Guarantee even if You
+        are unable to find a new mattress that You like.</li>
+      <li>Where applicable, both sleep partners must be present in the Dealer's store to select a new Mattress Set to ensure
+        the right fit.</li>
+      <li>You may make ONLY ONE exchange under this Guarantee and will not be able to later exchange the replacement
+        mattress set.</li>
+      <li>You must follow the procedures of this Guarantee to make an exchange and present to the Dealer a return
+        authorization issued by Us (an "RA") to initiate an exchange.</li>
+      <li>To be eligible for exchange, Your Mattress Set must be in like-new condition, free of stains, odors, hair and
+        damage. The law and model label tags must be attached and unaltered. Please note that removing the law or label tags
+        voids this 90-Night Comfort Guarantee. We strongly recommend that You use
+        <a href="https://www.citymattress.com/collections/mattress-protectors">a waterproof mattress protector</a>
+        to maintain Your eligibility to exchange Your Mattress Set under this 90-Night Comfort Guarantee.</li>
+      <li>You must pay to the Dealer a <strong class="underline">$199 comfort exchange fee</strong> when making an exchange
+        under this Guarantee. This fee includes shipping and delivery fees for delivery and pickup within 50 miles from a
+        location operated by the Dealer; shipping and delivery greater than 50 miles will require additional fees. In
+        addition, You must pay to the Dealer any difference between the exchange credit authorized by RAP and the Dealer's
+        selling price for the replacement mattress and/or matching base.</li>
+      <li>A restocking fee applies to California King size Mattress Sets and must be paid to the Dealer before the
+        exchange.</li>
+      <li>A mattress or base received as a replacement under any manufacturer warranty, retailer warranty, service contract,
+        protection plan, insurance policy, or other benefit program is not eligible for exchange under this Guarantee.</li>
+      <li>This Guarantee excludes adjustable bed bases, which are non-returnable and non-refundable.</li>
+    </ul>
+
+    <h2>Other Terms, Conditions &amp; Limitations</h2>
+
+    <p><span class="run-in">Administration of this Guarantee.</span> RAP is the guarantor and administrator of this
+      Guarantee. RAP has sole authority to administer, interpret, approve, deny, and determine eligibility under this
+      Guarantee. The Dealer performs an exchange only after RAP has authorized the exchange by issuing an RA to You and the
+      Dealer.</p>
+
+    <p><span class="run-in">Registration &amp; Proof of Purchase.</span> For Your convenience, this Guarantee has been
+      registered to the customer(s) named in the Registration Information section of this Guarantee. When requesting an
+      exchange from RAP, You must provide proof of purchase of the qualifying Mattress Set from the Dealer and any other
+      information RAP reasonably requests to verify eligibility.</p>
+
+    <p><span class="run-in">What is not included.</span> This Guarantee applies only to the Mattress Set identified in Your
+      original sales receipt issued by the Dealer. It does not include rails, slats, adjustable bases, furniture,
+      accessories, matching items (excluding matching bases purchased as part of the Mattress Set), linens, or any other
+      items. This Guarantee does not cover defects, product failures, recalls, damage, wear, abuse, misuse, improper
+      support, or any other condition whether or not such condition is addressed or covered by a manufacturer warranty,
+      retailer return policy, service contract, insurance policy, or applicable law. A Mattress Set that is defective,
+      recalled, or subject to a defect claim must be addressed through the applicable manufacturer or recall process and is
+      not eligible for exchange under this Guarantee.</p>
+
+    <p><span class="run-in">Possession and Inspection.</span> You must remain in possession of the Mattress Set through
+      completion of the exchange and surrender it to the Dealer as a condition of receiving the replacement. RAP or the
+      Dealer may inspect the Mattress Set at any time before approving or completing an exchange.</p>
+
+    <p><span class="run-in">Household Use.</span> This Guarantee does not apply if the Mattress Set is or was used for
+      commercial, institutional, rental, short-term rental, adult-care, childcare, lodging, or any other non-personal
+      household purpose.</p>
+
+    <p><span class="run-in">Cooperation &amp; Compliance.</span> You must cooperate with Our reasonable requests in Our
+      efforts to administer this Guarantee. Your compliance with every process, condition, deadline, and limitation in this
+      Guarantee is a condition of eligibility. If You fail to provide requested information, cooperate with Us or the
+      Dealer, permit inspection, timely select a replacement, timely pay all required amounts, surrender the Mattress Set,
+      or otherwise comply with this Guarantee, then, at Our sole and absolute discretion, We may deny an exchange under this
+      Guarantee and/or void this Guarantee and any RA that may have been issued.</p>
+
+    <p><span class="run-in">Dealer Status and Location.</span> This Guarantee immediately terminates and is void, without
+      notice or compensation, if the Dealer ceases operations, permanently closes, is sold through an equity or asset sale,
+      no longer sells qualifying Mattress Sets, or is otherwise unable or unwilling to perform the exchange. This Guarantee
+      also immediately terminates and is void if You move outside the Dealer's immediate local delivery area.</p>
+
+    <p><span class="run-in">Dealer Independence.</span> The Dealer is an independent retailer and is not RAP's employee,
+      partner, joint venturer, or general agent. The Dealer and its employees have no authority to alter this Guarantee,
+      waive any requirement, approve an exchange on RAP's behalf, or bind RAP by any statement, promise, representation, or
+      agreement. Only an RA issued by RAP is valid.</p>
+
+    <p><span class="run-in">No Transfer or Assignment.</span> This Guarantee applies only to You, the original purchaser(s),
+      and may not be assigned or transferred, including any benefits hereunder, to another party. This Guarantee does not
+      transfer to replacement mattress sets.</p>
+
+    <p><span class="run-in">No Cash Value.</span> This Guarantee is provided at no additional cost and may not be exchanged
+      for cash, store credit, reimbursement, or other compensation. Upon expiration, completion, denial, cancellation, or
+      voiding, this Guarantee and any RA have no remaining value.</p>
+
+    <p><span class="run-in">Misrepresentation and Fraud.</span> We may immediately deny a request, cancel an RA, and void
+      this Guarantee if We determine, at Our sole discretion, that any material misrepresentation, omission, altered
+      document, fraud, attempted fraud, or misleading activity occurred in connection with the Mattress Set, its purchase,
+      the Dealer, or this Guarantee.</p>
+
+    <p><span class="run-in">No Oral Changes or Waiver.</span> This document contains the complete terms of the Guarantee. No
+      oral statement, course of dealing, delay, failure to enforce, or isolated exception modifies this Guarantee or waives
+      RAP's right to enforce any term. Any amendment or waiver must be in a written document issued and signed by RAP.</p>
+
+    <p><span class="run-in">Territory.</span> This Guarantee is valid only in the United States of America and only through
+      a location operated by the Dealer.</p>
+
+    <p><span class="run-in">Not a Service Contract.</span> This Guarantee is not a service contract, insurance policy,
+      maintenance agreement, or product warranty covering defects. It may not be purchased or sold separately and is
+      available only in connection with the purchase of a qualifying Mattress Set from the Dealer.</p>
+
+    <p><span class="run-in">No Additional Warranties.</span> RAP makes no representation or warranty concerning the design,
+      manufacture, quality, merchantability, fitness, durability, safety, or performance of the Mattress Set. Any product
+      warranty is provided solely by the applicable manufacturer or seller and is separate from this comfort-exchange
+      Guarantee.</p>
+
+    <p><span class="run-in">RAP's Maximum Obligation.</span> RAP's entire and maximum obligation under this Guarantee is
+      limited to administering one approved exchange through the Dealer and issuing one RA authorizing exchange credit not
+      exceeding the amount paid for the covered Mattress Set or Ten Thousand Dollars ($10,000.00 USD), whichever is
+      less, excluding taxes, delivery, financing charges, accessories, fees, and other non-mattress charges. RAP has no obligation to provide a refund, store credit, cash payment,
+      substitute dealer, substitute benefit, reimbursement, transportation, pickup, delivery, removal, disposal, or any
+      other payment or service.</p>
+
+    <p><span class="run-in">Limitation of Damages.</span> RAP is not liable for incidental, consequential, special,
+      exemplary, punitive, or indirect damages or for loss of use, inconvenience, delay, lost time, lost wages, emotional
+      distress, transportation costs, or any other loss or expense arising from or relating to the Mattress Set, the Dealer,
+      this Guarantee, or an exchange.</p>
+
+    <p><span class="run-in">Our Right to Recover.</span> If You have a right to recover against another party for anything
+      RAP paid or provided under this Guarantee, Your rights become RAP's rights to the extent of RAP's payment or
+      performance. You must cooperate and do whatever is reasonably necessary to enable RAP to enforce those rights. RAP
+      will recover only after You have been fully compensated for the same loss.</p>
+
+    <h2>CLASS ACTION WAIVER</h2>
+
+    <p class="caps-block">EACH PARTY WAIVES THE RIGHT TO LITIGATE OR ARBITRATE ANY CLAIM OR DISPUTE AS A CLASS, COLLECTIVE,
+      CONSOLIDATED, REPRESENTATIVE, OR PRIVATE-ATTORNEY-GENERAL PROCEEDING, WHETHER AS A MEMBER OR REPRESENTATIVE. THIS
+      WAIVER APPLIES TO EVERY MATTER ARISING OUT OF OR RELATING IN ANY WAY TO THE MATTRESS SET, THE DEALER, THIS GUARANTEE,
+      RAP'S ADMINISTRATION OR PERFORMANCE, OR THE ACTS OR OMISSIONS OF RAP'S SERVICE PROVIDERS, AFFILIATES, OR ASSIGNS.</p>
+
+    <p><span class="run-in">Governing Law &amp; Venue.</span> This Guarantee is governed by the laws of the State of
+      Florida, without regard to conflict-of-law rules. Any lawsuit arising out of or relating to this Guarantee must be
+      filed exclusively in a state or federal court located in Palm Beach County, Florida, and You consent to that court's
+      personal jurisdiction and venue.</p>
+
+    <p><span class="run-in">Severability.</span> If a court of competent jurisdiction determines that any provision of this
+      Guarantee is invalid or unenforceable, that provision will be severed and the remaining provisions will remain in full
+      force and effect. Such determination does not expand RAP's obligations or create a refund, cash payment, replacement
+      remedy, or other benefit not expressly stated in this Guarantee.</p>
+
+    <h2>LIMITED GUARANTEE REGISTRATION INFORMATION</h2>
+
+    <section aria-label="Limited Guarantee Registration Information">
+      <div class="registration-block">
+        <div class="reg-row">
+          <label class="reg-label" for="reg-customer">CUSTOMER:</label>
+          <input type="text" id="reg-customer" class="reg-input" placeholder="[Customer Name]" />
+        </div>
+        <div class="reg-row">
+          <label class="reg-label" for="reg-dealer">DEALER:</label>
+          <input type="text" id="reg-dealer" class="reg-input" placeholder="[Dealer Name]" />
+        </div>
+        <div class="reg-row">
+          <label class="reg-label" for="reg-dealer-location">DEALER LOCATION:</label>
+          <input type="text" id="reg-dealer-location" class="reg-input" placeholder="[Dealer Location]" />
+        </div>
+        <div class="reg-row">
+          <label class="reg-label" for="reg-sales-order">SALES ORDER NUMBER:</label>
+          <input type="text" id="reg-sales-order" class="reg-input" placeholder="[Sales Order Number]" />
+        </div>
+        <div class="reg-row">
+          <label class="reg-label" for="reg-guarantee-number">GUARANTEE NUMBER:</label>
+          <input type="text" id="reg-guarantee-number" class="reg-input" placeholder="[Guarantee Number]" />
+        </div>
+        <div class="reg-row">
+          <label class="reg-label" for="reg-oem-model">MATTRESS SET OEM / MODEL:</label>
+          <input type="text" id="reg-oem-model" class="reg-input" placeholder="[OEM / Model]" />
+        </div>
+        <div class="reg-row">
+          <label class="reg-label" for="reg-purchase-price">PURCHASE PRICE:</label>
+          <input type="text" id="reg-purchase-price" class="reg-input" placeholder="[Purchase Price]" />
+        </div>
+        <div class="reg-row">
+          <label class="reg-label" for="reg-start-date">DELIVERY / START DATE:</label>
+          <input type="text" id="reg-start-date" class="reg-input" placeholder="[Delivery / Start Date]" />
+        </div>
+      </div>
+
+      <p class="records-notice">KEEP THIS GUARANTEE AND YOUR PROOF OF PURCHASE FOR YOUR RECORDS.</p>
+    </section>
+
+    <div class="print-bar">
+      <button type="button" class="print-button" onclick="window.print()">Print this Guarantee</button>
+    </div>
+
+  </main>
+
+  <footer>
+    <p><strong>END OF DOCUMENT, NOTHING FOLLOWS</strong></p>
+    <p>Risk Assurance Partners, LLC</p>
+    <p>CMFG-90-CITY-GS</p>
+  </footer>
+
+  <div class="guarantee-metadata" style="display: none;">
+    <span data-plan-sku="CMFG-90-CITY-GS"></span>
+  </div>
+
+  <script>
+    const skipLink = document.querySelector('.skip-link');
+    if (skipLink) {
+      skipLink.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.focus();
+          target.scrollIntoView();
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>

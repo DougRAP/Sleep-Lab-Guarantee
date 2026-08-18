@@ -92,6 +92,11 @@ export interface UpdateClaimInput {
   deliveryDate?: string | null;
   /** Informational — never gates submission. */
   protectorUsed?: boolean | null;
+  /**
+   * The before-day-31 choice, collected at the details step (spec §2.4) so it
+   * survives leaving and resuming; submit normalizes it (null when in-window).
+   */
+  earlyPreference?: EarlyPreference | null;
 }
 
 /**
@@ -101,7 +106,11 @@ export interface UpdateClaimInput {
 export interface CreateAnonymousClaimInput {
   firstName: string;
   lastName: string;
-  deliveryZip: string;
+  /**
+   * Optional since §2 merged identify+contact (2026-08-18): the entry form
+   * takes a sales order number OR a delivery ZIP — either one identifies.
+   */
+  deliveryZip?: string | null;
 }
 
 /** Options carried into submit. v3: the before-day-31 choice, when made. */
@@ -334,34 +343,41 @@ export function claimNumberQuery(value: string): string | null {
 /** The self-reported identity an anonymous claim carries into auto-match. */
 export interface MatchGuaranteeInput {
   lastName: string;
-  deliveryZip: string;
+  deliveryZip?: string | null;
   salesOrderNumber?: string | null;
 }
 
 /**
- * v3 auto-match (spec §3): exact last name (case-insensitive) + delivery ZIP;
- * when a sales order number was given it must match too. Pure and conservative:
- * anything short of exactly ONE surviving candidate returns null — an ambiguous
- * match is not a confident match, and no-match never blocks a claim (the RAP
- * agent matches manually).
+ * v3 auto-match (spec §3, updated 2026-08-18): two alternative keys, either of
+ * which links when it lands on exactly ONE registered guarantee —
+ *   1. sales order # + last name (tried first: the order number is unique)
+ *   2. delivery ZIP + last name
+ * All comparisons exact-ish (trimmed; names/orders case-insensitive). Pure and
+ * conservative: an ambiguous key is not a confident match, and no-match never
+ * blocks a claim (the RAP agent matches manually).
  */
 export function matchGuarantee(
   guarantees: Guarantee[],
   input: MatchGuaranteeInput
 ): Guarantee | null {
   const lastName = input.lastName.trim().toLowerCase();
-  const zip = input.deliveryZip.trim();
+  if (!lastName) return null;
+  const zip = (input.deliveryZip ?? "").trim();
   const salesOrder = (input.salesOrderNumber ?? "").trim().toLowerCase();
-  if (!lastName || !zip) return null;
-  const candidates = guarantees.filter((g) => {
-    if (g.customerLastName.trim().toLowerCase() !== lastName) return false;
-    if ((g.customerZip ?? "").trim() !== zip) return false;
-    if (salesOrder && g.salesOrderNumber.trim().toLowerCase() !== salesOrder) {
-      return false;
-    }
-    return true;
-  });
-  return candidates.length === 1 ? candidates[0] : null;
+  const byName = guarantees.filter(
+    (g) => g.customerLastName.trim().toLowerCase() === lastName
+  );
+  if (salesOrder) {
+    const byOrder = byName.filter(
+      (g) => g.salesOrderNumber.trim().toLowerCase() === salesOrder
+    );
+    if (byOrder.length === 1) return byOrder[0];
+  }
+  if (zip) {
+    const byZip = byName.filter((g) => (g.customerZip ?? "").trim() === zip);
+    if (byZip.length === 1) return byZip[0];
+  }
+  return null;
 }
 
 /** Most rows a staff search returns — plenty for a desk, never a dump. */
@@ -618,9 +634,9 @@ export interface GuaranteeRepository {
    */
   getClaimByNumber(claimNumber: string): Promise<Claim | null>;
   /**
-   * Auto-match an anonymous claim to a registered guarantee (last name + ZIP,
-   * plus sales order # when given — see matchGuarantee) and link it when the
-   * match is unambiguous. NEVER throws on no-match: the claim is returned
+   * Auto-match an anonymous claim to a registered guarantee — (sales order # +
+   * last name) or (delivery ZIP + last name), see matchGuarantee — and link it
+   * when the match is unique. NEVER throws on no-match: the claim is returned
    * unchanged and a RAP agent matches manually. No-op on linked claims.
    */
   linkClaimToGuaranteeIfMatched(claimId: string): Promise<Claim>;

@@ -30,10 +30,10 @@ export const GUARANTEE_META = {
   windowCloseDay: WINDOW_CLOSE_DAY,
   governingState: "Florida",
   governingCounty: "Palm Beach County",
-  // The authoritative guarantee, hosted by Doug (received 2026-07-23). No
-  // in-app signing. TEMPORARY dependency on his Netlify: the source HTML has
-  // been requested so the document can live in this repo instead.
-  fullTermsUrl: "https://rap-citymattress-90daycomfort.netlify.app/",
+  // The authoritative guarantee, SELF-HOSTED since v3 (spec §3, 2026-08-18):
+  // a verbatim copy of docs/CMFG-90-CITY-GS.html served from public/. No
+  // in-app signing; dealer-requested changes replace that file.
+  fullTermsUrl: "/comfort-guarantee.html",
 } as const;
 
 /** Short plain-language essentials shown in-app; the full terms live at fullTermsUrl. */

@@ -224,7 +224,24 @@ describe("guarantee auto-match", () => {
     ).toBeNull();
   });
 
-  it("matchGuarantee: a given sales order number must also match", () => {
+  // Spec §3 (2026-08-18): two alternative keys — (sales order + last name) or
+  // (ZIP + last name). Either unique key links.
+  it("matchGuarantee: sales order + last name is a key on its own (no ZIP)", () => {
+    expect(
+      matchGuarantee(SEED_GUARANTEES, {
+        lastName: "Calloway",
+        salesOrderNumber: "1011099412a",
+      })?.id
+    ).toBe(CALLOWAY.id);
+    expect(
+      matchGuarantee(SEED_GUARANTEES, {
+        lastName: "Boyd",
+        salesOrderNumber: "1011099412A", // Calloway's order, Boyd's name
+      })
+    ).toBeNull();
+  });
+
+  it("matchGuarantee: a wrong sales order falls back to the ZIP key", () => {
     expect(
       matchGuarantee(SEED_GUARANTEES, {
         lastName: "Calloway",
@@ -232,10 +249,19 @@ describe("guarantee auto-match", () => {
         salesOrderNumber: "1011099412A",
       })?.id
     ).toBe(CALLOWAY.id);
+    // The order key misses, but ZIP + last name still lands uniquely.
     expect(
       matchGuarantee(SEED_GUARANTEES, {
         lastName: "Calloway",
         deliveryZip: "28150",
+        salesOrderNumber: "1011099999Z",
+      })?.id
+    ).toBe(CALLOWAY.id);
+    // Both keys miss — no match.
+    expect(
+      matchGuarantee(SEED_GUARANTEES, {
+        lastName: "Calloway",
+        deliveryZip: "99999",
         salesOrderNumber: "1011099999Z",
       })
     ).toBeNull();
@@ -274,13 +300,37 @@ describe("guarantee auto-match", () => {
     expect(isClaimNumber(claimNumber)).toBe(true);
   });
 
-  it("a sales-order mismatch keeps the claim unlinked", async () => {
+  // Spec §3 (2026-08-18): the ZIP key stands on its own — a wrong order number
+  // no longer vetoes it; only both keys missing leaves the claim unlinked.
+  it("a wrong sales order still links when ZIP + last name land uniquely", async () => {
     const r = new MemoryRepository();
     const claim = await anonymousDraft(r, { lastName: "Calloway", deliveryZip: "28150" });
     await r.updateClaim(claim.id, { salesOrderNumber: "1011099999Z" });
 
     const { claim: submitted } = await r.submitClaim(claim.id);
+    expect(submitted.guaranteeId).toBe(CALLOWAY.id);
+  });
+
+  it("stays unlinked when both keys miss", async () => {
+    const r = new MemoryRepository();
+    const claim = await anonymousDraft(r, { lastName: "Calloway", deliveryZip: "99999" });
+    await r.updateClaim(claim.id, { salesOrderNumber: "1011099999Z" });
+
+    const { claim: submitted } = await r.submitClaim(claim.id);
     expect(submitted.guaranteeId).toBeNull();
+  });
+
+  it("links a ZIP-less claim by sales order + last name at submit", async () => {
+    const r = new MemoryRepository();
+    const claim = await r.createAnonymousClaim({
+      firstName: "Denise",
+      lastName: "Calloway",
+    });
+    await r.updateClaim(claim.id, { salesOrderNumber: "1011099412a" });
+
+    const { claim: submitted } = await r.submitClaim(claim.id);
+    expect(submitted.guaranteeId).toBe(CALLOWAY.id);
+    expect(submitted.deliveryZip).toBeNull();
   });
 });
 
