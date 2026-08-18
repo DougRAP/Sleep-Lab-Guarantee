@@ -7,18 +7,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRepository } from "./memory-repository";
 import { SEED_CLAIMS, SEED_GUARANTEES } from "./seed";
-import { permittedClaimStatusTransitions } from "./repository";
+import {
+  ADJUDICATION_STATUSES,
+  permittedClaimStatusTransitions,
+  toClaimRecord,
+} from "./repository";
 import type { ClaimRecordScope, GuaranteeRepository } from "./repository";
+import { statusLabel } from "../claim-status";
 import type { Guarantee } from "../types";
 
 const ALL: ClaimRecordScope = { kind: "all" };
 const SHELBY: ClaimRecordScope = { kind: "dealer_location", dealerLocationId: "101" };
 const ELSEWHERE: ClaimRecordScope = { kind: "dealer_location", dealerLocationId: "202" };
-
-// The seeded ANONYMOUS claim (v3) has no guarantee row, and the staff list
-// renders claims via their guarantee until M-S4's unlinked-claim handling —
-// so the list today shows only the linked seeds.
-const LINKED_SEED_CLAIMS = SEED_CLAIMS.filter((c) => c.guaranteeId);
 
 /** A guarantee at a DIFFERENT dealer location, for scope-exclusion tests. */
 const WHITFIELD: Guarantee = {
@@ -61,8 +61,10 @@ afterEach(() => {
 describe("listClaimRecords — search semantics", () => {
   it("empty and blank queries are the unfiltered list", async () => {
     const r = new MemoryRepository();
+    // v3 (M-S4): unlinked anonymous claims are first-class — every seeded
+    // claim shows, the Osborne anonymous claim included.
     const all = await r.listClaimRecords(ALL);
-    expect(all).toHaveLength(LINKED_SEED_CLAIMS.length);
+    expect(all).toHaveLength(SEED_CLAIMS.length);
     expect((await r.listClaimRecords(ALL, "")).map((x) => x.claimId)).toEqual(
       all.map((x) => x.claimId)
     );
@@ -171,7 +173,9 @@ describe("listClaimRecords — search semantics", () => {
     const { repo, otherClaimId } = await repoWithOtherLocation();
     const shelby = await repo.listClaimRecords(SHELBY);
     expect(shelby.map((x) => x.claimId)).not.toContain(otherClaimId);
-    expect(shelby).toHaveLength(LINKED_SEED_CLAIMS.length);
+    // The Osborne anonymous claim is scoped to 101 by its own column, so the
+    // 101 dealer's unfiltered list carries every seeded claim.
+    expect(shelby).toHaveLength(SEED_CLAIMS.length);
   });
 });
 
@@ -416,5 +420,152 @@ describe("recordExchangeSalesOrder", () => {
     await expect(
       r.recordExchangeSalesOrder("seed-claim-natarajan", "   ")
     ).rejects.toThrow();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* v3 (M-S4) — unlinked anonymous claims are first-class on the desk          */
+/* -------------------------------------------------------------------------- */
+
+const OSBORNE = SEED_CLAIMS.find((c) => c.id === "seed-claim-osborne")!;
+const CALLOWAY_G = SEED_GUARANTEES.find((g) => g.id === "seed-guarantee-calloway")!;
+
+describe("toClaimRecord — unlinked sourcing", () => {
+  it("renders an unlinked claim from its own self-reported fields", () => {
+    const record = toClaimRecord(OSBORNE, null, new Date("2027-01-01T12:00:00Z"));
+    expect(record.guaranteeId).toBeNull();
+    expect(record.customerName).toBe("Terri Osborne");
+    expect(record.salesOrderNumber).toBe(OSBORNE.salesOrderNumber);
+    expect(record.deliveryZip).toBe(OSBORNE.deliveryZip);
+    expect(record.dealerLocationId).toBe("101");
+    expect(record.claimNumber).toBe("CG7MKQ42");
+    expect(record.earlyPreference).toBeNull();
+    expect(record.daysInServiceAtSubmit).toBe(OSBORNE.daysInServiceAtSubmit);
+    expect(record.protectorUsed).toBe(true);
+  });
+
+  it("computes the day from the claim's own delivery date when unlinked", () => {
+    const record = toClaimRecord(
+      { ...OSBORNE, deliveryDate: "2026-12-12" },
+      null,
+      new Date("2027-01-01T12:00:00Z")
+    );
+    expect(record.day).toBe(20);
+  });
+
+  it("day is null when an unlinked claim never reported a delivery date", () => {
+    const record = toClaimRecord({ ...OSBORNE, deliveryDate: null }, null);
+    expect(record.day).toBeNull();
+  });
+
+  it("a linked claim still sources identity from its guarantee", () => {
+    const record = toClaimRecord(
+      { ...OSBORNE, guaranteeId: CALLOWAY_G.id },
+      CALLOWAY_G
+    );
+    expect(record.customerName).toBe("Denise Calloway");
+    expect(record.salesOrderNumber).toBe(CALLOWAY_G.salesOrderNumber);
+    expect(record.deliveryZip).toBe(CALLOWAY_G.customerZip);
+  });
+
+  it("the claim's own dealer location outranks the guarantee's (effective scope)", () => {
+    const linked = toClaimRecord(
+      { ...OSBORNE, guaranteeId: CALLOWAY_G.id, dealerLocationId: "202" },
+      CALLOWAY_G
+    );
+    expect(linked.dealerLocationId).toBe("202");
+    const inherited = toClaimRecord(
+      { ...OSBORNE, guaranteeId: CALLOWAY_G.id, dealerLocationId: null },
+      CALLOWAY_G
+    );
+    expect(inherited.dealerLocationId).toBe(CALLOWAY_G.dealerLocationId);
+  });
+});
+
+describe("unlinked claims on the staff desk", () => {
+  it("the list carries the seeded anonymous claim, rendered from claim fields", async () => {
+    const r = new MemoryRepository();
+    const all = await r.listClaimRecords(ALL);
+    const row = all.find((x) => x.claimId === "seed-claim-osborne");
+    expect(row).toBeTruthy();
+    expect(row?.customerName).toBe("Terri Osborne");
+    expect(row?.claimNumber).toBe("CG7MKQ42");
+    expect(row?.guaranteeId).toBeNull();
+  });
+
+  it("dealer scope applies via the claim's own dealer location", async () => {
+    const r = new MemoryRepository();
+    const shelby = await r.listClaimRecords(SHELBY);
+    expect(shelby.map((x) => x.claimId)).toContain("seed-claim-osborne");
+    const elsewhere = await r.listClaimRecords(ELSEWHERE);
+    expect(elsewhere.map((x) => x.claimId)).not.toContain("seed-claim-osborne");
+  });
+
+  it("getClaimRecord opens an unlinked claim for RAP and the owning dealer only", async () => {
+    const r = new MemoryRepository();
+    expect((await r.getClaimRecord(ALL, "seed-claim-osborne"))?.claimNumber).toBe(
+      "CG7MKQ42"
+    );
+    expect(
+      (await r.getClaimRecord(SHELBY, "seed-claim-osborne"))?.claimId
+    ).toBe("seed-claim-osborne");
+    // Another location gets the same null a nonexistent id gets.
+    expect(await r.getClaimRecord(ELSEWHERE, "seed-claim-osborne")).toBeNull();
+  });
+
+  it("search finds an unlinked claim by CG number, with or without the prefix", async () => {
+    const r = new MemoryRepository();
+    expect(
+      (await r.listClaimRecords(ALL, "CG7MKQ42")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-osborne"]);
+    expect(
+      (await r.listClaimRecords(ALL, "7mkq42")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-osborne"]);
+  });
+
+  it("search finds an unlinked claim by its self-reported fields", async () => {
+    const r = new MemoryRepository();
+    expect(
+      (await r.listClaimRecords(ALL, "Osborne")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-osborne"]);
+    expect(
+      (await r.listClaimRecords(ALL, "28105")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-osborne"]);
+    expect(
+      (await r.listClaimRecords(ALL, OSBORNE.salesOrderNumber!)).map((x) => x.claimId)
+    ).toEqual(["seed-claim-osborne"]);
+    expect(
+      (await r.listClaimRecords(ALL, "terri.osborne@example.com")).map((x) => x.claimId)
+    ).toEqual(["seed-claim-osborne"]);
+  });
+
+  it("an early preference surfaces on the record (the call-back queue)", async () => {
+    const r = new MemoryRepository();
+    const claim = await r.createAnonymousClaim({
+      firstName: "Harold",
+      lastName: "Pemberton",
+      deliveryZip: "33483",
+    });
+    await r.submitClaim(claim.id, { earlyPreference: "agent_call" });
+    const record = await r.getClaimRecord(ALL, claim.id);
+    expect(record?.earlyPreference).toBe("agent_call");
+  });
+});
+
+describe("the status control's vocabulary (v3)", () => {
+  it("offers inspection_scheduled in the adjudication set with a human label", () => {
+    expect(ADJUDICATION_STATUSES).toContain("inspection_scheduled");
+    expect(statusLabel("inspection_scheduled")).toBe("Inspection scheduled");
+  });
+
+  it("the desk offers the inspection move from in_review, and its exits", () => {
+    expect(permittedClaimStatusTransitions("in_review")).toContain(
+      "inspection_scheduled"
+    );
+    expect(permittedClaimStatusTransitions("inspection_scheduled")).toEqual([
+      "in_review",
+      "approved",
+      "denied",
+    ]);
   });
 });

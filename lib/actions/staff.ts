@@ -20,7 +20,7 @@ import {
   setDemoStaffView,
 } from "../auth/demo-staff-server";
 import { ADJUDICATION_STATUSES } from "../data/repository";
-import type { ClaimStatus } from "../types";
+import type { ClaimLinkKind, ClaimStatus } from "../types";
 
 /* -------------------------------------------------------------------------- */
 /* Demo staff viewer — pick / switch                                          */
@@ -70,6 +70,59 @@ export async function addStaffNoteAction(formData: FormData): Promise<void> {
     author: view.role,
     body,
     authorId: view.userId,
+  });
+  revalidatePath(`${ADMIN_PATH}/requests/${claimId}`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Claim links — RAP attaches EA docs / tech reports (v3 §5, M-S4)            */
+/* -------------------------------------------------------------------------- */
+
+const CLAIM_LINK_KINDS: readonly ClaimLinkKind[] = [
+  "exchange_authorization",
+  "tech_report",
+  "other",
+];
+
+function isClaimLinkKind(value: unknown): value is ClaimLinkKind {
+  return CLAIM_LINK_KINDS.includes(value as ClaimLinkKind);
+}
+
+/** Only a real web address ever becomes a stored link (no javascript: etc.). */
+function safeHttpUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Attach a document link to a claim — how RAP's manual adjudication (exchange
+ * authorization, tech report) lands where the dealer's team can see it.
+ * RAP ONLY: dealers read the list but never write it.
+ */
+export async function addClaimLinkAction(formData: FormData): Promise<void> {
+  const view = await getStaffView();
+  if (!view || view.role !== "rap_admin") return;
+
+  const claimId = String(formData.get("claimId") ?? "").trim();
+  const kind = formData.get("kind");
+  const url = safeHttpUrl(String(formData.get("url") ?? "").trim());
+  const label = String(formData.get("label") ?? "").trim();
+  if (!claimId || !isClaimLinkKind(kind) || !url) return;
+
+  const repo = getRepository();
+  // Same existence/scope re-check the other staff writes make.
+  const record = await repo.getClaimRecord({ kind: "all" }, claimId);
+  if (!record) return;
+
+  await repo.addClaimLink(claimId, {
+    kind,
+    url,
+    label: label || null,
+    createdBy: view.userId,
   });
   revalidatePath(`${ADMIN_PATH}/requests/${claimId}`);
 }

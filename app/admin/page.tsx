@@ -134,7 +134,7 @@ export default async function AdminPage({
                 label="Search"
                 name="q"
                 defaultValue={query}
-                placeholder="Order #, guarantee #, name, email, or phone"
+                placeholder="Claim # (CG…), order #, name, email, or phone"
                 autoComplete="off"
               />
             </div>
@@ -201,8 +201,8 @@ export default async function AdminPage({
             <FrostedCard>
               <p className="text-[15px] leading-relaxed text-mist">
                 {query
-                  ? `No matches for “${query}”. Try an order number, a guarantee number, or a last name.`
-                  : "No requests yet. Submitted exchanges appear here with their RA and tracking numbers."}
+                  ? `No matches for “${query}”. Try a claim number (CG…), an order number, or a last name.`
+                  : "No requests yet. Submitted exchanges appear here with their claim numbers."}
               </p>
             </FrostedCard>
           ) : (
@@ -243,15 +243,26 @@ function AdminRow({ record }: { record: ClaimRecord }) {
               {record.customerName}
             </p>
             <StatusChip status={record.status} />
+            {/* Anonymous claim with no registered guarantee yet — an agent
+                matches it in production. */}
+            {record.guaranteeId === null && <MetaChip>Unlinked</MetaChip>}
+            {/* The call-back queue at a glance (spec v3 §2.4). */}
+            {record.earlyPreference === "agent_call" && (
+              <MetaChip accent>Wants call</MetaChip>
+            )}
+            {record.earlyPreference === "auto_submit_day_31" && (
+              <MetaChip accent>Auto day-31</MetaChip>
+            )}
           </div>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
-            Order {record.salesOrderNumber} &middot; Day {record.day} / 90
+            Order {record.salesOrderNumber ?? "—"} &middot; Day{" "}
+            {record.day ?? "—"} / 90
           </p>
         </div>
 
         <dl className="grid shrink-0 grid-cols-3 gap-6 sm:w-[400px]">
-          <Cell label="RA" value={record.raNumber} />
-          <Cell label="Tracking" value={record.trackingNumber} />
+          <Cell label="Claim #" value={record.claimNumber ?? record.raNumber} />
+          <Cell label="TTC #" value={record.ttcClaim} />
           <Cell
             label="Updated"
             value={record.updatedAt ? formatDayMonth(record.updatedAt) : null}
@@ -259,6 +270,29 @@ function AdminRow({ record }: { record: ClaimRecord }) {
         </dl>
       </FrostedCard>
     </Link>
+  );
+}
+
+/**
+ * A quiet marker chip beside the status pill — same shape, muted register
+ * (accent text for the early-preference queue markers agents scan for).
+ */
+function MetaChip({
+  accent = false,
+  children,
+}: {
+  accent?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full border border-[var(--line)] bg-white/[0.04] px-3 py-1 font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em]",
+        accent ? "text-dawn" : "text-mist"
+      )}
+    >
+      {children}
+    </span>
   );
 }
 

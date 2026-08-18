@@ -152,40 +152,83 @@ export type ClaimRecordScope =
  * One row of the read-only admin/dealer list. Deliberately flat and small — the
  * locked decision is "data seam now, thin admin later", so this is a list, not
  * a ticketing surface. No approve/deny, no stats.
+ *
+ * v3 (M-S4): unlinked (anonymous) claims are first-class — identity fields fall
+ * back to the claim's own self-reported columns when there is no guarantee.
  */
 export interface ClaimRecord {
   claimId: string;
+  /** Null on an UNLINKED anonymous claim — render from the claim's own fields. */
+  guaranteeId: string | null;
+  /** v3: `CG######` — the single customer reference. */
+  claimNumber: string | null;
+  /** RAP production claim number, written back by their integration. */
+  ttcClaim: string | null;
   raNumber: string | null;
   trackingNumber: string | null;
   status: ClaimStatus;
   customerName: string;
-  salesOrderNumber: string;
+  salesOrderNumber: string | null;
+  /**
+   * The claim's EFFECTIVE dealer location: the claim's own column when set
+   * (anonymous claims), else the guarantee's. Dealer scoping keys off this.
+   */
   dealerLocationId: string | null;
-  /** Journey day at the time of the read (delivery date = day 0). */
-  day: number;
+  /** Delivery ZIP — the guarantee's on linked claims, self-reported otherwise. */
+  deliveryZip: string | null;
+  /**
+   * Journey day at the time of the read (delivery date = day 0). Null when no
+   * delivery date is known (an anonymous claim that never reported one).
+   */
+  day: number | null;
+  /** v3: the before-day-31 choice, when one was made. */
+  earlyPreference: EarlyPreference | null;
+  /** v3: snapshot taken at submit from the self-reported delivery date. */
+  daysInServiceAtSubmit: number | null;
+  /** v3: informational protector checkbox. */
+  protectorUsed: boolean | null;
   submittedAt: string | null;
   updatedAt: string | null;
 }
 
-/** Build an admin row from a claim + its guarantee. Shared by both backends. */
+/**
+ * Build an admin row from a claim + its guarantee — or from the claim alone
+ * when it is unlinked (guarantee null). Shared by both backends.
+ */
 export function toClaimRecord(
   claim: Claim,
-  guarantee: Guarantee,
+  guarantee: Guarantee | null,
   referenceDate: Date = new Date()
 ): ClaimRecord {
-  const name = [guarantee.customerFirstName, guarantee.customerLastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  // Linked claims keep sourcing identity from the guarantee (the registered
+  // record outranks self-reported fields); unlinked claims are their own source.
+  const firstName = guarantee ? guarantee.customerFirstName : claim.firstName;
+  const lastName = guarantee ? guarantee.customerLastName : claim.lastName;
+  const name = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const deliveryDate = guarantee ? guarantee.deliveryDate : claim.deliveryDate ?? null;
   return {
     claimId: claim.id,
+    guaranteeId: claim.guaranteeId ?? null,
+    claimNumber: claim.claimNumber ?? null,
+    ttcClaim: claim.ttcClaim ?? null,
     raNumber: claim.raNumber ?? null,
     trackingNumber: claim.trackingNumber ?? null,
     status: claim.status,
-    customerName: name || guarantee.customerLastName,
-    salesOrderNumber: guarantee.salesOrderNumber,
-    dealerLocationId: guarantee.dealerLocationId ?? null,
-    day: journeyDay(guarantee.deliveryDate, referenceDate),
+    customerName: name || "—",
+    salesOrderNumber: guarantee
+      ? guarantee.salesOrderNumber
+      : claim.salesOrderNumber ?? null,
+    // The claim's own column wins when set (the anonymous default scope);
+    // otherwise the guarantee's — "own column, else via guarantee".
+    dealerLocationId:
+      claim.dealerLocationId ?? guarantee?.dealerLocationId ?? null,
+    deliveryZip: guarantee
+      ? guarantee.customerZip ?? null
+      : claim.deliveryZip ?? null,
+    day: deliveryDate ? journeyDay(deliveryDate, referenceDate) : null,
+    earlyPreference: claim.earlyPreference ?? null,
+    daysInServiceAtSubmit: claim.daysInServiceAtSubmit ?? null,
+    protectorUsed: claim.protectorUsed ?? null,
     submittedAt: claim.submittedAt ?? null,
     updatedAt: claim.updatedAt ?? null,
   };
@@ -208,12 +251,24 @@ export function toClaimRecord(
  *     fills the address columns, so it simply finds nothing before then
  *   - claim number (v3): exact-ish against the claim's `CG######`, case-
  *     insensitive, with or without the CG prefix — pass the claim to enable it
+ * v3 (M-S4): `guarantee` may be null — an UNLINKED anonymous claim matches on
+ * its own self-reported fields instead (name, ZIP, sales order #, contact).
+ * Linked claims keep matching on the guarantee (the registered record).
  * An empty/blank query matches everything (the unfiltered list).
  */
 export function claimSearchMatches(
   query: string,
-  guarantee: Guarantee,
-  claim?: Pick<Claim, "claimNumber">
+  guarantee: Guarantee | null,
+  claim?: Pick<
+    Claim,
+    | "claimNumber"
+    | "firstName"
+    | "lastName"
+    | "deliveryZip"
+    | "salesOrderNumber"
+    | "contactEmail"
+    | "contactPhone"
+  >
 ): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -224,18 +279,26 @@ export function claimSearchMatches(
   ) {
     return true;
   }
-  if (guarantee.salesOrderNumber.trim().toLowerCase() === q) return true;
-  if ((guarantee.guaranteeNumber ?? "").trim().toLowerCase() === q) return true;
-  if ((guarantee.customerEmail ?? "").trim().toLowerCase() === q) return true;
-  if (zipQuery(q) && (guarantee.customerZip ?? "").trim() === q) return true;
+  // One set of fields to match on: the guarantee's when linked, the claim's
+  // self-reported ones when not — the same precedence toClaimRecord renders.
+  const salesOrderNumber = guarantee
+    ? guarantee.salesOrderNumber
+    : claim?.salesOrderNumber ?? "";
+  const email = guarantee ? guarantee.customerEmail : claim?.contactEmail;
+  const zip = guarantee ? guarantee.customerZip : claim?.deliveryZip;
+  const phone = guarantee ? guarantee.customerPhone : claim?.contactPhone;
+  const firstName = guarantee ? guarantee.customerFirstName : claim?.firstName;
+  const lastName = guarantee ? guarantee.customerLastName : claim?.lastName;
+
+  if (salesOrderNumber.trim().toLowerCase() === q) return true;
+  if ((guarantee?.guaranteeNumber ?? "").trim().toLowerCase() === q) return true;
+  if ((email ?? "").trim().toLowerCase() === q) return true;
+  if (zipQuery(q) && (zip ?? "").trim() === q) return true;
   const digits = phoneDigits(q);
-  if (digits && digits === phoneDigits(guarantee.customerPhone ?? "")) return true;
-  if (lastNameMatches(query, guarantee.customerLastName)) return true;
-  const fullName = [guarantee.customerFirstName, guarantee.customerLastName]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return fullName.includes(q);
+  if (digits && digits === phoneDigits(phone ?? "")) return true;
+  if (lastName && lastNameMatches(query, lastName)) return true;
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").toLowerCase();
+  return Boolean(fullName) && fullName.includes(q);
 }
 
 /**

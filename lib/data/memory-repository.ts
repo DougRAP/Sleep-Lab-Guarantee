@@ -620,18 +620,25 @@ export class MemoryRepository implements GuaranteeRepository {
     for (const claim of this.claims) {
       // Drafts aren't requests yet — they're an in-progress fitting.
       if (claim.status === "draft") continue;
-      const guarantee = this.guarantees.find((g) => g.id === claim.guaranteeId);
-      if (!guarantee) continue;
-      // The scope lives inside the read, never in the caller's UI.
+      // v3 (M-S4): an UNLINKED claim (guaranteeId null) is first-class — it
+      // renders from its own fields. A linked claim whose guarantee row is
+      // missing is a data hole and stays skipped.
+      const guarantee = claim.guaranteeId
+        ? this.guarantees.find((g) => g.id === claim.guaranteeId)
+        : null;
+      if (claim.guaranteeId && !guarantee) continue;
+      const record = toClaimRecord(claim, guarantee ?? null);
+      // The scope lives inside the read, never in the caller's UI. It keys off
+      // the EFFECTIVE dealer location (claim's own column, else the guarantee's).
       if (
         scope.kind === "dealer_location" &&
-        guarantee.dealerLocationId !== scope.dealerLocationId
+        record.dealerLocationId !== scope.dealerLocationId
       ) {
         continue;
       }
-      if (needle && !claimSearchMatches(needle, guarantee, claim)) continue;
+      if (needle && !claimSearchMatches(needle, guarantee ?? null, claim)) continue;
       if (!claimRecordFilterMatches(filters, claim)) continue;
-      rows.push(toClaimRecord(claim, guarantee));
+      rows.push(record);
     }
     const sorted = rows.sort(byMostRecent);
     return needle ? sorted.slice(0, CLAIM_SEARCH_LIMIT) : sorted;
@@ -644,16 +651,21 @@ export class MemoryRepository implements GuaranteeRepository {
     const claim = this.claims.find((c) => c.id === claimId);
     // A draft is an in-progress fitting, not a request the desk can open.
     if (!claim || claim.status === "draft") return null;
-    const guarantee = this.guarantees.find((g) => g.id === claim.guaranteeId);
-    if (!guarantee) return null;
+    // Unlinked claims render from their own fields (v3, M-S4); a linked claim
+    // whose guarantee row is missing stays null (data hole).
+    const guarantee = claim.guaranteeId
+      ? this.guarantees.find((g) => g.id === claim.guaranteeId)
+      : null;
+    if (claim.guaranteeId && !guarantee) return null;
+    const record = toClaimRecord(claim, guarantee ?? null);
     // Out-of-scope must be indistinguishable from nonexistent (same null).
     if (
       scope.kind === "dealer_location" &&
-      guarantee.dealerLocationId !== scope.dealerLocationId
+      record.dealerLocationId !== scope.dealerLocationId
     ) {
       return null;
     }
-    return toClaimRecord(claim, guarantee);
+    return record;
   }
 
   // --- Dealer desk: the claim-notes thread ---

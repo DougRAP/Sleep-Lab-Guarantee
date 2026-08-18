@@ -54,6 +54,7 @@ import {
   byMostRecent,
   claimNumberQuery,
   claimRecordFilterMatches,
+  claimSearchMatches,
   lastNameMatches,
   matchGuarantee,
   phoneDigits,
@@ -899,26 +900,36 @@ export class SupabaseRepository implements GuaranteeRepository {
     filters?: ClaimRecordFilters
   ): Promise<ClaimRecord[]> {
     const needle = (query ?? "").trim();
-    let read = this.db
-      .from("claims")
-      .select("*, guarantees!inner(*)")
-      .neq("status", "draft")
-      .order("updated_at", { ascending: false })
-      .limit(needle ? CLAIM_SEARCH_LIMIT : 200);
-    // The scope lives inside the read, never in the caller's UI.
-    if (scope.kind === "dealer_location") {
-      read = read.eq("guarantees.dealer_location_id", scope.dealerLocationId);
-    }
-    // Standard filters pushed into the query; claimRecordFilterMatches re-checks
-    // below so both backends share one source of truth for the semantics.
-    if (filters?.status) read = read.eq("status", filters.status);
-    if (filters?.submittedFrom) read = read.gte("submitted_at", filters.submittedFrom);
-    if (filters?.submittedTo) {
-      // Inclusive plain-date upper bound over a timestamptz column.
-      read = read.lt("submitted_at", nextDay(filters.submittedTo));
-    }
+    // v3 (M-S4): the join is LEFT ("guarantees(*)") so UNLINKED anonymous
+    // claims come back too; "guarantees!inner(*)" stays for reads that filter
+    // ON guarantee columns (PostgREST embed filters only narrow the parent
+    // through an inner join). The results of every read are merged, then the
+    // shared pure rules (claimSearchMatches / claimRecordFilterMatches /
+    // record.dealerLocationId) govern — both backends agree on semantics.
+    const base = (select: string) => {
+      let r = this.db
+        .from("claims")
+        .select(select)
+        .neq("status", "draft")
+        .order("updated_at", { ascending: false })
+        .limit(needle ? CLAIM_SEARCH_LIMIT : 200);
+      // Standard filters pushed into the query; claimRecordFilterMatches
+      // re-checks below so both backends share one source of truth.
+      if (filters?.status) r = r.eq("status", filters.status);
+      if (filters?.submittedFrom) r = r.gte("submitted_at", filters.submittedFrom);
+      if (filters?.submittedTo) {
+        // Inclusive plain-date upper bound over a timestamptz column.
+        r = r.lt("submitted_at", nextDay(filters.submittedTo));
+      }
+      return r;
+    };
+    const LEFT = "*, guarantees(*)";
+    const INNER = "*, guarantees!inner(*)";
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reads: any[] = [];
     if (needle) {
-      // ilike approximation of claimSearchMatches (lib/data/repository.ts):
+      // Linked side — the existing ilike approximation of claimSearchMatches:
       // exact-ish order/guarantee number/email, digits-only phone, plus name
       // partials per column (a substring spanning "First Last" is the one
       // case ilike can't express).
@@ -933,62 +944,111 @@ export class SupabaseRepository implements GuaranteeRepository {
       const digits = phoneDigits(needle);
       if (digits) parts.push(`customer_phone.eq.${digits}`);
       if (zipQuery(needle)) parts.push(`customer_zip.eq.${needle.trim()}`);
-      read = read.or(parts.join(","), { referencedTable: "guarantees" });
-    }
-    const { data } = await read;
-    let rows = data ?? [];
-    // v3: a claim-number-shaped query also matches claims.claim_number. It
-    // lives on the claim, not the guarantee, so PostgREST can't fold it into
-    // the or() above — a second scoped read is merged in instead.
-    const asClaimNumber = needle ? claimNumberQuery(needle) : null;
-    if (asClaimNumber) {
-      let byNumber = this.db
-        .from("claims")
-        .select("*, guarantees!inner(*)")
-        .neq("status", "draft")
-        .eq("claim_number", asClaimNumber);
+      let linked = base(INNER).or(parts.join(","), { referencedTable: "guarantees" });
       if (scope.kind === "dealer_location") {
-        byNumber = byNumber.eq("guarantees.dealer_location_id", scope.dealerLocationId);
+        linked = linked.eq("guarantees.dealer_location_id", scope.dealerLocationId);
       }
-      const { data: numberedRows } = await byNumber;
-      const seen = new Set(rows.map((r: { id: string }) => r.id));
-      rows = rows.concat(
-        (numberedRows ?? []).filter((r: { id: string }) => !seen.has(r.id))
+      reads.push(linked);
+
+      // Unlinked side — the same rules against the claim's own columns.
+      const claimParts = [
+        `first_name.ilike.%${q}%`,
+        `last_name.ilike.%${q}%`,
+        `sales_order_number.ilike.${q}`,
+        `contact_email.ilike.${q}`,
+      ];
+      if (digits) claimParts.push(`contact_phone.eq.${digits}`);
+      if (zipQuery(needle)) claimParts.push(`delivery_zip.eq.${needle.trim()}`);
+      let unlinked = base(LEFT).is("guarantee_id", null).or(claimParts.join(","));
+      if (scope.kind === "dealer_location") {
+        unlinked = unlinked.eq("dealer_location_id", scope.dealerLocationId);
+      }
+      reads.push(unlinked);
+
+      // Claim number — matches linked or unlinked, so a left join.
+      const asClaimNumber = claimNumberQuery(needle);
+      if (asClaimNumber) reads.push(base(LEFT).eq("claim_number", asClaimNumber));
+    } else if (scope.kind === "dealer_location") {
+      // Effective dealer location, in two server-side halves: claims whose own
+      // column names the location, plus claims that inherit it via guarantee.
+      reads.push(base(LEFT).eq("dealer_location_id", scope.dealerLocationId));
+      reads.push(
+        base(INNER)
+          .is("dealer_location_id", null)
+          .eq("guarantees.dealer_location_id", scope.dealerLocationId)
       );
+    } else {
+      reads.push(base(LEFT));
     }
-    return rows
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((row: any) => toClaimRecord(toClaim(row), toGuarantee(row.guarantees)))
-      .filter((record) => claimRecordFilterMatches(filters, record))
+
+    const results = await Promise.all(reads);
+    const seen = new Set<string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = [];
+    for (const { data } of results) {
+      for (const row of data ?? []) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        rows.push(row);
+      }
+    }
+
+    const records = rows
+      // A linked claim whose guarantee row is gone is a data hole, skipped —
+      // same rule as the in-memory backend.
+      .filter((row) => !(row.guarantee_id && !row.guarantees))
+      .map((row) => ({
+        claim: toClaim(row),
+        guarantee: row.guarantees ? toGuarantee(row.guarantees) : null,
+      }))
+      .map(({ claim, guarantee }) => ({
+        claim,
+        guarantee,
+        record: toClaimRecord(claim, guarantee),
+      }))
+      // The shared pure rules are the source of truth over the ilike pushdowns.
+      .filter(({ record }) => claimRecordFilterMatches(filters, record))
+      .filter(
+        ({ record }) =>
+          scope.kind !== "dealer_location" ||
+          record.dealerLocationId === scope.dealerLocationId
+      )
+      .filter(
+        ({ claim, guarantee }) => !needle || claimSearchMatches(needle, guarantee, claim)
+      )
+      .map(({ record }) => record)
       .sort(byMostRecent);
+    return needle ? records.slice(0, CLAIM_SEARCH_LIMIT) : records;
   }
 
   async getClaimRecord(
     scope: ClaimRecordScope,
     claimId: string
   ): Promise<ClaimRecord | null> {
-    let read = this.db
+    // LEFT join (v3, M-S4): an unlinked claim renders from its own fields.
+    const { data } = await this.db
       .from("claims")
-      .select("*, guarantees!inner(*)")
+      .select("*, guarantees(*)")
       .eq("id", claimId)
       // A draft is an in-progress fitting, not a request the desk can open.
-      .neq("status", "draft");
-    // Scope applied inside the query, so an out-of-scope claim never leaves
-    // the database — indistinguishable from one that doesn't exist.
-    if (scope.kind === "dealer_location") {
-      read = read.eq("guarantees.dealer_location_id", scope.dealerLocationId);
-    }
-    const { data } = await read.maybeSingle();
+      .neq("status", "draft")
+      .maybeSingle();
     if (!data) return null;
-    const guarantee = toGuarantee(data.guarantees);
-    // Belt to the query's braces — the same check, in code.
+    // A linked claim with a missing guarantee row is a data hole — null, same
+    // as the in-memory backend.
+    if (data.guarantee_id && !data.guarantees) return null;
+    const guarantee = data.guarantees ? toGuarantee(data.guarantees) : null;
+    const record = toClaimRecord(toClaim(data), guarantee);
+    // Scope keys off the EFFECTIVE dealer location (claim's own column, else
+    // the guarantee's). Out-of-scope must be indistinguishable from
+    // nonexistent (same null).
     if (
       scope.kind === "dealer_location" &&
-      guarantee.dealerLocationId !== scope.dealerLocationId
+      record.dealerLocationId !== scope.dealerLocationId
     ) {
       return null;
     }
-    return toClaimRecord(toClaim(data), guarantee);
+    return record;
   }
 
   // --- Dealer desk: the claim-notes thread ---
