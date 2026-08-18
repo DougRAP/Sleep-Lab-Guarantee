@@ -20,7 +20,7 @@ Reuse the existing fitting step components wherever noted. Design stays locked (
 1. **Landing** *(Doug 2026-08-18)* — welcome + **link to the full Comfort Guarantee terms** (self-hosted copy of `docs/CMFG-90-CITY-GS.html`) + the entry form (step 2) on the same page. No account gate, no coach/companion language. Copy basis (Doug's words, lightly edited at build):
    > Your purchase includes a 90-Night Comfort Guarantee. Requesting an exchange, asking advice, or getting other helpful information starts here. To get started, enter the information below. At any time, call us at (800) 111-1110 [placeholder] or email us at comfort@raptns.com.
 
-   *(Note: the guarantee document says claims@raptns.com; Doug specified comfort@raptns.com for the app — flagged, Doug's copy wins until he says otherwise. Phone is a placeholder.)*
+   *(Resolved 2026-08-18: real contacts confirmed — **1-855-513-5435** and **claims@raptns.com**, matching the guarantee document. `content/support.ts` is the single source.)*
 2. **Identify + contact** *(single form, on the landing page)* —
    - **Sales order number OR delivery ZIP** (either one; both accepted)
    - **Last name** (required); first name asked, required

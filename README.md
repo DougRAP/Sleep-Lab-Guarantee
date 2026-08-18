@@ -72,7 +72,7 @@ flow works offline. Demo purchase for the linked journey: sales order `123`, las
 Auto-deploys `main`. Build `npm run build`; the Next.js runtime handles the rest. `NEXT_PUBLIC_CLAIMS_MODE`
 no longer needs to be set — claims mode is the default.
 
-## Support placeholders
+## Support contacts
 
-`content/support.ts` — phone **(800) 111-1110** and **comfort@raptns.com**, both placeholders until
-Doug confirms. (The guarantee document itself says claims@raptns.com.)
+`content/support.ts` — phone **1-855-513-5435** and **claims@raptns.com** (confirmed 2026-08-18;
+matches the guarantee document).
