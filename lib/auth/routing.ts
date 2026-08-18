@@ -21,6 +21,13 @@ export const SIGNUP_PATH = "/signup";
 export const LINK_PATH = "/link";
 export const HOME_PATH = "/tonight";
 export const CLAIMS_HOME_PATH = "/guarantee";
+/**
+ * v3 (M-S5): the signed-in home for an account with NOTHING linked — an
+ * account exists to track requests, so unlinked users land on the tracking
+ * list (which works with zero guarantees) instead of bouncing off /link
+ * forever (Doug hit that dead-end live, 2026-08-18).
+ */
+export const REQUESTS_PATH = "/requests";
 export const ADMIN_PATH = "/admin";
 
 /**
@@ -55,7 +62,9 @@ export function routeAfterAuth(state: ViewerState): string {
   if (!state.authConfigured) return ENTRY_PATH;
   if (!state.authenticated) return LOGIN_PATH;
   if (isStaff(state.role)) return ADMIN_PATH;
-  return state.linked ? homePath() : LINK_PATH;
+  // v3 (M-S5): nothing linked is fine — the tracking list is home, and it
+  // offers the link step (which stays reachable and skippable) from there.
+  return state.linked ? homePath() : REQUESTS_PATH;
 }
 
 /**
@@ -67,8 +76,9 @@ export function guardAppRoute(state: ViewerState): string | null {
   if (!state.authConfigured) return state.hasLightSession ? null : ENTRY_PATH;
   if (!state.authenticated) return LOGIN_PATH;
   if (state.linked) return null;
-  // Authenticated but nothing linked yet: staff have no journey, consumers link.
-  return isStaff(state.role) ? ADMIN_PATH : LINK_PATH;
+  // Authenticated but nothing linked: staff have no journey; consumers go to
+  // the tracking list (their unlinked home, v3 M-S5), never a /link bounce.
+  return isStaff(state.role) ? ADMIN_PATH : REQUESTS_PATH;
 }
 
 /** Guard for /link — the post-authentication "find your purchase" step. */
@@ -90,7 +100,7 @@ export function guardAdminRoute(state: ViewerState): string | null {
   if (!state.authenticated) return LOGIN_PATH;
   if (isStaff(state.role)) return null;
   // A consumer who wandered in: send them somewhere useful, never an error.
-  return state.linked ? homePath() : LINK_PATH;
+  return state.linked ? homePath() : REQUESTS_PATH;
 }
 
 /** Guard for /login and /signup — an authenticated visitor doesn't need them. */

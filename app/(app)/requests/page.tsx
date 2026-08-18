@@ -6,41 +6,39 @@ import { ConciergeCard } from "../../../components/concierge-card";
 import { FrostedCard } from "../../../components/ui/frosted-card";
 import { StatusChip } from "../../../components/ui/status-chip";
 import { buttonVariants } from "../../../components/ui/button";
-import { requireGuarantee } from "../../../lib/auth/app-session";
+import { AddClaimForm } from "../../../components/auth/add-claim-form";
+import { requireSignedInAllowUnlinked } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
+import { byMostRecent } from "../../../lib/data/repository";
 import { effectiveReferenceDate } from "../../../lib/demo-server";
 import { evaluateEligibility } from "../../../lib/eligibility";
 import { draftHasContent } from "../../../lib/fitting";
 import { formatPlainDate } from "../../../lib/dates";
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../../content/support";
 import { cn } from "../../../lib/utils";
 import type { Claim } from "../../../lib/types";
 
-// Requests (v2 #3). Session-guarded. The customer's own exchange requests —
-// scoped to the session's guarantee, drafts included, because an in-progress
-// fitting is a thing they should be able to find their way back to.
+// Requests (v2 #3; v3 M-S5). The customer's own exchange requests — and since
+// M-S5 the signed-in HOME for an account with nothing linked: an account
+// exists to track requests, so this page works with zero guarantees. Claims
+// arrive two ways and are merged: through the linked guarantee, and directly
+// via claims.consumer_id (a CG number added to the account).
 //
-// The tracking number is the identity here, not the sales order: this is the
-// consumer's view, not the dealer's.
+// The claim number (CG…) is the identity here for v3 requests; the retired
+// tracking number only ever shows on legacy rows that still carry one.
 export default async function RequestsPage() {
-  const { session, guarantee } = await requireGuarantee();
+  const { session, guarantee, viewer } = await requireSignedInAllowUnlinked();
   const repo = getRepository();
 
-  const referenceDate = await effectiveReferenceDate(guarantee.deliveryDate);
-  const journey = await repo.getJourney(guarantee.id, referenceDate);
-  const day = journey?.currentDay ?? 0;
+  const [byGuarantee, byUser] = await Promise.all([
+    guarantee ? repo.listClaimsForGuarantee(guarantee.id) : Promise.resolve([]),
+    viewer ? repo.listClaimsForUser(viewer.userId) : Promise.resolve([]),
+  ]);
+  const seen = new Set<string>();
+  const claims = [...byGuarantee, ...byUser]
+    .filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)))
+    .sort(byMostRecent);
 
-  // The same gate as /guarantee: a request can start from here too (review
-  // 2026-07-22, "the request button should also show on the request page"),
-  // inside the day 31–90 window. B-29 (Doug 2026-07-27): a prior submitted
-  // request no longer blocks a new one; only a resolved exchange does.
-  const resolved = await repo.hasResolvedExchange(guarantee.id);
-  const elig = evaluateEligibility({
-    deliveryDate: guarantee.deliveryDate,
-    referenceDate,
-    exchangeResolved: resolved,
-  });
-
-  const claims = await repo.listClaimsForGuarantee(guarantee.id);
   // Safety net to the lazy-draft rule (Emmy's ghost fix): any pre-existing
   // draft with zero real progress is not worth a "Not yet submitted" row.
   const rows = (
@@ -61,6 +59,28 @@ export default async function RequestsPage() {
     )
   ).filter((row) => row.visible);
 
+  const email = session?.email ?? viewer?.email ?? null;
+
+  // --- Guarantee-linked extras (day count + the start-a-request gate) ---
+  let day = 0;
+  let cta: { eligible: boolean; phase: string; windowOpensDay: number } | null = null;
+  if (guarantee) {
+    const referenceDate = await effectiveReferenceDate(guarantee.deliveryDate);
+    const journey = await repo.getJourney(guarantee.id, referenceDate);
+    day = journey?.currentDay ?? 0;
+    const resolved = await repo.hasResolvedExchange(guarantee.id);
+    const elig = evaluateEligibility({
+      deliveryDate: guarantee.deliveryDate,
+      referenceDate,
+      exchangeResolved: resolved,
+    });
+    cta = {
+      eligible: elig.eligible,
+      phase: elig.phase,
+      windowOpensDay: elig.windowOpensDay,
+    };
+  }
+
   return (
     <>
       <LivingSky day={day} />
@@ -68,47 +88,104 @@ export default async function RequestsPage() {
         id="main"
         className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <AppHeader email={session.email} />
+        <AppHeader email={email} />
 
         {rows.length === 0 ? (
           <div className="flex flex-1 flex-col justify-center gap-6 py-10">
-            <DayCount day={day} className="block" />
+            {guarantee && <DayCount day={day} className="block" />}
             <h1 className="!mt-2 font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
               Requests
             </h1>
 
             <ConciergeCard>
-              You have no requests yet. When you start a comfort exchange,
-              you&apos;ll track it here — every step, in plain language.
+              {guarantee
+                ? "You have no requests yet. When you start a comfort exchange, you'll track it here — every step, in plain language."
+                : "Nothing here yet. If you've already sent us an exchange request, add its claim number below and it will show up right here."}
             </ConciergeCard>
 
-            <StartRequestCta eligible={elig.eligible} phase={elig.phase} windowOpensDay={elig.windowOpensDay} />
+            {cta && (
+              <StartRequestCta
+                eligible={cta.eligible}
+                phase={cta.phase}
+                windowOpensDay={cta.windowOpensDay}
+              />
+            )}
 
-            <Link
-              href="/guarantee"
-              className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
-            >
-              View your guarantee
-            </Link>
+            {!guarantee && <UnlinkedHelp />}
+
+            {guarantee && (
+              <Link
+                href="/guarantee"
+                className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
+              >
+                View your guarantee
+              </Link>
+            )}
           </div>
         ) : (
           <div className="mt-8 space-y-6">
-            <DayCount day={day} className="block" />
+            {guarantee && <DayCount day={day} className="block" />}
             <h1 className="!mt-2 font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
               Requests
             </h1>
 
-            <StartRequestCta eligible={elig.eligible} phase={elig.phase} windowOpensDay={elig.windowOpensDay} />
+            {cta && (
+              <StartRequestCta
+                eligible={cta.eligible}
+                phase={cta.phase}
+                windowOpensDay={cta.windowOpensDay}
+              />
+            )}
 
             <div className="space-y-3">
               {rows.map(({ claim, itemCount }) => (
                 <RequestRow key={claim.id} claim={claim} itemCount={itemCount} />
               ))}
             </div>
+
+            {!guarantee && <UnlinkedHelp />}
           </div>
         )}
       </main>
     </>
+  );
+}
+
+/**
+ * The unlinked account's helpers (v3 M-S5): add a claim by CG number, link a
+ * purchase, or reach a person. Never a dead-end.
+ */
+function UnlinkedHelp() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+          Have a claim number? Add it here
+        </h2>
+        <AddClaimForm />
+      </div>
+
+      <p className="text-[13px] leading-relaxed text-mist">
+        Bought a mattress and want your 90 nights here too?{" "}
+        <Link
+          href="/link"
+          className="text-dawn underline-offset-4 transition-colors hover:underline"
+        >
+          Link your purchase
+        </Link>
+        .
+      </p>
+      <p className="text-[13px] leading-relaxed text-mist">
+        Anytime, you can call us at {SUPPORT_PHONE} or email{" "}
+        <a
+          href={`mailto:${SUPPORT_EMAIL}`}
+          className="text-dawn underline-offset-4 transition-colors hover:underline"
+        >
+          {SUPPORT_EMAIL}
+        </a>
+        .
+      </p>
+    </div>
   );
 }
 
@@ -157,24 +234,23 @@ function StartRequestCta({
 }
 
 /**
- * One request. Modeled on the admin row, but consumer-facing: no customer name,
- * no sales order — the tracking number is what they were given to follow.
- *
- * A draft has no tracking number and nothing to track, so it links back into the
- * fitting to be finished, never to a detail page.
+ * One request. Consumer-facing: no customer name, no sales order. v3 requests
+ * lead with the CG claim number; only a legacy row still shows its tracking
+ * number. A draft has neither and links back into the fitting to be finished.
  */
 function RequestRow({ claim, itemCount }: { claim: Claim; itemCount: number }) {
   const isDraft = claim.status === "draft";
+  const reference = claim.claimNumber ?? claim.trackingNumber;
 
   return (
     <FrostedCard className="space-y-3">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
-            Tracking
+            {claim.claimNumber ? "Claim number" : "Tracking"}
           </p>
           <p className="break-words font-mono text-[15px] text-cloud">
-            {claim.trackingNumber ?? "Not yet submitted"}
+            {reference ?? "Not yet submitted"}
           </p>
         </div>
         <StatusChip status={claim.status} />
@@ -186,7 +262,9 @@ function RequestRow({ claim, itemCount }: { claim: Claim; itemCount: number }) {
           : "Not sent yet"}
         {" · "}
         {itemCount === 0
-          ? "No mattress added yet"
+          ? claim.modelNumber?.trim()
+            ? claim.modelNumber
+            : "No mattress added yet"
           : `${itemCount} ${itemCount === 1 ? "mattress" : "mattresses"}`}
       </p>
 

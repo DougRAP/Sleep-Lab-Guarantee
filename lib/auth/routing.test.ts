@@ -4,8 +4,8 @@ import {
   CLAIMS_HOME_PATH,
   ENTRY_PATH,
   HOME_PATH,
-  LINK_PATH,
   LOGIN_PATH,
+  REQUESTS_PATH,
   guardAdminRoute,
   guardAppRoute,
   guardAuthRoute,
@@ -37,9 +37,9 @@ describe("app routes are closed to anyone who isn't signed in", () => {
     expect(guardAppRoute(state({ hasLightSession: true }))).toBe(LOGIN_PATH);
   });
 
-  it("routes an authenticated consumer with no purchase to the link step", () => {
+  it("routes an authenticated consumer with no purchase to the tracking list (v3 M-S5)", () => {
     expect(guardAppRoute(state({ authenticated: true, role: "consumer" }))).toBe(
-      LINK_PATH
+      REQUESTS_PATH
     );
   });
 
@@ -74,12 +74,14 @@ describe("/admin is gated by role", () => {
       guardAdminRoute(state({ authenticated: true, linked: true, role: "consumer" }))
     ).toBe(HOME_PATH);
     expect(guardAdminRoute(state({ authenticated: true, role: "consumer" }))).toBe(
-      LINK_PATH
+      REQUESTS_PATH
     );
   });
 
   it("treats a missing role as a consumer, never as staff", () => {
-    expect(guardAdminRoute(state({ authenticated: true, role: null }))).toBe(LINK_PATH);
+    expect(guardAdminRoute(state({ authenticated: true, role: null }))).toBe(
+      REQUESTS_PATH
+    );
   });
 });
 
@@ -104,9 +106,9 @@ describe("where authentication lands you", () => {
     ).toBe(HOME_PATH);
   });
 
-  it("an unlinked consumer goes to the link step", () => {
+  it("an unlinked consumer goes to the tracking list — never a /link bounce (v3 M-S5)", () => {
     expect(routeAfterAuth(state({ authenticated: true, role: "consumer" }))).toBe(
-      LINK_PATH
+      REQUESTS_PATH
     );
   });
 
@@ -179,7 +181,7 @@ describe("claims mode moves home from /tonight to /guarantee", () => {
   it("still routes the unlinked and staff exactly as before", () => {
     vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "true");
     expect(routeAfterAuth(state({ authenticated: true, role: "consumer" }))).toBe(
-      LINK_PATH
+      REQUESTS_PATH
     );
     expect(routeAfterAuth(state({ authenticated: true, role: "rap_admin" }))).toBe(
       ADMIN_PATH

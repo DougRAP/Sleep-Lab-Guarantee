@@ -640,6 +640,27 @@ export interface GuaranteeRepository {
    * unchanged and a RAP agent matches manually. No-op on linked claims.
    */
   linkClaimToGuaranteeIfMatched(claimId: string): Promise<Claim>;
+  // --- v3 (M-S5): tracking + relaxed linking ---
+  /**
+   * Every claim linked to this auth user (claims.consumer_id), newest first —
+   * the tracking list for an account, which works with ZERO guarantees.
+   * Drafts included, same as listClaimsForGuarantee.
+   */
+  listClaimsForUser(userId: string): Promise<Claim[]>;
+  /**
+   * Attach a claim to an auth user (sets claims.consumer_id). Returns null
+   * when the claim doesn't exist or already belongs to a DIFFERENT account —
+   * a claim belongs to one account (mirrors linkGuaranteeToUser). Idempotent
+   * for the same user.
+   */
+  linkClaimToUser(claimId: string, userId: string): Promise<Claim | null>;
+  /**
+   * The unique guarantee the two-key rule lands on — (sales order # + last
+   * name) or (ZIP + last name), see matchGuarantee — or null (no match or
+   * ambiguous). Read-only; the caller decides whether to link.
+   */
+  findGuaranteeForLink(input: MatchGuaranteeInput): Promise<Guarantee | null>;
+
   /** Every link attached to a claim, oldest first. */
   listClaimLinks(claimId: string): Promise<ClaimLink[]>;
   /**

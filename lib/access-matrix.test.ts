@@ -35,8 +35,8 @@ describe("access matrix — consumer app routes (/tonight, /guarantee, ...)", ()
   it("anonymous is sent to login", () => {
     expect(guardAppRoute(anon)).toBe("/login");
   });
-  it("authenticated-but-unlinked consumer is sent to link", () => {
-    expect(guardAppRoute(authUnlinked)).toBe("/link");
+  it("authenticated-but-unlinked consumer is sent to the tracking list (v3 M-S5)", () => {
+    expect(guardAppRoute(authUnlinked)).toBe("/requests");
   });
   it("linked consumer is allowed", () => {
     expect(guardAppRoute(consumer)).toBeNull();
@@ -53,7 +53,8 @@ describe("access matrix — /admin", () => {
   });
   it("a consumer is bounced to their own home, never into the desk", () => {
     expect(guardAdminRoute(consumer)).toBe("/tonight");
-    expect(guardAdminRoute(authUnlinked)).toBe("/link");
+    // v3 (M-S5): unlinked consumers home on the tracking list, not /link.
+    expect(guardAdminRoute(authUnlinked)).toBe("/requests");
   });
   it("both staff roles are allowed", () => {
     expect(guardAdminRoute(dealer)).toBeNull();

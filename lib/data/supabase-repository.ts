@@ -40,6 +40,7 @@ import {
   type CreateAnonymousClaimInput,
   type CreateDraftClaimInput,
   type GuaranteeRepository,
+  type MatchGuaranteeInput,
   type RecordClaimPhotoInput,
   type SaveCheckInInput,
   type SaveConcernInput,
@@ -713,16 +714,15 @@ export class SupabaseRepository implements GuaranteeRepository {
     return data ? toClaim(data) : null;
   }
 
-  async linkClaimToGuaranteeIfMatched(claimId: string): Promise<Claim> {
-    const claim = await this.getClaimById(claimId);
-    if (!claim) throw new Error(`No claim ${claimId}`);
-    // Already linked, or nothing to match on — leave it alone, never throw.
-    // Either key works: (sales order # + last name) or (ZIP + last name).
-    const zip = claim.deliveryZip?.trim() || null;
-    const salesOrder = claim.salesOrderNumber?.trim() || null;
-    if (claim.guaranteeId || !claim.lastName || (!zip && !salesOrder)) return claim;
-    // Candidates for either key, merged; matchGuarantee applies the shared
-    // exact-ish rules over them. ilike with escaped wildcards = eq, case-blind.
+  /**
+   * Guarantee rows either two-key half could match, merged — matchGuarantee
+   * applies the shared exact-ish rules over them. ilike with escaped
+   * wildcards = eq, case-blind (the order number as customers type it).
+   */
+  private async guaranteeCandidates(
+    zip: string | null,
+    salesOrder: string | null
+  ): Promise<Guarantee[]> {
     const reads = [];
     if (zip) {
       reads.push(this.db.from("guarantees").select("*").eq("customer_zip", zip));
@@ -746,7 +746,57 @@ export class SupabaseRepository implements GuaranteeRepository {
         rows.push(row);
       }
     }
-    const match = matchGuarantee(rows.map(toGuarantee), {
+    return rows.map(toGuarantee);
+  }
+
+  // --- v3 (M-S5): tracking + relaxed linking ---
+
+  async listClaimsForUser(userId: string): Promise<Claim[]> {
+    const needle = (userId ?? "").trim();
+    if (!needle) return [];
+    const { data } = await this.db
+      .from("claims")
+      .select("*")
+      .eq("consumer_id", needle)
+      .order("updated_at", { ascending: false });
+    return (data ?? []).map(toClaim).sort(byMostRecent);
+  }
+
+  async linkClaimToUser(claimId: string, userId: string): Promise<Claim | null> {
+    const uid = (userId ?? "").trim();
+    if (!uid) return null;
+    const existing = await this.getClaimById(claimId);
+    if (!existing) return null;
+    // A claim belongs to exactly one account.
+    if (existing.consumerId && existing.consumerId !== uid) return null;
+    // Same race-safe shape as linkGuaranteeToUser: only claim the row while
+    // it's still unowned OR already ours — a rival's win returns null.
+    const { data } = await this.db
+      .from("claims")
+      .update({ consumer_id: uid })
+      .eq("id", claimId)
+      .or(`consumer_id.is.null,consumer_id.eq.${uid}`)
+      .select("*")
+      .maybeSingle();
+    return data ? toClaim(data) : null;
+  }
+
+  async findGuaranteeForLink(input: MatchGuaranteeInput): Promise<Guarantee | null> {
+    const zip = input.deliveryZip?.trim() || null;
+    const salesOrder = input.salesOrderNumber?.trim() || null;
+    if (!input.lastName.trim() || (!zip && !salesOrder)) return null;
+    return matchGuarantee(await this.guaranteeCandidates(zip, salesOrder), input);
+  }
+
+  async linkClaimToGuaranteeIfMatched(claimId: string): Promise<Claim> {
+    const claim = await this.getClaimById(claimId);
+    if (!claim) throw new Error(`No claim ${claimId}`);
+    // Already linked, or nothing to match on — leave it alone, never throw.
+    // Either key works: (sales order # + last name) or (ZIP + last name).
+    const zip = claim.deliveryZip?.trim() || null;
+    const salesOrder = claim.salesOrderNumber?.trim() || null;
+    if (claim.guaranteeId || !claim.lastName || (!zip && !salesOrder)) return claim;
+    const match = matchGuarantee(await this.guaranteeCandidates(zip, salesOrder), {
       lastName: claim.lastName,
       deliveryZip: zip,
       salesOrderNumber: salesOrder,

@@ -6,12 +6,14 @@ import { DayCount } from "../../../../components/day-count";
 import { ConciergeCard } from "../../../../components/concierge-card";
 import { FrostedCard } from "../../../../components/ui/frosted-card";
 import { Stat } from "../../../../components/ui/stat";
-import { requireGuarantee } from "../../../../lib/auth/app-session";
+import { requireSignedInAllowUnlinked } from "../../../../lib/auth/app-session";
 import { getRepository } from "../../../../lib/data";
 import { effectiveReferenceDate } from "../../../../lib/demo-server";
 import { statusLabel, statusNextStep } from "../../../../lib/claim-status";
 import { raDocumentAvailable } from "../../../../lib/ra-document";
 import { formatPlainDate } from "../../../../lib/dates";
+import { journeyDay } from "../../../../lib/eligibility";
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../../../content/support";
 
 /**
  * One exchange request (v2 #3, M5b).
@@ -32,24 +34,42 @@ export default async function RequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { session, guarantee } = await requireGuarantee();
+  // v3 (M-S5): tolerant of an unlinked account — ownership can come from the
+  // linked guarantee OR from the claim being linked to the account directly.
+  const { session, guarantee, viewer } = await requireSignedInAllowUnlinked();
   const repo = getRepository();
 
   const claim = await repo.getClaimById(id);
-  if (!claim || claim.guaranteeId !== guarantee.id) notFound();
-  // A draft has no tracking number and nothing to track — it lives at /fitting.
+  const ownsViaGuarantee = Boolean(
+    claim && guarantee && claim.guaranteeId === guarantee.id
+  );
+  const ownsViaAccount = Boolean(
+    claim && viewer && claim.consumerId && claim.consumerId === viewer.userId
+  );
+  if (!claim || (!ownsViaGuarantee && !ownsViaAccount)) notFound();
+  // A draft has nothing to track — it lives at /fitting.
   if (claim.status === "draft") notFound();
 
   const [items, photos, journey] = await Promise.all([
     repo.listClaimItems(claim.id),
     repo.listClaimPhotos(claim.id),
-    repo.getJourney(
-      guarantee.id,
-      await effectiveReferenceDate(guarantee.deliveryDate)
-    ),
+    guarantee
+      ? repo.getJourney(
+          guarantee.id,
+          await effectiveReferenceDate(guarantee.deliveryDate)
+        )
+      : Promise.resolve(null),
   ]);
-  const day = journey?.currentDay ?? 0;
+  // Day count: the linked guarantee's journey when there is one; else the
+  // claim's own self-reported delivery date (v3 anonymous claims).
+  const day =
+    journey?.currentDay ??
+    (claim.deliveryDate
+      ? journeyDay(claim.deliveryDate)
+      : claim.daysInServiceAtSubmit ?? 0);
   const capturedAngles = photos.filter((p) => p.captured);
+  // v3 claims carry a CG number and never speak RA/tracking language.
+  const isV3 = Boolean(claim.claimNumber);
 
   return (
     <>
@@ -58,7 +78,7 @@ export default async function RequestDetailPage({
         id="main"
         className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <AppHeader email={session.email} />
+        <AppHeader email={session?.email ?? viewer?.email ?? null} />
 
         <div className="mt-8 space-y-6">
           <DayCount day={day} className="block" />
@@ -68,24 +88,36 @@ export default async function RequestDetailPage({
 
           <ConciergeCard>{statusNextStep(claim.status)}</ConciergeCard>
 
-          <FrostedCard className="space-y-4">
-            <Stat label="Return authorization" value={claim.raNumber ?? "—"} />
-            <div className="border-t border-[var(--line)] pt-4">
-              <Stat label="Tracking number" value={claim.trackingNumber ?? "—"} />
-            </div>
-            {/* The customer's own copy of the RA (Doug 2026-07-23) — only
-                once RAP has authorized the exchange. */}
-            {claim.raNumber && raDocumentAvailable(claim.status) && (
-              <a
-                href={`/requests/${claim.id}/ra`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-dawn transition-colors hover:text-cloud"
-              >
-                Open the RA document &rsaquo;
-              </a>
-            )}
-          </FrostedCard>
+          {isV3 ? (
+            /* v3: the CG claim number is the single reference — no RA, no
+               tracking language anywhere on these requests. */
+            <FrostedCard className="space-y-4">
+              <Stat label="Claim number" value={claim.claimNumber ?? "—"} />
+              <p className="text-[13px] leading-relaxed text-mist">
+                This number is how we&apos;ll both refer to your request — have
+                it handy if you call or email.
+              </p>
+            </FrostedCard>
+          ) : (
+            <FrostedCard className="space-y-4">
+              <Stat label="Return authorization" value={claim.raNumber ?? "—"} />
+              <div className="border-t border-[var(--line)] pt-4">
+                <Stat label="Tracking number" value={claim.trackingNumber ?? "—"} />
+              </div>
+              {/* The customer's own copy of the RA (Doug 2026-07-23) — only
+                  once RAP has authorized the exchange. */}
+              {claim.raNumber && raDocumentAvailable(claim.status) && (
+                <a
+                  href={`/requests/${claim.id}/ra`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-dawn transition-colors hover:text-cloud"
+                >
+                  Open the RA document &rsaquo;
+                </a>
+              )}
+            </FrostedCard>
+          )}
 
           <dl className="grid grid-cols-2 gap-3">
             <Cell label="Status" value={statusLabel(claim.status)} />
@@ -94,11 +126,29 @@ export default async function RequestDetailPage({
               value={claim.submittedAt ? formatPlainDate(claim.submittedAt) : "—"}
             />
           </dl>
+
+          {isV3 && (
+            <p className="text-[13px] leading-relaxed text-mist">
+              Questions? Call us at {SUPPORT_PHONE} or email{" "}
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="text-dawn underline-offset-4 transition-colors hover:underline"
+              >
+                {SUPPORT_EMAIL}
+              </a>
+              .
+            </p>
+          )}
         </div>
 
-        <Section title={items.length === 1 ? "The mattress" : "The mattresses"}>
+        <Section title={items.length <= 1 ? "The mattress" : "The mattresses"}>
           {items.length === 0 ? (
-            <Quiet>No model numbers on this request.</Quiet>
+            claim.modelNumber?.trim() ? (
+              /* v3 requests carry the model number on the claim itself. */
+              <p className="font-mono text-[14px] text-cloud/90">{claim.modelNumber}</p>
+            ) : (
+              <Quiet>No model numbers on this request.</Quiet>
+            )
           ) : (
             <ul className="space-y-2">
               {items.map((item) => (

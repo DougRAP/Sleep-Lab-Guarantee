@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AuthShell } from "../../components/auth/auth-shell";
@@ -39,9 +40,17 @@ export default async function LinkPage() {
   return (
     <AuthShell
       heading="Now let's find your purchase."
-      intro="Your sales order number is on your receipt and on your guarantee. Once it's linked, your 90 nights start showing up here."
+      intro="Your sales order number is on your receipt — or use the delivery ZIP, or a claim number if you were given one. Any one of them, plus your last name, is all we need."
       footer={
-        <div className="border-t border-[var(--line)] pt-5">
+        <div className="space-y-4 border-t border-[var(--line)] pt-5">
+          {/* v3 (M-S5): linking is optional — the tracking list works without
+              it, and an agent can connect the record later. Never a dead-end. */}
+          <Link
+            href="/requests"
+            className="block font-mono text-[11px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
+          >
+            Skip for now — continue without linking &rsaquo;
+          </Link>
           <SignOut />
         </div>
       }

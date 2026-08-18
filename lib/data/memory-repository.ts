@@ -41,6 +41,7 @@ import {
   type CreateAnonymousClaimInput,
   type CreateDraftClaimInput,
   type GuaranteeRepository,
+  type MatchGuaranteeInput,
   type RecordClaimPhotoInput,
   type SaveCheckInInput,
   type SaveConcernInput,
@@ -700,6 +701,34 @@ export class MemoryRepository implements GuaranteeRepository {
     };
     this.claimNotes.push(row);
     return { ...row };
+  }
+
+  // --- v3 (M-S5): tracking + relaxed linking ---
+
+  async listClaimsForUser(userId: string): Promise<Claim[]> {
+    const needle = (userId ?? "").trim();
+    if (!needle) return [];
+    return this.claims
+      .filter((c) => c.consumerId === needle)
+      .map((c) => ({ ...c }))
+      .sort(byMostRecent);
+  }
+
+  async linkClaimToUser(claimId: string, userId: string): Promise<Claim | null> {
+    const uid = (userId ?? "").trim();
+    if (!uid) return null;
+    const row = this.claims.find((c) => c.id === claimId);
+    if (!row) return null;
+    // A claim belongs to exactly one account.
+    if (row.consumerId && row.consumerId !== uid) return null;
+    row.consumerId = uid;
+    row.updatedAt = new Date().toISOString();
+    return { ...row };
+  }
+
+  async findGuaranteeForLink(input: MatchGuaranteeInput): Promise<Guarantee | null> {
+    const match = matchGuarantee(this.guarantees, input);
+    return match ? { ...match } : null;
   }
 
   // --- v3: claim links (EA docs / tech reports) ---

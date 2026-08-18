@@ -17,7 +17,13 @@ import { getRepository } from "../data";
 import { getSession } from "../session";
 import { getViewer } from "./user";
 import { isAuthConfigured } from "./config";
-import { ADMIN_PATH, ENTRY_PATH, LINK_PATH, LOGIN_PATH, isStaff } from "./routing";
+import {
+  ADMIN_PATH,
+  ENTRY_PATH,
+  LOGIN_PATH,
+  REQUESTS_PATH,
+  isStaff,
+} from "./routing";
 import { readActiveGuaranteeId, resolveActiveGuarantee } from "../active-guarantee";
 import type { Guarantee, LinkVia, Role } from "../types";
 
@@ -107,8 +113,11 @@ export async function requireGuarantee(): Promise<{
   const viewer = await getViewer();
   if (!viewer) redirect(LOGIN_PATH);
 
+  // v3 (M-S5): an unlinked consumer's home is the tracking list — it works
+  // with zero guarantees and offers the (skippable) link step, so a
+  // guarantee-dependent page never bounces anyone into a /link dead-end.
   const guarantee = await activeGuaranteeFor(viewer.userId);
-  if (!guarantee) redirect(isStaff(viewer.role) ? ADMIN_PATH : LINK_PATH);
+  if (!guarantee) redirect(isStaff(viewer.role) ? ADMIN_PATH : REQUESTS_PATH);
 
   return {
     session: {
@@ -119,5 +128,49 @@ export async function requireGuarantee(): Promise<{
       email: viewer.email,
     },
     guarantee,
+  };
+}
+
+/**
+ * The signed-in view for pages that TOLERATE having nothing linked (v3 M-S5:
+ * /requests and its detail). Still a gate — an unauthenticated visitor is
+ * redirected, staff go to their desk — but a missing guarantee comes back as
+ * null instead of a bounce. On the light-verify fallback a session always has
+ * a guarantee, so this behaves exactly like requireGuarantee there.
+ */
+export async function requireSignedInAllowUnlinked(): Promise<{
+  /** Full app session when a guarantee is linked; null otherwise. */
+  session: AppSession | null;
+  guarantee: Guarantee | null;
+  /** The real auth user; null on the light-verify fallback. */
+  viewer: { userId: string; role: Role | null; email: string | null } | null;
+}> {
+  if (!isAuthConfigured()) {
+    const { session, guarantee } = await requireGuarantee();
+    return { session, guarantee, viewer: null };
+  }
+
+  const viewer = await getViewer();
+  if (!viewer) redirect(LOGIN_PATH);
+  if (isStaff(viewer.role)) redirect(ADMIN_PATH);
+
+  const guarantee = await activeGuaranteeFor(viewer.userId);
+  const session: AppSession | null = guarantee
+    ? {
+        guaranteeId: guarantee.id,
+        via: guarantee.linkedVia ?? "lookup",
+        userId: viewer.userId,
+        role: viewer.role,
+        email: viewer.email,
+      }
+    : null;
+  return {
+    session,
+    guarantee,
+    viewer: {
+      userId: viewer.userId,
+      role: viewer.role,
+      email: viewer.email,
+    },
   };
 }

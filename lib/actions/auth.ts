@@ -22,10 +22,17 @@ import {
   PENDING_TOKEN_COOKIE,
   isAuthConfigured,
 } from "../auth/config";
-import { linkPurchase } from "../auth/link";
+import { linkAccount, linkPurchase } from "../auth/link";
 import { guardLookupAttempt } from "./lookup-guard";
 import { setActiveGuaranteeCookie } from "../active-guarantee";
-import { ENTRY_PATH, LOGIN_PATH, homePath, isStaff, routeAfterAuth } from "../auth/routing";
+import {
+  ENTRY_PATH,
+  LOGIN_PATH,
+  REQUESTS_PATH,
+  homePath,
+  isStaff,
+  routeAfterAuth,
+} from "../auth/routing";
 
 export type AuthResult = { ok: false; error: string } | { ok: true; message: string };
 
@@ -195,6 +202,56 @@ export async function linkPurchaseAction(input: {
   // purchase lands the app on it rather than the previous default.
   await setActiveGuaranteeCookie(result.guaranteeId);
   redirect(homePath());
+}
+
+/** A link-step failure that may also offer the way through unlinked. */
+export type LinkAccountActionResult = {
+  ok: false;
+  error: string;
+  /** True when the form should show "Continue anyway" → /requests. */
+  offerContinue: boolean;
+};
+
+/**
+ * v3 (M-S5) — the RELAXED link step (Doug 2026-08-18): sales order OR delivery
+ * ZIP OR claim number (CG…), plus last name. Success redirects (home when a
+ * guarantee is linked, the tracking list for a claim-only link); a miss
+ * returns calm copy and offers "Continue anyway" — never a dead-end.
+ */
+export async function linkAccountAction(input: {
+  identifier: string;
+  deliveryZip: string;
+  lastName: string;
+}): Promise<LinkAccountActionResult> {
+  if (!isAuthConfigured()) {
+    return { ok: false, error: UNAVAILABLE, offerContinue: false };
+  }
+
+  const viewer = await getViewer();
+  if (!viewer) redirect(LOGIN_PATH);
+
+  // B-13: same throttle as the old step — keyed by whichever identifier was
+  // tried, so order/claim-number guessing stays rate-limited.
+  const guard = await guardLookupAttempt(
+    (input.identifier ?? "").trim() || (input.deliveryZip ?? "").trim()
+  );
+  if (!guard.ok) return { ok: false, error: guard.error!, offerContinue: false };
+
+  const result = await linkAccount(getRepository(), viewer.userId, input);
+  if (!result.ok) return result;
+
+  if (result.kind === "guarantee") {
+    // B-28: make the just-linked purchase the active one.
+    await setActiveGuaranteeCookie(result.guaranteeId);
+    redirect(homePath());
+  }
+  // Claim linked — co-linked guarantee (when present) becomes active; a
+  // claim-only link lands on the tracking list, its natural home.
+  if (result.guaranteeId) {
+    await setActiveGuaranteeCookie(result.guaranteeId);
+    redirect(homePath());
+  }
+  redirect(REQUESTS_PATH);
 }
 
 /* -------------------------------------------------------------------------- */
