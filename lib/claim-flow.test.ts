@@ -5,15 +5,21 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  CLAIM_STAGES,
   claimReadyToSubmit,
   dayCountMessage,
   dayCountState,
   earlyPreferenceRequired,
+  isBackwardStage,
+  previousStage,
+  stageForStep,
+  stepForStage,
   validateClaimEntry,
   windowOpensOn,
 } from "./claim-flow";
 import { CLAIM_PHOTO_TARGETS, CONFIRMATION_KEYS } from "./fitting";
 import type { ClaimEntryInput } from "./claim-flow";
+import type { FittingStep } from "./types";
 
 /** A fully valid entry; tests knock fields out one at a time. */
 function entry(overrides: Partial<ClaimEntryInput> = {}): ClaimEntryInput {
@@ -192,5 +198,98 @@ describe("claimReadyToSubmit", () => {
         ref
       ).ready
     ).toBe(true);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-2 — the stage order behind the Back control                              */
+/* -------------------------------------------------------------------------- */
+
+// Emy: "Request exchange images — No Back Button." Doug: "That back button will
+// be for all the application." The order lives here rather than in the flow
+// component so the control, the persistence and these tests read one answer,
+// exactly as previousStep()/FITTING_STEPS already do for the fitting.
+
+describe("claim stages — where Back can go", () => {
+  it("runs in the order the customer walks", () => {
+    expect(CLAIM_STAGES).toEqual([
+      "details",
+      "qualification",
+      "photos",
+      "process",
+      "done",
+    ]);
+  });
+
+  it("has nowhere to go back to from the first stage", () => {
+    // The entry form is a different page and the claim already exists.
+    expect(previousStage("details")).toBeNull();
+  });
+
+  it("steps back one stage at a time", () => {
+    expect(previousStage("qualification")).toBe("details");
+    expect(previousStage("photos")).toBe("qualification");
+    expect(previousStage("process")).toBe("photos");
+  });
+
+  it("offers no way back once the claim number exists", () => {
+    // Submitting mints CG######. There is no un-submitting it.
+    expect(previousStage("done")).toBeNull();
+  });
+
+  it("gives every persisted step a stage to resume at", () => {
+    const steps: FittingStep[] = [
+      "intake",
+      "items",
+      "confirmations",
+      "photos",
+      "verify",
+      "submitted",
+    ];
+    for (const step of steps) {
+      expect(CLAIM_STAGES).toContain(stageForStep(step));
+    }
+  });
+
+  it("round-trips a stage through the column it is stored in", () => {
+    // Going back has to persist the resume point, so the inverse must hold.
+    for (const stage of CLAIM_STAGES) {
+      expect(stageForStep(stepForStage(stage))).toBe(stage);
+    }
+  });
+});
+
+describe("stepping back is the only move the stage action may make", () => {
+  // Adversarial review: saveClaimStage accepted any member of CLAIM_STAGES,
+  // including "done" — and stepForStage("done") is "submitted", which poisoned
+  // a live draft into a state with no Back and no way out. currentClaim()
+  // validates the claim's STATUS, never its step, so the write landed.
+  it("allows a move to an earlier stage", () => {
+    expect(isBackwardStage("qualification", "details")).toBe(true);
+    expect(isBackwardStage("process", "details")).toBe(true);
+  });
+
+  it("refuses standing still", () => {
+    for (const stage of CLAIM_STAGES) {
+      expect(isBackwardStage(stage, stage)).toBe(false);
+    }
+  });
+
+  it("refuses a jump forward past the work", () => {
+    expect(isBackwardStage("details", "process")).toBe(false);
+    expect(isBackwardStage("details", "qualification")).toBe(false);
+  });
+
+  it("never lets a draft be marked done", () => {
+    for (const stage of CLAIM_STAGES) {
+      expect(isBackwardStage(stage, "done")).toBe(false);
+    }
+  });
+
+  it("agrees with previousStage, which is the only caller", () => {
+    for (const stage of CLAIM_STAGES) {
+      const prev = previousStage(stage);
+      if (prev) expect(isBackwardStage(stage, prev)).toBe(true);
+    }
   });
 });

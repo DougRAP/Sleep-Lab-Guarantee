@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
@@ -15,19 +15,20 @@ import {
   finishClaimPhotos,
   saveClaimDetails,
   saveClaimQualifications,
+  saveClaimStage,
   submitAnonymousClaim,
 } from "../../lib/actions/claim";
 import {
   dayCountMessage,
   earlyPreferenceRequired,
+  previousStage,
+  type ClaimStage,
 } from "../../lib/claim-flow";
+import { useRegisterBack } from "../nav/back-context";
 import { CLAIM_PHOTO_TARGETS, CONFIRMATION_TERMS } from "../../lib/fitting";
 import { COMFORT_EXCHANGE_FEE } from "../../lib/eligibility";
 import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../content/support";
 import type { ConfirmationKey, EarlyPreference, PhotoAngle } from "../../lib/types";
-
-/** The flow's screens, in order. Persisted via the claim's step column. */
-export type ClaimStage = "details" | "qualification" | "photos" | "process" | "done";
 
 export interface ClaimFlowProps {
   initialStage: ClaimStage;
@@ -54,31 +55,101 @@ export function ClaimFlow(props: ClaimFlowProps) {
     props.claimNumber ? "done" : props.initialStage
   );
   const [claimNumber, setClaimNumber] = useState<string | null>(props.claimNumber);
+  const [pending, startTransition] = useTransition();
+
+  /**
+   * R-2: the flow owns what the customer has entered, seeded from the server.
+   *
+   * The first cut copied the fitting's mechanism — persist, router.refresh(),
+   * and key each step by its saved values — and the adversarial review broke it
+   * with a throttled browser: setStage is synchronous while fresh props are two
+   * round trips away, so Back landed on an EMPTY form, and anything typed in
+   * that window was wiped when the refresh finally arrived and the key remounted
+   * the step. Worse, the step posts its local state and saveClaimDetails
+   * overwrites unconditionally, so a stale value could be written back over a
+   * correction the customer had already saved.
+   *
+   * Holding the values here removes the window rather than narrowing it: there
+   * is nothing to wait for, so Back is instant and always shows what was saved.
+   * The brief allowed exactly this, and asked that it be proved by the e2e
+   * rather than argued (e2e/claims/back.spec.ts asserts it without polling).
+   * It also drops four full dynamic re-renders per claim.
+   */
+  const [details, setDetails] = useState(props.details);
+  const [confirmations, setConfirmations] = useState(props.confirmations);
+  const [protectorUsed, setProtectorUsed] = useState(props.protectorUsed);
+  const [captured, setCaptured] = useState(props.capturedAngles);
+
+  /**
+   * Every move goes through one door. Persisting the resume point is all the
+   * server is asked for; the screen never waits on it. The re-entry guard is
+   * the house pattern (see each step's submit): without it three fast taps fire
+   * three unordered writes and the persisted step can end ahead of the screen,
+   * which is the "Back undoes itself on reload" failure this exists to prevent.
+   */
+  const go = useCallback(
+    (next: ClaimStage) => {
+      if (pending) return;
+      setStage(next);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+      // Backward only, and re-checked server-side. A failure here means the
+      // claimant cookie died, and the next render redirects to the front door.
+      if (previousStage(stage) === next) {
+        startTransition(async () => {
+          await saveClaimStage(next);
+        });
+      }
+    },
+    [pending, stage]
+  );
+
+  // Nothing to go back to from the first stage, and nothing at all once the
+  // claim number exists. Registering null clears the footer's control.
+  const back = claimNumber ? null : previousStage(stage);
+  useRegisterBack(back ? () => go(back) : null, "Back to the previous step");
 
   if (stage === "done" && claimNumber) {
     return <DoneScreen claimNumber={claimNumber} authConfigured={props.authConfigured} />;
   }
 
+  // No `key` on any step. Every stage returns a different component type, so
+  // React remounts regardless; the keys the first cut carried were inert except
+  // in the race window, where the photos one destroyed a just-taken capture by
+  // remounting the step and revoking its object URLs.
   switch (stage) {
     case "details":
       return (
-        <DetailsStep initial={props.details} onDone={() => setStage("qualification")} />
+        <DetailsStep
+          initial={details}
+          onDone={(saved) => {
+            setDetails(saved);
+            go("qualification");
+          }}
+        />
       );
     case "qualification":
       return (
         <QualificationStep
-          initialConfirmations={props.confirmations}
-          initialProtector={props.protectorUsed}
-          onDone={() => setStage("photos")}
+          initialConfirmations={confirmations}
+          initialProtector={protectorUsed}
+          onDone={(saved, protector) => {
+            setConfirmations(saved);
+            setProtectorUsed(protector);
+            go("photos");
+          }}
         />
       );
     case "photos":
       return (
         <ClaimPhotos
           storageConfigured={props.storageConfigured}
-          capturedAngles={props.capturedAngles}
+          capturedAngles={captured}
           photoThumbs={props.photoThumbs}
-          onDone={() => setStage("process")}
+          onCaptured={setCaptured}
+          onDone={(saved) => {
+            setCaptured(saved);
+            go("process");
+          }}
         />
       );
     default:
@@ -102,7 +173,8 @@ function DetailsStep({
   onDone,
 }: {
   initial: ClaimFlowProps["details"];
-  onDone: () => void;
+  /** Hands the saved values up, so Back can show them without a round trip. */
+  onDone: (saved: ClaimFlowProps["details"]) => void;
 }) {
   const [modelNumber, setModelNumber] = useState(initial.modelNumber);
   const [purchaseDate, setPurchaseDate] = useState(initial.purchaseDate);
@@ -130,8 +202,17 @@ function DetailsStep({
       form.set("salesOrderNumber", salesOrderNumber);
       if (needsEarlyChoice && early) form.set("earlyPreference", early);
       const res = await saveClaimDetails(form);
-      if (res.ok) onDone();
-      else setError(res.error);
+      if (res.ok) {
+        onDone({
+          modelNumber,
+          purchaseDate,
+          deliveryDate,
+          // Either it arrived with one, or this step just supplied it.
+          hasSalesOrder: initial.hasSalesOrder || Boolean(salesOrderNumber.trim()),
+          // Mirrors the server: normalized to null once the date is in window.
+          earlyPreference: needsEarlyChoice ? early : null,
+        });
+      } else setError(res.error);
     });
   }
 
@@ -220,7 +301,7 @@ function QualificationStep({
 }: {
   initialConfirmations: ConfirmationKey[];
   initialProtector: boolean;
-  onDone: () => void;
+  onDone: (confirmations: ConfirmationKey[], protectorUsed: boolean) => void;
 }) {
   const [checked, setChecked] = useState<Set<ConfirmationKey>>(
     new Set(initialConfirmations)
@@ -248,7 +329,7 @@ function QualificationStep({
         confirmations: [...checked],
         protectorUsed,
       });
-      if (res.ok) onDone();
+      if (res.ok) onDone([...checked], protectorUsed);
       else setError(res.error);
     });
   }
@@ -303,12 +384,15 @@ function ClaimPhotos({
   storageConfigured,
   capturedAngles,
   photoThumbs,
+  onCaptured,
   onDone,
 }: {
   storageConfigured: boolean;
   capturedAngles: PhotoAngle[];
   photoThumbs: Partial<Record<PhotoAngle, string>>;
-  onDone: () => void;
+  /** Each capture as it lands, so leaving and returning keeps the progress. */
+  onCaptured: (captured: PhotoAngle[]) => void;
+  onDone: (captured: PhotoAngle[]) => void;
 }) {
   return (
     <PhotosStep
@@ -326,6 +410,7 @@ function ClaimPhotos({
         </>
       }
       nextLabel="Continue — I can skip these"
+      onCaptured={onCaptured}
       onDone={onDone}
     />
   );

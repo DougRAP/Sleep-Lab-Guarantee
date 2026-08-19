@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { LivingSky } from "../../components/living-sky";
 import { Logo } from "../../components/Logo";
-import { ClaimFlow, type ClaimStage } from "../../components/claim/claim-flow";
+import { ClaimFlow } from "../../components/claim/claim-flow";
+import { stageForStep } from "../../lib/claim-flow";
 import { getClaimSession } from "../../lib/claim-session";
 import { getRepository } from "../../lib/data";
 import { isAuthConfigured } from "../../lib/auth/config";
 import { claimPhotoThumbs, isPhotoStorageConfigured } from "../../lib/storage";
-import type { FittingStep } from "../../lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +20,11 @@ export const metadata = { title: "Request an exchange · RAP Sleep Lab" };
  * (or a stale one) lands back on the front door, where the entry form starts a
  * fresh request.
  *
- * The stored `step` column doubles as the resume point; its legacy values map
- * onto the v3 stages (items→details, confirmations→qualification, photos,
- * verify→process) so no schema change was needed.
+ * The stored `step` column doubles as the resume point. Mapping its legacy
+ * values onto the v3 stages lives in lib/claim-flow.ts (stageForStep), because
+ * R-2 needs the inverse too: stepping back has to persist where the customer
+ * went, or Back would silently undo itself on the next reload.
  */
-const STAGE_BY_STEP: Record<FittingStep, ClaimStage> = {
-  intake: "details",
-  items: "details",
-  confirmations: "qualification",
-  photos: "photos",
-  verify: "process",
-  submitted: "done",
-};
-
 export default async function ClaimPage() {
   const session = await getClaimSession();
   if (!session) redirect("/");
@@ -62,7 +54,7 @@ export default async function ClaimPage() {
 
         <div className="mt-6">
           <ClaimFlow
-            initialStage={STAGE_BY_STEP[claim.step ?? "intake"]}
+            initialStage={stageForStep(claim.step ?? "intake")}
             storageConfigured={isPhotoStorageConfigured()}
             authConfigured={isAuthConfigured()}
             details={{

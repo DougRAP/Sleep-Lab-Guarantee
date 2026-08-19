@@ -41,6 +41,8 @@ export default defineConfig({
       SUPABASE_SERVICE_ROLE_KEY: "",
       ANTHROPIC_API_KEY: "",
       NEXT_PUBLIC_DEMO_MODE: "true",
+      // Clear of a developer's own `npm run dev`, which owns .next/trace.
+      NEXT_DIST_DIR: ".next-e2e",
       // v3 (M-S3): claims mode is the product default now. This smoke suite
       // exercises the companion journey (entry -> Tonight -> the fitting), so
       // it opts out explicitly. A claims-mode e2e is its own suite.

@@ -51,6 +51,7 @@ export function PhotosStep({
   storageConfigured,
   initialThumbs,
   onDone,
+  onCaptured,
   capture = capturePhoto,
   finish = finishPhotos,
   intro,
@@ -62,7 +63,14 @@ export function PhotosStep({
   /** Server-signed URLs for already-persisted photos, so navigating away and
    *  back shows the captures instead of an empty "Retake" tile. */
   initialThumbs?: Partial<Record<PhotoAngle, string>>;
-  onDone: () => void;
+  onDone: (captured: PhotoAngle[]) => void;
+  /**
+   * Fired after each successful capture (v3 /claim). The claim flow keeps the
+   * customer's progress in its own state instead of re-reading the server, so
+   * it needs to hear about a capture when it happens rather than on submit.
+   * The fitting omits it and is unaffected.
+   */
+  onCaptured?: (captured: PhotoAngle[]) => void;
   /** Injectable actions (v3): the anonymous /claim flow passes its own
    *  claimant-session-scoped pair; the fitting keeps its defaults. */
   capture?: typeof capturePhoto;
@@ -128,7 +136,9 @@ export function PhotosStep({
 
       const res = await capture(form);
       if (res.ok) {
-        setCaptured((c) => new Set(c).add(target.angle));
+        const next = new Set(captured).add(target.angle);
+        setCaptured(next);
+        onCaptured?.([...next]);
       } else {
         setNote(res.error);
       }
@@ -146,7 +156,7 @@ export function PhotosStep({
     if (!ready || pending) return;
     startTransition(async () => {
       const res = await finish();
-      if (res.ok) onDone();
+      if (res.ok) onDone([...captured]);
       else setNote(res.error);
     });
   }

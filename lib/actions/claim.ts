@@ -18,7 +18,10 @@ import {
   claimReadyToSubmit,
   dayCountMessage,
   earlyPreferenceRequired,
+  isBackwardStage,
   isEarlyPreference,
+  stageForStep,
+  stepForStage,
   validateClaimEntry,
 } from "../claim-flow";
 import { journeyDay } from "../eligibility";
@@ -26,6 +29,7 @@ import { CLAIM_PHOTO_TARGETS, CONFIRMATION_TERMS, normalizeConfirmations } from 
 import { photoUploadIssue, uploadClaimPhoto } from "../storage";
 import { enforceRateLimit } from "../rate-limit";
 import type { ActionResult } from "./fitting";
+import type { ClaimStage } from "../claim-flow";
 import type { Claim, ConfirmationKey, EarlyPreference, PhotoAngle } from "../types";
 
 const NO_CLAIM =
@@ -191,6 +195,30 @@ export async function saveClaimDetails(form: FormData): Promise<
 
   const { message } = dayCountMessage(deliveryDate);
   return { ok: true, data: { day, message } };
+}
+
+/* -------------------------------------------------------------------------- */
+/* R-2 — persist the resume point when the customer steps back                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Mirrors saveStep() for the fitting (lib/actions/fitting.ts:113). Moving back
+ * has to survive a reload, or Back would silently undo itself.
+ *
+ * BACKWARD ONLY, against the claim's own persisted step. currentClaim() checks
+ * the claim's STATUS, not its step, so without this an earlier version accepted
+ * any stage a client sent — `done` included, which persists as `"submitted"` and
+ * left a live draft with no Back, no claim number and no way to the fields it
+ * still needed (adversarial review, 2026-08-19). Forward progress is written by
+ * the step actions, as a side effect of the work they validate.
+ */
+export async function saveClaimStage(stage: ClaimStage): Promise<ActionResult> {
+  const ctx = await currentClaim();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+  const current = stageForStep(ctx.claim.step ?? "intake");
+  if (!isBackwardStage(current, stage)) return { ok: false, error: NO_CLAIM };
+  await ctx.repo.updateClaim(ctx.claim.id, { step: stepForStage(stage) });
+  return { ok: true };
 }
 
 /* -------------------------------------------------------------------------- */

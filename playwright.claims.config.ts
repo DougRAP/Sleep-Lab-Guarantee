@@ -41,6 +41,8 @@ export default defineConfig({
       SUPABASE_SERVICE_ROLE_KEY: "",
       ANTHROPIC_API_KEY: "",
       NEXT_PUBLIC_DEMO_MODE: "true",
+      // Clear of a developer's own `npm run dev`, which owns .next/trace.
+      NEXT_DIST_DIR: ".next-e2e",
       // Explicit rather than unset: a checkout whose .env.local says "false"
       // must not silently turn this into a second companion run.
       NEXT_PUBLIC_CLAIMS_MODE: "true",

@@ -11,6 +11,7 @@ import { PhotosStep, type PhotoTargetView } from "./photos-step";
 import { VerifyStep } from "./verify-step";
 import { SubmittedStep } from "./submitted-step";
 import { previousStep } from "../../lib/fitting";
+import { useRegisterBack } from "../nav/back-context";
 import { saveStep } from "../../lib/actions/fitting";
 import type {
   ClaimItem,
@@ -70,6 +71,9 @@ export function FittingFlow(props: FittingFlowProps) {
   }
 
   const back = step === "submitted" ? null : previousStep(step);
+  // R-2: Back moved into the footer, so there is ONE control in the app rather
+  // than one per flow. The rule that decides where it goes is unchanged.
+  useRegisterBack(back ? () => go(back) : null, "Back to the previous step");
 
   if (step === "submitted" && result) {
     return (
@@ -79,18 +83,7 @@ export function FittingFlow(props: FittingFlowProps) {
 
   return (
     <div className="space-y-7">
-      <div className="flex items-center justify-between">
-        <ProgressDots step={step} />
-        {back && (
-          <button
-            type="button"
-            onClick={() => go(back)}
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
-          >
-            &lsaquo; Back
-          </button>
-        )}
-      </div>
+      <ProgressDots step={step} />
 
       {/*
         Each step is keyed by the saved values it starts from. When a refresh

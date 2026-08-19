@@ -11,7 +11,7 @@ import { WINDOW_CLOSE_DAY, WINDOW_OPEN_DAY, journeyDay } from "./eligibility";
 import { CONFIRMATION_TERMS } from "./fitting";
 import { phoneDigits, zipQuery } from "./data/repository";
 import { formatPlainDate } from "./dates";
-import type { Claim, EarlyPreference } from "./types";
+import type { Claim, EarlyPreference, FittingStep } from "./types";
 
 /* -------------------------------------------------------------------------- */
 /* Entry form (landing page): identify + contact in one form (spec §2.2)      */
@@ -228,4 +228,81 @@ export function claimReadyToSubmit(
   }
 
   return { ready: stillNeeded.length === 0, stillNeeded };
+}
+
+/* -------------------------------------------------------------------------- */
+/* R-2 — the stage order behind the Back control (Aug 19 punch list)          */
+/* -------------------------------------------------------------------------- */
+
+// Emy: "Request exchange images — No Back Button." Doug: "That back button will
+// be for all the application."
+//
+// The order lives here, not in the flow component, for the same reason
+// FITTING_STEPS/previousStep() live in lib/fitting.ts: the control, the
+// persistence and the tests must read one answer. `step` on the claim row is
+// the legacy FittingStep column, so the two mappings below are what let a stage
+// be stored and resumed without a schema change.
+
+/** The screens of the v3 intake, in the order the customer walks them. */
+export const CLAIM_STAGES = [
+  "details",
+  "qualification",
+  "photos",
+  "process",
+  "done",
+] as const;
+
+export type ClaimStage = (typeof CLAIM_STAGES)[number];
+
+/**
+ * Where Back goes from here, or null when it has nowhere to go: `details` is
+ * first (the entry form is a different page and the claim already exists), and
+ * `done` has minted CG###### — there is no un-submitting it.
+ */
+export function previousStage(stage: ClaimStage): ClaimStage | null {
+  if (stage === "done") return null;
+  const i = CLAIM_STAGES.indexOf(stage);
+  if (i <= 0) return null;
+  return CLAIM_STAGES[i - 1];
+}
+
+/**
+ * Whether moving from `from` to `to` is a step BACKWARD.
+ *
+ * The only legitimate caller of the stage action is Back, so this is the whole
+ * of what it may do. Forward progress is persisted by the step actions
+ * themselves, as a side effect of the work they validate.
+ *
+ * Adversarial review, 2026-08-19: without this the action accepted any stage,
+ * `done` included, and `stepForStage("done")` is `"submitted"` — a client could
+ * write that onto its own live draft and land in a state with no Back, no claim
+ * number, and no route to the fields it still had to fill.
+ */
+export function isBackwardStage(from: ClaimStage, to: ClaimStage): boolean {
+  return CLAIM_STAGES.indexOf(to) < CLAIM_STAGES.indexOf(from);
+}
+
+/** The stage a persisted `step` resumes at. Legacy values fold onto v3 stages. */
+export function stageForStep(step: FittingStep): ClaimStage {
+  const byStep: Record<FittingStep, ClaimStage> = {
+    intake: "details",
+    items: "details",
+    confirmations: "qualification",
+    photos: "photos",
+    verify: "process",
+    submitted: "done",
+  };
+  return byStep[step] ?? "details";
+}
+
+/** The `step` value a stage is stored as. Inverse of stageForStep. */
+export function stepForStage(stage: ClaimStage): FittingStep {
+  const byStage: Record<ClaimStage, FittingStep> = {
+    details: "items",
+    qualification: "confirmations",
+    photos: "photos",
+    process: "verify",
+    done: "submitted",
+  };
+  return byStage[stage];
 }

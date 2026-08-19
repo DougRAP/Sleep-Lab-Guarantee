@@ -28,6 +28,24 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * R-2: the e2e servers build into their own directory.
+   *
+   * Two `next dev` processes on one project fight over `.next/trace` and both
+   * die with EPERM on Windows, and a developer running `npm run dev` while the
+   * suite runs is an ordinary thing to do, not an edge case. One shared
+   * `.next-e2e` for both suites keeps them clear of it, and keeps the number of
+   * build directories at two so the tsconfig include Next maintains stays
+   * stable instead of growing per run.
+   *
+   * Pinned to `.next` in production builds, so the escape hatch cannot exist in
+   * a deploy: setting NEXT_DIST_DIR by hand in Netlify would otherwise make
+   * `next start` look for a build that is not there.
+   */
+  distDir:
+    process.env.NODE_ENV === "production"
+      ? ".next"
+      : process.env.NEXT_DIST_DIR || ".next",
   // eslint-config-next 15.0.0 is incompatible with Next 15.5's ESLint runner
   // (passes removed options). Lint runs separately; don't fail builds on it.
   eslint: { ignoreDuringBuilds: true },
