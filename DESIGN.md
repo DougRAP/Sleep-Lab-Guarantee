@@ -35,7 +35,7 @@ All open-source, **self-hosted in production** (no CDN, PWA-friendly). Premium u
 Scale (mobile): hero mono 52 · voice serif 22 · body 15 · label mono 11–12 (uppercase, tracked).
 
 ## Layout & motion
-- **First viewport = poster, not document.** One horizon, one line of the guide's voice, exactly one primary action. Content rises from beneath the fold on scroll. Chrome/nav stays hidden until summoned.
+- **First viewport = poster, not document.** One horizon, one line of the guide's voice, exactly one primary action. Content rises from beneath the fold on scroll. Chrome/nav stays hidden until summoned *(superseded for the bottom bar on 2026-08-19; see Bottom navigation)*.
 - **One breath per screen** — single column, generous negative space.
 - **Depth via soft blur + translucency** (frosted layers), not heavy borders.
 - **Motion:** slow, unbounced — 400–700ms ease-out, opacity + slight rise, cross-fades (no skeleton jitter). One persistent ~4s breathing element sets the pace. Soft haptics. Always honor `prefers-reduced-motion`.
@@ -68,5 +68,6 @@ The app becomes navigable without breaking the poster-first, printed-light calm.
 - **Four utility destinations:** Tonight · Guarantee · Requests · Shop. Small label + a quiet line icon; the **active destination uses `--dawn`** (text), inactive `--mist`. One active at a time.
 - **The Coach is set apart, not a peer tab** — the guide's presence, a serif/`--dawn` affordance divided from the utility tabs by a hairline (e.g. a trailing segment). It reads as "your guide," never a menu item.
 - **Hidden during focused flows** (the fitting, entry/verify) — those stay full-bleed, one-breath screens.
+  **Overridden 2026-08-19 (R-1, Doug):** the bar is app-wide now, so the front door and the claim carry it as well, and it is withheld only from the staff desk and the account screens. It never offers a destination the current visitor would be bounced from, so do not revert it as a regression (`footerPlan()`, `lib/shell.ts`).
 - Motion: cross-fade route transitions, no bounce; honor `prefers-reduced-motion`.
 

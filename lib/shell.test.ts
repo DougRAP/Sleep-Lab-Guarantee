@@ -9,9 +9,13 @@ import { isClaimsMode } from "./demo";
 import {
   CLAIMS_HIDDEN_PREFIXES,
   CLAIMS_REDIRECT_PATH,
+  NAV_REQUIREMENTS,
+  footerHiddenSurface,
+  footerPlan,
   isCoachEnabled,
   isHiddenInClaimsMode,
   navHrefs,
+  type FooterVisitor,
 } from "./shell";
 
 describe("the mode default (v3): claims unless someone opts out", () => {
@@ -102,5 +106,148 @@ describe("hidden surfaces — the Coach and Tonight are unreachable, not just un
     expect(isHiddenInClaimsMode("/concierge")).toBe(true);
     vi.stubEnv("NEXT_PUBLIC_CLAIMS_MODE", "false");
     expect(isHiddenInClaimsMode("/concierge")).toBe(false);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-1 — the app-wide footer                                                  */
+/* -------------------------------------------------------------------------- */
+
+// Doug, 2026-08-19: "On the request page, it has a footer. But that's not
+// anywhere else. […] you could use that footer." The bar becomes a property of
+// the app rather than of one route folder — but it must never offer a
+// destination that would bounce the visitor, which is the root of Emy's
+// "stuck on Requests" finding. Those two rules are asserted here.
+
+const ANON: FooterVisitor = { authenticated: false, linked: false, staff: false };
+const SIGNED_IN: FooterVisitor = { authenticated: true, linked: false, staff: false };
+const LINKED: FooterVisitor = { authenticated: true, linked: true, staff: false };
+const STAFF: FooterVisitor = { authenticated: true, linked: false, staff: true };
+
+describe("footer surfaces — where the bar exists at all", () => {
+  it("renders nothing on the staff desk", () => {
+    for (const path of ["/admin", "/admin/requests/abc", "/admin/coach"]) {
+      expect(footerPlan(path, STAFF, true).visible).toBe(false);
+    }
+  });
+
+  it("renders nothing on the account screens", () => {
+    for (const path of ["/login", "/signup", "/forgot-password", "/new-password"]) {
+      expect(footerPlan(path, ANON, true).visible).toBe(false);
+    }
+  });
+
+  it("does not match a path that merely starts with the same letters", () => {
+    expect(footerPlan("/admins-choice", LINKED, true).visible).toBe(true);
+    expect(footerPlan("/logins", LINKED, true).visible).toBe(true);
+  });
+
+  it("renders on every consumer surface, including the ones that had none", () => {
+    for (const path of ["/", "/claim", "/fitting", "/guarantee", "/requests", "/shop"]) {
+      expect(footerPlan(path, LINKED, true).visible).toBe(true);
+    }
+  });
+});
+
+describe("footer reachability — never offer a tab that would bounce you", () => {
+  it("offers no tabs at all to an anonymous visitor on the claim journey", () => {
+    for (const path of ["/", "/claim"]) {
+      const plan = footerPlan(path, ANON, true);
+      expect(plan.visible).toBe(true);
+      expect(plan.hrefs).toEqual([]);
+      expect(plan.coach).toBe(false);
+    }
+  });
+
+  it("gives a linked account the full claims set", () => {
+    expect(footerPlan("/guarantee", LINKED, true).hrefs).toEqual([
+      "/guarantee",
+      "/requests",
+      "/shop",
+    ]);
+  });
+
+  it("withholds Guarantee and Shop from an account with nothing linked (Emy, E-4)", () => {
+    const plan = footerPlan("/requests", SIGNED_IN, true);
+    expect(plan.hrefs).toEqual(["/requests"]);
+    expect(plan.hrefs).not.toContain("/guarantee");
+    expect(plan.hrefs).not.toContain("/shop");
+  });
+
+  it("offers a staff viewer no consumer destinations", () => {
+    expect(footerPlan("/requests", STAFF, true).hrefs).toEqual([]);
+  });
+
+  it("leaves the companion product intact for a linked visitor", () => {
+    const plan = footerPlan("/tonight", LINKED, false);
+    expect(plan.hrefs).toEqual(["/tonight", "/guarantee", "/requests", "/shop"]);
+    expect(plan.coach).toBe(true);
+  });
+
+  it("withholds the Coach from a companion visitor with nothing linked", () => {
+    expect(footerPlan("/requests", SIGNED_IN, false).coach).toBe(false);
+  });
+
+  it("reads the env-backed mode default like every other rule here", () => {
+    expect(footerPlan("/requests", LINKED).hrefs).toEqual([
+      "/guarantee",
+      "/requests",
+      "/shop",
+    ]);
+  });
+});
+
+describe("footer requirements — the single lever R-6 will pull", () => {
+  it("states what each destination needs, so relaxing one is a one-line change", () => {
+    expect(NAV_REQUIREMENTS["/requests"]).toBe("signed-in");
+    expect(NAV_REQUIREMENTS["/guarantee"]).toBe("linked");
+    expect(NAV_REQUIREMENTS["/shop"]).toBe("linked");
+  });
+
+  it("covers every destination the nav can offer, in both modes", () => {
+    // The map is typed by NavDestination, so an omission is a compile error.
+    // This guards the other direction: a tuple gaining an href the type does
+    // not know about would slip past the compiler and fail closed at runtime.
+    const known = Object.keys(NAV_REQUIREMENTS);
+    for (const href of [...navHrefs(true), ...navHrefs(false)]) {
+      expect(known).toContain(href);
+    }
+  });
+});
+
+describe("footer — the consensus review's findings (5-agent pass)", () => {
+  it("exposes the surface rule on its own, so nothing mirrors it by hand", () => {
+    expect(footerHiddenSurface("/admin")).toBe(true);
+    expect(footerHiddenSurface("/admin/requests/abc")).toBe(true);
+    expect(footerHiddenSurface("/login")).toBe(true);
+    expect(footerHiddenSurface("/new-password")).toBe(true);
+    // /link is NOT an account screen: a visitor there is signed in already.
+    expect(footerHiddenSurface("/link")).toBe(false);
+    expect(footerHiddenSurface("/")).toBe(false);
+    expect(footerHiddenSurface("/claim")).toBe(false);
+  });
+
+  it("falls back to the support bar when the only tab left is where you are", () => {
+    // An unlinked account on /requests: offering a tab to the page you are
+    // already on is the "chrome that does nothing" the bare bar exists to
+    // prevent, and it withheld the phone number from Emy's exact visitor.
+    const plan = footerPlan("/requests", SIGNED_IN, true);
+    expect(plan.hrefs).toEqual(["/requests"]);
+    expect(plan.bare).toBe(true);
+  });
+
+  it("still shows the strip when there is somewhere else to go", () => {
+    expect(footerPlan("/requests", LINKED, true).bare).toBe(false);
+    expect(footerPlan("/guarantee", LINKED, true).bare).toBe(false);
+  });
+
+  it("gives staff no bar at all, not a customer support line", () => {
+    // "Call the claims line" is absurd chrome for a RAP agent.
+    expect(footerPlan("/requests", STAFF, true).visible).toBe(false);
+    expect(footerPlan("/", STAFF, true).visible).toBe(false);
+  });
+
+  it("keeps the Coach in the same table as every other destination", () => {
+    expect(NAV_REQUIREMENTS["/concierge"]).toBe("linked");
   });
 });

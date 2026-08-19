@@ -14,7 +14,9 @@ export const metadata = { title: "Request an exchange · RAP Sleep Lab" };
 
 /**
  * The v3 anonymous exchange request (spec §2) — a focused flow like /fitting:
- * no bottom nav, no account, carried by the claimant cookie alone. No cookie
+ * no account, carried by the claimant cookie alone. It DOES carry the bottom
+ * bar as of R-1 (Doug, 2026-08-19); for an anonymous claimant that bar is the
+ * support affordance, never tabs (lib/shell.ts, footerPlan). No cookie
  * (or a stale one) lands back on the front door, where the entry form starts a
  * fresh request.
  *
@@ -48,7 +50,7 @@ export default async function ClaimPage() {
       <LivingSky day={0} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-12 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
       >
         <div>
           <Logo />

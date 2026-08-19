@@ -1,12 +1,24 @@
 import * as React from "react";
+import { footerHiddenSurface } from "../../lib/shell";
+import { cn } from "../../lib/utils";
 import { LivingSky } from "../living-sky";
 import { Logo } from "../Logo";
 
 /**
  * The poster frame every auth screen shares. Deliberately the SAME structure and
  * classes as the welcome screen (app/page.tsx): living sky, logo, one heading in
- * the serif voice, one line of quiet body, one primary action. No bottom nav —
- * these are focused, one-breath screens (DESIGN.md).
+ * the serif voice, one line of quiet body, one primary action.
+ *
+ * R-1 (2026-08-19): the account screens still carry no bottom bar — every tab
+ * there would bounce a signed-out visitor straight back to login, so
+ * footerPlan() hides it. But /link shares this frame and is NOT an account
+ * screen: a visitor there is signed in, and Requests is a real destination.
+ *
+ * So the frame needs to know which screen it is on, and it ASKS lib/shell.ts
+ * rather than taking a boolean. A hand-passed flag was a second copy of the
+ * surface rule living in a component, which CLAUDE.md forbids precisely because
+ * the two drift: a sixth screen would have to be remembered in both places, and
+ * the padding and the bar would silently disagree.
  */
 export function AuthShell({
   heading,
@@ -14,6 +26,7 @@ export function AuthShell({
   aside,
   children,
   footer,
+  pathname,
 }: {
   heading: React.ReactNode;
   intro?: React.ReactNode;
@@ -21,13 +34,19 @@ export function AuthShell({
   aside?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** The route this frame is rendering, so it can ask whether a bar is there. */
+  pathname: string;
 }) {
+  const withFooter = !footerHiddenSurface(pathname);
   return (
     <>
       <LivingSky day={0} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
+        className={cn(
+          "relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pt-[calc(env(safe-area-inset-top)+1.5rem)]",
+          withFooter ? "pb-28" : "pb-10"
+        )}
       >
         <div>
           <Logo />

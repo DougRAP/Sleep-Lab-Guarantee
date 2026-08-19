@@ -17,6 +17,7 @@ import { getRepository } from "../data";
 import { getSession } from "../session";
 import { getViewer } from "./user";
 import { isAuthConfigured } from "./config";
+import { ownedGuarantees } from "./owned-guarantees";
 import {
   ADMIN_PATH,
   ENTRY_PATH,
@@ -32,7 +33,9 @@ import type { Guarantee, LinkVia, Role } from "../types";
  * cookie and defaulting to the most recent. Returns null when nothing is linked.
  */
 async function activeGuaranteeFor(userId: string): Promise<Guarantee | null> {
-  const owned = await getRepository().listGuaranteesForUser(userId);
+  // R-1 review: shared, per-request cached (lib/auth/owned-guarantees.ts) so the
+  // root layout's footer and this guard resolve one query between them.
+  const owned = await ownedGuarantees(userId);
   return resolveActiveGuarantee(owned, await readActiveGuaranteeId());
 }
 

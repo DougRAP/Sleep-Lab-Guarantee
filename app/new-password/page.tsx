@@ -17,6 +17,7 @@ export default async function NewPasswordPage() {
 
   return (
     <AuthShell
+      pathname="/new-password"
       heading="Choose a new password."
       intro="This replaces the old one everywhere you're signed in."
     >

@@ -13,6 +13,7 @@ export default async function ForgotPasswordPage() {
 
   return (
     <AuthShell
+      pathname="/forgot-password"
       heading="Let's get you back in."
       intro="Tell us the email on your account and we'll send a link to set a new password."
     >

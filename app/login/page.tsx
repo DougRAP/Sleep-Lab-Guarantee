@@ -29,6 +29,7 @@ export default async function LoginPage() {
 
   return (
     <AuthShell
+      pathname="/login"
       heading="Welcome back."
       intro="Log in and we'll pick up right where you left off."
     >

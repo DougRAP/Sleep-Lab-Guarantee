@@ -4,10 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { cn } from "../../lib/utils";
-import { isClaimsMode } from "../../lib/demo";
-import { isCoachEnabled, navHrefs } from "../../lib/shell";
+import { footerPlan, type FooterVisitor } from "../../lib/shell";
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../content/support";
 
 // Persistent bottom navigation (DESIGN.md "Bottom navigation").
+//
+// R-1 (Doug, 2026-08-19): the bar is app-wide now, rendered from the ROOT
+// layout via components/nav/app-footer.tsx rather than from the app/(app)
+// route group. It still owns the pathname (usePathname), but who is looking
+// arrives as a prop, because only the server can answer that. Which tabs a
+// given visitor may be offered is decided by footerPlan() in lib/shell.ts —
+// never here, and never a tab that would bounce them.
 // Frosted/translucent bar, one hairline top border, safe-area inset. Four utility
 // destinations (active = --dawn, inactive = --mist), then the Coach set apart by a
 // hairline — the guide's presence in the serif voice, not a peer tab. One active
@@ -71,17 +78,40 @@ const TABS: Tab[] = [
   { href: "/shop", label: "Shop", Icon: BagIcon, match: (p) => p.startsWith("/shop") },
 ];
 
-export function BottomNav() {
+export function BottomNav({
+  visitor,
+  leading,
+}: {
+  visitor: FooterVisitor;
+  /**
+   * R-2 slot. The Back control drops in here, divided from the tabs by the same
+   * hairline the Coach uses. Absent today, so the bar is unchanged.
+   *
+   * Honest note for R-2 (raised by the adversarial review): the only caller is
+   * the root layout, which has no pathname, so nothing can vary this per route
+   * yet. And the claim's steps are component state, not routes, so a footer
+   * Back cannot simply call router.back(). R-2's real work is a client context
+   * the current flow registers a back handler with; this slot is where the
+   * control lands once that exists, not a finished seam.
+   */
+  leading?: React.ReactNode;
+}) {
   const pathname = usePathname() || "";
 
-  // One bar, two modes (lib/shell.ts owns which destinations exist). Claims
-  // mode — the v3 default — shows Guarantee · Requests · Shop and no Coach;
-  // the companion product keeps Tonight and the guide. Same component either
-  // way, so the bar never forks.
-  const claimsMode = isClaimsMode();
-  const hrefs = navHrefs(claimsMode);
-  const tabs = TABS.filter((tab) => hrefs.includes(tab.href));
-  const coach = isCoachEnabled(claimsMode);
+  // One bar, every surface (lib/shell.ts owns the rules). Claims mode — the v3
+  // default — shows Guarantee · Requests · Shop and no Coach; the companion
+  // product keeps Tonight and the guide; and either way a destination this
+  // visitor would be bounced from is never offered. Same component throughout,
+  // so the bar never forks.
+  const plan = footerPlan(pathname, visitor);
+  if (!plan.visible) return null;
+
+  const tabs = TABS.filter((tab) => plan.hrefs.includes(tab.href));
+  const coach = plan.coach;
+  /** Nowhere else to go: the bar carries the way to a person instead. */
+  const bare = plan.bare;
+  /** A lone tab keeps its natural width; stretching it reads as a button. */
+  const stretch = tabs.length > 1;
 
   const isActive = (tab: Tab) =>
     tab.match ? tab.match(pathname) : pathname === tab.href;
@@ -92,7 +122,48 @@ export function BottomNav() {
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-surface2/60 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
     >
-      <div className="mx-auto flex w-full max-w-md items-stretch">
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-md items-stretch",
+          stretch ? undefined : "justify-center"
+        )}
+      >
+        {/* R-2's slot. Divided by the same hairline the Coach uses, so the
+            leading control reads as chrome rather than as a peer tab. */}
+        {leading && (
+          <div className="flex shrink-0 items-center border-r border-[var(--line)] pl-1 pr-3">
+            {leading}
+          </div>
+        )}
+
+        {/* Nothing reachable — an anonymous claimant, or an account with
+            nothing linked yet. An empty bar would be chrome that does nothing,
+            so it offers the two things that always work: a phone and an inbox
+            (content/support.ts, the single source). */}
+        {bare && (
+          <div className="flex flex-1 items-center justify-center gap-3">
+            {/* The padding lives on the anchors, not this row: on the wrapper it
+                left each link a 15px hit area next to 59px tabs (WCAG 2.5.8).
+                hover:text-cloud is the house treatment for a mist mono label;
+                dawn is reserved for the active destination. */}
+            <a
+              href={`tel:${SUPPORT_PHONE.replace(/[^0-9+]/g, "")}`}
+              className="py-3.5 font-mono text-[10px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
+            >
+              Call {SUPPORT_PHONE}
+            </a>
+            <span aria-hidden className="text-[10px] text-mist/40">
+              &middot;
+            </span>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="py-3.5 font-mono text-[10px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
+            >
+              Email us
+            </a>
+          </div>
+        )}
+
         {tabs.map((tab) => {
           const active = isActive(tab);
           return (
@@ -101,7 +172,8 @@ export function BottomNav() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-colors",
+                "flex flex-col items-center justify-center gap-1 py-2.5 transition-colors",
+                stretch ? "flex-1" : "px-8",
                 active ? "text-dawn" : "text-mist hover:text-cloud"
               )}
             >

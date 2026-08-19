@@ -4,8 +4,6 @@ import { LivingSky } from "../../components/living-sky";
 import { AppHeader } from "../../components/app-header";
 import { DayCount } from "../../components/day-count";
 import { ConciergeCard } from "../../components/concierge-card";
-import { DemoControls } from "../../components/demo/demo-controls";
-import { BottomNav } from "../../components/nav/bottom-nav";
 import { FittingFlow } from "../../components/fitting/fitting-flow";
 import { buttonVariants } from "../../components/ui/button";
 import { isPreVerifiedSession, requireGuarantee } from "../../lib/auth/app-session";
@@ -60,8 +58,6 @@ export default async function FittingPage() {
             </Link>
           </div>
         </main>
-        <DemoControls aboveNav />
-        <BottomNav />
       </>
     );
   }
@@ -134,8 +130,6 @@ export default async function FittingPage() {
           />
         </div>
       </main>
-      <DemoControls aboveNav />
-      <BottomNav />
     </>
   );
 }

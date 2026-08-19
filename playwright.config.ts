@@ -5,9 +5,19 @@ import { defineConfig, devices } from "@playwright/test";
  * its own port with the Supabase env BLANKED, so everything exercises the
  * in-memory fallback: light-verify entry, seeded requests, the demo staff
  * picker. Nothing here touches the real database.
+ *
+ * This suite is the COMPANION product: it opts out of claims mode explicitly.
+ * The product that actually ships is covered by `playwright.claims.config.ts`,
+ * and `npm run test:e2e` runs the two in sequence. Sequence matters: two
+ * `next dev` on one project fight over `.next/trace` and both die (EPERM on
+ * Windows), and giving them separate build directories makes Next rewrite
+ * tracked `tsconfig.json` on every run. One at a time costs a recompile and
+ * nothing else.
  */
 export default defineConfig({
   testDir: "./e2e",
+  // The claims suite has its own config and its own server.
+  testIgnore: "**/claims/**",
   timeout: 45_000,
   fullyParallel: false,
   workers: 1,

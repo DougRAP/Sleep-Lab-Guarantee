@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePathname } from "next/navigation";
 import { DEMO_DAY_PRESETS } from "../../lib/demo";
+import { footerHiddenSurface } from "../../lib/shell";
 import { clearPreviewDay, previewDay } from "../../lib/actions/demo";
 import { cn } from "../../lib/utils";
 
@@ -13,16 +15,18 @@ import { cn } from "../../lib/utils";
  * Kept visually quiet and on-token: mono label, hairline, mist — never the dawn
  * accent, never a primary affordance. It reads as instrumentation, not a feature.
  * Rendered only when NEXT_PUBLIC_DEMO_MODE is on (the server decides).
+ *
+ * R-1 review: the bar became app-wide and this came along for the ride, landing
+ * on the staff desk and the login screen where it had never been, offset 4.75rem
+ * to clear a bar that is hidden there. Both the offset and the presence now come
+ * from the SAME surface rule the bar reads (lib/shell.ts), so the two can no
+ * longer disagree.
  */
-export function DayJumper({
-  day,
-  aboveNav = false,
-}: {
+export function DayJumper({ day }: {
   /** The currently applied effective day, or null when following real time. */
   day: number | null;
-  /** Lift above the persistent bottom nav on tabbed screens. */
-  aboveNav?: boolean;
 }) {
+  const pathname = usePathname() || "";
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
   const [pending, startTransition] = useTransition();
@@ -42,15 +46,11 @@ export function DayJumper({
     });
   }
 
+  // Instrumentation has no business on the staff desk or the account screens.
+  if (footerHiddenSurface(pathname)) return null;
+
   return (
-    <div
-      className={cn(
-        "fixed left-3 z-40",
-        aboveNav
-          ? "bottom-[calc(env(safe-area-inset-bottom)+4.75rem)]"
-          : "bottom-[calc(env(safe-area-inset-bottom)+0.75rem)]"
-      )}
-    >
+    <div className="fixed left-3 z-40 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)]">
       {open && (
         <div className="mb-2 w-[248px] rounded-[14px] border border-[var(--line)] bg-surface2/80 p-3 backdrop-blur-xl">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">

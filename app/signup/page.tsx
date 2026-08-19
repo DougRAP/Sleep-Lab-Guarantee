@@ -34,6 +34,7 @@ export default async function SignUpPage() {
 
   return (
     <AuthShell
+      pathname="/signup"
       heading="Let's set up your account."
       intro="One account keeps your nights, your notes, and your 90-Night Comfort Guarantee together — on any device you pick up."
       aside={

@@ -43,7 +43,7 @@ export default async function WelcomePage({
       <LivingSky day={0} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
       >
         <div>
           <Logo />
@@ -138,7 +138,7 @@ async function ClaimLanding({ realAuth }: { realAuth: boolean }) {
       <LivingSky day={0} />
       <main
         id="main"
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-10 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28 pt-[calc(env(safe-area-inset-top)+1.5rem)]"
       >
         <div>
           <Logo />

@@ -39,6 +39,7 @@ export default async function LinkPage() {
 
   return (
     <AuthShell
+      pathname="/link"
       heading="Now let's find your purchase."
       intro="Your sales order number is on your receipt — or use the delivery ZIP, or a claim number if you were given one. Any one of them, plus your last name, is all we need."
       footer={
