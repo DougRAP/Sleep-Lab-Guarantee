@@ -19,7 +19,8 @@ import {
   lastNameMatches,
   type GuaranteeRepository,
 } from "../data/repository";
-import type { LinkVia } from "../types";
+import type { Claim, LinkVia, Role } from "../types";
+import { isStaff } from "./routing";
 
 export type LinkInput =
   | { mode: "token"; token: string }
@@ -163,6 +164,135 @@ export async function linkAccount(
   const linked = await repo.linkGuaranteeToUser(found.id, uid, "lookup");
   if (!linked) return { ok: false, error: LINK_TAKEN, offerContinue: true };
   return { ok: true, kind: "guarantee", guaranteeId: linked.id };
+}
+
+/* -------------------------------------------------------------------------- */
+/* R-4 — the account picks up the request it was made for                     */
+/* -------------------------------------------------------------------------- */
+
+/** Hours after submission during which a sign-in may still adopt the request. */
+export const ATTACH_WINDOW_HOURS = 48;
+
+export interface AttachIntakeInput {
+  /** From the claimant cookie (lib/claim-session.ts), never from a URL. */
+  claimId: string;
+  /** The authenticating account's email. The second factor; see below. */
+  email: string | null;
+  /** Staff never own a customer's request, even holding the cookie. */
+  role: Role | null;
+  now?: Date;
+}
+
+/**
+ * Attach the request this browser filed to the account that just signed in,
+ * sparing the customer a second form minutes after the first.
+ *
+ * TWO things must hold, and only one of them is this function's business.
+ *
+ * The claimant cookie proves a BROWSER opened this claim; it does not prove a
+ * person. It is a seven-day bearer token that nothing invalidates, so on a
+ * family tablet or a dealer's showroom device the next person to sign in would
+ * inherit a stranger's request, silently and with no way back: linkClaimToUser
+ * refuses to move an owned claim, and the app has no unlink anywhere, so a
+ * wrong assignment is permanent and only a hand-written UPDATE undoes it.
+ *
+ * So the caller must be signInAction and nothing else. A password proves an
+ * account that already existed under that address; creating one proves nothing,
+ * because email confirmation is off (see lib/actions/auth.ts) and no mail
+ * sender exists in this app at all, so signUp hands back a live session for any
+ * string you type. Under sign-up the check below would ask only "does whoever
+ * is holding this browser know the address that was typed into it", and the
+ * people who know it are precisely the household and the showroom staff this
+ * guard exists to stop.
+ *
+ * On top of that account, the address must match the one given at intake, so a
+ * shared browser does not hand the request to whoever signs in next. Be honest
+ * about what that second check is: with confirmation off it is knowledge of a
+ * string, not possession of a mailbox. It closes the ordinary case (the next
+ * person signs in with their own account) and no more. If email confirmation is
+ * ever switched on, it becomes a real possession factor and sign-up can call
+ * this too. A claim filed with only a mobile number falls to the manual form on
+ * /requests, which is what that form is for.
+ *
+ * THE PURCHASE IS NOT PART OF THIS. An earlier cut co-linked the claim's
+ * auto-matched guarantee, mirroring linkAccount. Owning a filed request is
+ * small and mostly recoverable; owning a purchase unlocks the customer's name,
+ * phone, email and home address on the RA document, and the ability to start an
+ * exchange against it — and the match that assigned it is itself a heuristic on
+ * ZIP and surname. A purchase is asserted by the customer at the link step, not
+ * granted as a side effect of signing in.
+ *
+ * NOT a draft: a draft is not a filed request, and /requests renders a draft
+ * row that links back into the fitting, which is the wrong destination for a v3
+ * anonymous draft. Every other status attaches, including a denied or withdrawn
+ * one — a customer is entitled to see how it ended.
+ *
+ * It never throws and never reports. A login must not fail because a courtesy
+ * did not land.
+ */
+export async function attachIntakeClaim(
+  repo: GuaranteeRepository,
+  userId: string,
+  input: AttachIntakeInput
+): Promise<Claim | null> {
+  const uid = (userId ?? "").trim();
+  const claimId = (input.claimId ?? "").trim();
+  if (!uid || !claimId) return null;
+  if (isStaff(input.role)) return null;
+
+  const claim = await repo.getClaimById(claimId);
+  if (!claim || claim.status === "draft") return null;
+  if (claim.consumerId && claim.consumerId !== uid) return null;
+  if (!sameEmail(claim.contactEmail, input.email)) return null;
+  if (!withinAttachWindow(claim.submittedAt, input.now ?? new Date())) return null;
+
+  return repo.linkClaimToUser(claim.id, uid);
+}
+
+/**
+ * May a staff sign-in delete the claimant cookie sitting on this browser?
+ *
+ * An agent's machine should not carry a customer's claim around for the rest of
+ * the week, so the instinct is to always disarm. That instinct destroys data.
+ * A submitted claim has a CG number the customer is holding, so the cookie is a
+ * convenience and losing it costs a retype. A live DRAFT has no number, no
+ * owner and no other handle of any kind: the cookie is the only thing in the
+ * world that names it. Delete it and the customer standing at the showroom
+ * tablet comes back to a blank form, and the row they half filled becomes an
+ * orphan in the dashboard.
+ *
+ * So: disarm a filed request, leave a draft alone. Nothing to disarm if the
+ * cookie names a claim that no longer exists.
+ */
+export function canDisarmForStaff(claim: Claim | null | undefined): boolean {
+  return Boolean(claim) && claim!.status !== "draft";
+}
+
+/** Both present and equal, ignoring case and surrounding space. */
+function sameEmail(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = (a ?? "").trim().toLowerCase();
+  const right = (b ?? "").trim().toLowerCase();
+  return left.length > 0 && left === right;
+}
+
+/**
+ * Measured from the SUBMISSION, not from the cookie.
+ *
+ * The cookie's own seven days start when the draft opens and are never
+ * refreshed, so a customer who spent six days hunting for the law tag would get
+ * a one-day courtesy while a stranger on a shared device kept the full week.
+ * The window was anchored backwards relative to its own justification.
+ */
+function withinAttachWindow(submittedAt: string | null | undefined, now: Date): boolean {
+  if (!submittedAt) return false;
+  const at = new Date(submittedAt).getTime();
+  if (!Number.isFinite(at)) return false;
+  // A minute of slack on the near side. Today both backends stamp submittedAt
+  // with the app's own clock, so age is never negative; if submitted_at ever
+  // falls back to the column default, a Postgres clock a few seconds ahead
+  // would silently switch this courtesy off for everybody, with no error.
+  const age = now.getTime() - at;
+  return age >= -60_000 && age <= ATTACH_WINDOW_HOURS * 3_600_000;
 }
 
 async function lookupByToken(repo: GuaranteeRepository, token: string) {

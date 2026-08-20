@@ -22,7 +22,13 @@ import {
   PENDING_TOKEN_COOKIE,
   isAuthConfigured,
 } from "../auth/config";
-import { linkAccount, linkPurchase } from "../auth/link";
+import {
+  attachIntakeClaim,
+  canDisarmForStaff,
+  linkAccount,
+  linkPurchase,
+} from "../auth/link";
+import { clearClaimSession, getClaimSession } from "../claim-session";
 import { guardLookupAttempt } from "./lookup-guard";
 import { setActiveGuaranteeCookie } from "../active-guarantee";
 import {
@@ -97,6 +103,7 @@ export async function signInAction(input: {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { ok: false, error: calmMessage(error.message) };
 
+  await pickUpIntakeClaim();
   redirect(await destinationAfterAuth());
 }
 
@@ -257,6 +264,56 @@ export async function linkAccountAction(input: {
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * R-4: pick up the request this browser filed, if there is one, on the way past.
+ *
+ * SIGN-IN ONLY. signUpAction deliberately does not call this; see the note on
+ * attachIntakeClaim for why an account created seconds ago proves nothing.
+ *
+ * Everything about it is silent to the customer: no result is read and no
+ * message is shown. The catch is the point rather than an oversight, a login
+ * must never fail because a courtesy did not land, but it logs, because silence
+ * towards the customer and silence towards whoever runs this are different
+ * things.
+ *
+ * The cookie is spent on a successful attach and left alone otherwise. It is
+ * deliberately NOT cleared on a refusal: the confirmation screen it unlocks is
+ * the only place the CG number is still on display, and a customer who has not
+ * written it down needs that screen to use the manual form. Its own seven days
+ * remain the bound on it, as they were before this feature existed.
+ */
+async function pickUpIntakeClaim(): Promise<void> {
+  try {
+    const session = await getClaimSession();
+    if (!session) return;
+    const viewer = await getViewer();
+    if (!viewer) return;
+
+    const repo = getRepository();
+
+    if (isStaff(viewer.role)) {
+      // Refuse, and disarm only when disarming cannot cost the customer
+      // anything. A submitted claim can always be found again by its CG
+      // number; a live draft has no number yet and no owner, so deleting the
+      // one cookie that names it strands the customer mid-journey and leaves
+      // the row orphaned in the dashboard. See canDisarmForStaff.
+      if (canDisarmForStaff(await repo.getClaimById(session.claimId))) {
+        await clearClaimSession();
+      }
+      return;
+    }
+
+    const attached = await attachIntakeClaim(repo, viewer.userId, {
+      claimId: session.claimId,
+      email: viewer.email,
+      role: viewer.role,
+    });
+    if (attached) await clearClaimSession();
+  } catch (error) {
+    console.warn("[R-4] could not attach the intake claim", error);
+  }
+}
 
 /**
  * Where to send someone who has just authenticated. A parked dashboard token

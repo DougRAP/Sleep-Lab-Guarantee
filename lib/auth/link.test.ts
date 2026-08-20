@@ -1,7 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { MemoryRepository } from "../data/memory-repository";
+import type { Claim } from "../types";
 import { SEED_GUARANTEES } from "../data/seed";
-import { LINK_MISSING, LINK_NO_MATCH, LINK_TAKEN, linkPurchase } from "./link";
+import {
+  LINK_MISSING,
+  LINK_NO_MATCH,
+  LINK_TAKEN,
+  ATTACH_WINDOW_HOURS,
+  attachIntakeClaim,
+  canDisarmForStaff,
+  linkPurchase,
+  type AttachIntakeInput,
+} from "./link";
 
 const demo = SEED_GUARANTEES.find((g) => g.id === "seed-guarantee-demo")!;
 const rivera = SEED_GUARANTEES.find((g) => g.id === "seed-guarantee-rivera")!;
@@ -341,5 +351,264 @@ describe("linkAccount — claim number (CG…)", () => {
       lastName: "Terri Osborne",
     });
     expect(result.ok).toBe(true);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-4 — the account picks up the request it was made for                     */
+/* -------------------------------------------------------------------------- */
+
+// The confirmation screen invites the customer to make an account to follow
+// their request, and the request did not come with them: they had to go to
+// /requests and retype the CG number and their last name, minutes after filing,
+// while the app held the claim's id in a cookie the whole time.
+//
+// The first cut let the cookie alone decide, and the ownership review refused
+// it. The cookie proves a BROWSER filed the claim, not a person, and it is a
+// seven-day bearer token: on a family tablet or a showroom device, the next
+// person to sign in took the request, permanently, because nothing in this app
+// can unlink a claim.
+//
+// So: the purchase is no longer handed over at all, the window is bound to the
+// submission rather than to the draft, and the address on the account must
+// match the one given at intake. Only signInAction calls this. Creating an
+// account proves nothing while email confirmation is off, and the people who
+// know the address typed into a shared browser are exactly the household and
+// the showroom staff the guard exists to stop.
+
+const CLAIM_EMAIL = "terri@rapqa.com";
+
+/** A submitted claim, the only kind this rule will attach. */
+async function submittedClaim(
+  r: MemoryRepository,
+  overrides: {
+    lastName?: string;
+    salesOrderNumber?: string;
+    contactEmail?: string | null;
+  } = {}
+) {
+  const claim = await r.createAnonymousClaim({
+    firstName: "Terri",
+    lastName: overrides.lastName ?? "Osborne",
+    deliveryZip: "28105",
+  });
+  await r.updateClaim(claim.id, {
+    contactEmail:
+      overrides.contactEmail === undefined ? CLAIM_EMAIL : overrides.contactEmail,
+    ...(overrides.salesOrderNumber
+      ? { salesOrderNumber: overrides.salesOrderNumber }
+      : {}),
+  });
+  if (overrides.salesOrderNumber) await r.linkClaimToGuaranteeIfMatched(claim.id);
+  const { claim: submitted } = await r.submitClaim(claim.id);
+  return submitted;
+}
+
+/** A clock N hours past the moment this claim was actually filed. */
+function hoursAfterSubmission(claim: Claim, hours: number): Date {
+  return new Date(new Date(claim.submittedAt!).getTime() + hours * 3_600_000);
+}
+
+/** The shape the sign-in door passes in, with the happy defaults. */
+function attempt(overrides: Partial<AttachIntakeInput> = {}): AttachIntakeInput {
+  return {
+    claimId: "",
+    email: CLAIM_EMAIL,
+    role: "consumer",
+    ...overrides,
+  };
+}
+
+describe("attachIntakeClaim — what the login picks up on its way past", () => {
+  it("attaches the request this browser filed", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+
+    const attached = await attachIntakeClaim(r, USER, attempt({ claimId: claim.id }));
+
+    expect(attached?.id).toBe(claim.id);
+    expect((await r.listClaimsForUser(USER)).map((c) => c.id)).toEqual([claim.id]);
+  });
+
+  it("is idempotent — signing in again changes nothing", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+
+    await attachIntakeClaim(r, USER, attempt({ claimId: claim.id }));
+    const again = await attachIntakeClaim(r, USER, attempt({ claimId: claim.id }));
+
+    expect(again?.id).toBe(claim.id);
+    expect((await r.listClaimsForUser(USER)).length).toBe(1);
+  });
+
+  it("leaves a request that already belongs to someone else alone", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+    await r.linkClaimToUser(claim.id, OTHER_USER);
+
+    expect(await attachIntakeClaim(r, USER, attempt({ claimId: claim.id }))).toBeNull();
+    expect((await r.listClaimsForUser(USER)).length).toBe(0);
+    expect((await r.listClaimsForUser(OTHER_USER)).length).toBe(1);
+  });
+
+  it("refuses a draft — it is not a filed request yet", async () => {
+    const r = new MemoryRepository();
+    const draft = await r.createAnonymousClaim({
+      firstName: "Terri",
+      lastName: "Osborne",
+      deliveryZip: "28105",
+    });
+
+    expect(await attachIntakeClaim(r, USER, attempt({ claimId: draft.id }))).toBeNull();
+  });
+
+  it("refuses a claim id that names nothing, and a missing user", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+    expect(await attachIntakeClaim(r, USER, attempt({ claimId: "nope" }))).toBeNull();
+    expect(await attachIntakeClaim(r, "  ", attempt({ claimId: claim.id }))).toBeNull();
+  });
+
+  it("refuses staff — an agent must never own a customer's request", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+
+    for (const role of ["rap_admin", "dealer"] as const) {
+      expect(
+        await attachIntakeClaim(r, USER, attempt({ claimId: claim.id, role }))
+      ).toBeNull();
+    }
+    expect((await r.listClaimsForUser(USER)).length).toBe(0);
+  });
+});
+
+describe("attachIntakeClaim — the email is the second factor", () => {
+  // A cookie proves a browser, not a person. Requiring the account's email to
+  // match the one given at intake costs the customer nothing to type and closes
+  // the family tablet, the showroom device and the borrowed laptop.
+  it("refuses when the account signing in is not the one that was contacted", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+
+    const attached = await attachIntakeClaim(
+      r,
+      USER,
+      attempt({ claimId: claim.id, email: "someone.else@rapqa.com" })
+    );
+
+    expect(attached).toBeNull();
+    expect((await r.listClaimsForUser(USER)).length).toBe(0);
+  });
+
+  it("ignores case and surrounding space, the way people type", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+
+    const attached = await attachIntakeClaim(
+      r,
+      USER,
+      attempt({ claimId: claim.id, email: "  Terri@RAPQA.com " })
+    );
+
+    expect(attached?.id).toBe(claim.id);
+  });
+
+  it("refuses when either side has no email at all", async () => {
+    const r = new MemoryRepository();
+    // A claim filed with only a mobile number: the manual form is their path.
+    const phoneOnly = await submittedClaim(r, { contactEmail: null });
+    expect(
+      await attachIntakeClaim(r, USER, attempt({ claimId: phoneOnly.id }))
+    ).toBeNull();
+
+    const claim = await submittedClaim(r);
+    expect(
+      await attachIntakeClaim(r, USER, attempt({ claimId: claim.id, email: null }))
+    ).toBeNull();
+  });
+});
+
+describe("attachIntakeClaim — the window belongs to the submission", () => {
+  // The cookie's own seven days are anchored at DRAFT creation and never
+  // refreshed, so a customer who spent six days hunting for the law tag got a
+  // one-day courtesy while a stranger on a shared device got the full week.
+  // This window starts when the request was actually filed.
+  it("attaches inside the window", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+    const later = hoursAfterSubmission(claim, ATTACH_WINDOW_HOURS - 1);
+
+    expect(
+      (await attachIntakeClaim(r, USER, attempt({ claimId: claim.id, now: later })))?.id
+    ).toBe(claim.id);
+  });
+
+  it("refuses once the window has passed", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+    const later = hoursAfterSubmission(claim, ATTACH_WINDOW_HOURS + 1);
+
+    expect(
+      await attachIntakeClaim(r, USER, attempt({ claimId: claim.id, now: later }))
+    ).toBeNull();
+  });
+});
+
+describe("attachIntakeClaim — the purchase is not part of the deal", () => {
+  it("never hands over the guarantee, even when the claim found one", async () => {
+    // The ownership review: owning a filed request is small and mostly
+    // recoverable; owning a PURCHASE unlocks the customer's name, phone, email
+    // and home address on the RA document, and the ability to start an exchange
+    // against it. That is not something a cookie may grant. The manual link
+    // step is where a customer asserts a purchase is theirs.
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r, { lastName: "Demo", salesOrderNumber: "123" });
+    expect(claim.guaranteeId).toBe(demo.id);
+
+    const attached = await attachIntakeClaim(r, USER, attempt({ claimId: claim.id }));
+
+    expect(attached?.id).toBe(claim.id);
+    expect(await r.getGuaranteeForUser(USER)).toBeNull();
+  });
+
+  it("leaves an existing purchase link exactly as it was", async () => {
+    // The first cut re-linked with via "lookup" on every sign-in, downgrading a
+    // dashboard arrival from "token" and costing the customer the receipt-photo
+    // exemption that pre-verification exists to give them.
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r, { lastName: "Demo", salesOrderNumber: "123" });
+    await r.linkGuaranteeToUser(demo.id, USER, "token");
+
+    await attachIntakeClaim(r, USER, attempt({ claimId: claim.id }));
+
+    expect((await r.getGuaranteeForUser(USER))?.linkedVia).toBe("token");
+  });
+});
+
+describe("canDisarmForStaff — what a staff sign-in may delete", () => {
+  // An agent signing in on a showroom tablet must not carry a customer's claim
+  // around, so the first cut always deleted the cookie. Two reviewers caught
+  // the same unrecoverable case: a live draft has no CG number and no owner,
+  // so the cookie is the only thing in the world that names it.
+  it("disarms a filed request — the customer still holds its CG number", async () => {
+    const r = new MemoryRepository();
+    const claim = await submittedClaim(r);
+    expect(canDisarmForStaff(claim)).toBe(true);
+  });
+
+  it("leaves a live draft alone — deleting it strands the customer", async () => {
+    const r = new MemoryRepository();
+    const draft = await r.createAnonymousClaim({
+      firstName: "Terri",
+      lastName: "Osborne",
+      deliveryZip: "28105",
+    });
+    expect(draft.claimNumber).toBeNull();
+    expect(canDisarmForStaff(draft)).toBe(false);
+  });
+
+  it("has nothing to disarm when the cookie names a claim that is gone", () => {
+    expect(canDisarmForStaff(null)).toBe(false);
+    expect(canDisarmForStaff(undefined)).toBe(false);
   });
 });

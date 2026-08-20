@@ -111,6 +111,7 @@ export default async function RequestsPage() {
               />
             )}
 
+            <AddClaimBlock />
             {!guarantee && <UnlinkedHelp />}
 
             {guarantee && (
@@ -143,6 +144,7 @@ export default async function RequestsPage() {
               ))}
             </div>
 
+            <AddClaimBlock />
             {!guarantee && <UnlinkedHelp />}
           </div>
         )}
@@ -152,19 +154,37 @@ export default async function RequestsPage() {
 }
 
 /**
- * The unlinked account's helpers (v3 M-S5): add a claim by CG number, link a
- * purchase, or reach a person. Never a dead-end.
+ * Adding a claim by its CG number, for EVERY account (R-4).
+ *
+ * This used to live inside UnlinkedHelp, so an account with a purchase linked
+ * could not reach it at all: that customer landed on /guarantee, came here, was
+ * told "You have no requests yet", and was offered a button to start a second
+ * one. The app was inviting a duplicate claim onto an agent's desk, and /link
+ * bounces a linked account straight home, so there was no other way in.
+ *
+ * R-4 attaches a request automatically only when the customer signs in with the
+ * address they gave at intake. Every other case lands here, which makes this the
+ * recovery path for the whole feature rather than a corner of the unlinked
+ * screen. On the happy path it reads as "add another", which is also true.
+ */
+function AddClaimBlock() {
+  return (
+    <div className="space-y-3">
+      <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+        Have a claim number? Add it here
+      </h2>
+      <AddClaimForm />
+    </div>
+  );
+}
+
+/**
+ * The unlinked account's helpers (v3 M-S5): link a purchase, or reach a person.
+ * Never a dead-end. The claim-number form moved out to AddClaimBlock.
  */
 function UnlinkedHelp() {
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
-          Have a claim number? Add it here
-        </h2>
-        <AddClaimForm />
-      </div>
-
       <p className="text-[13px] leading-relaxed text-mist">
         Bought a mattress and want your 90 nights here too?{" "}
         <Link
