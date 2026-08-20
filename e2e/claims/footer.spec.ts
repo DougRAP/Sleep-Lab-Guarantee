@@ -12,22 +12,12 @@
 // fixing it.
 
 import { test, expect, type Page } from "@playwright/test";
+import { startAClaim } from "./support";
 
 const PRIMARY = { role: "navigation" as const, name: "Primary" };
 
 function footer(page: Page) {
   return page.getByRole(PRIMARY.role, { name: PRIMARY.name });
-}
-
-/** Identify + contact on the landing page, which redirects into /claim. */
-async function startAClaim(page: Page) {
-  await page.goto("/");
-  await page.getByLabel("First name").fill("Emy");
-  await page.getByLabel("Last name", { exact: true }).fill("Tester");
-  await page.getByLabel("Sales order number").fill("123");
-  await page.getByLabel("Email").fill("emy@rapqa.com");
-  await page.getByRole("button", { name: "Get started" }).click();
-  await page.waitForURL("**/claim");
 }
 
 test.describe("R-1 — the footer reaches the claim journey", () => {

@@ -20,9 +20,11 @@ import {
   earlyPreferenceRequired,
   isBackwardStage,
   isEarlyPreference,
+  plainCalendarDate,
   stageForStep,
   stepForStage,
   validateClaimEntry,
+  validatePurchaseDates,
 } from "../claim-flow";
 import { journeyDay } from "../eligibility";
 import { CLAIM_PHOTO_TARGETS, CONFIRMATION_TERMS, normalizeConfirmations } from "../fitting";
@@ -40,10 +42,13 @@ const TOO_MANY =
 // Same single-line ceiling the fitting's actions apply (audit 2026-07-28 #8).
 const MAX_LINE_CHARS = 200;
 
-/** A plain YYYY-MM-DD, or null. Garbage never throws — it just isn't a date. */
+/**
+ * A date that is well-formed and real. Shares the parser with the rule that
+ * weighs the pair, so the two guards on these fields cannot disagree about
+ * what a date even is (an impossible calendar day like 2026-02-30 is neither).
+ */
 function plainDate(value: string): string | null {
-  const v = value.trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  return plainCalendarDate(value);
 }
 
 function line(value: unknown): string {
@@ -193,6 +198,10 @@ export async function saveClaimDetails(form: FormData): Promise<
       error: "Please add both dates — when you bought it, and when it arrived.",
     };
   }
+  // R-3: the same rule the step applies live, re-applied here because the
+  // server is the authority. A form can be posted without ever rendering.
+  const dates = validatePurchaseDates(purchaseDate, deliveryDate, new Date());
+  if (!dates.ok) return { ok: false, error: dates.error };
 
   const day = journeyDay(deliveryDate, new Date());
   let earlyPreference: EarlyPreference | null = null;

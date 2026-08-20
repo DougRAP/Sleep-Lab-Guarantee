@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConciergeCard } from "../concierge-card";
@@ -22,9 +22,11 @@ import {
   submitAnonymousClaim,
 } from "../../lib/actions/claim";
 import {
+  NO_GRACE,
   dayCountMessage,
   earlyPreferenceRequired,
   previousStage,
+  validatePurchaseDates,
   type ClaimStage,
 } from "../../lib/claim-flow";
 import { CLAIM_PHOTO_TARGETS, CONFIRMATION_TERMS } from "../../lib/fitting";
@@ -187,6 +189,13 @@ export function ClaimFlow(props: ClaimFlowProps) {
   }
 }
 
+/** Today, in the customer's own calendar, as the date inputs want it. */
+function localToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Step 1 — purchase details + the day count (spec §2.4)                      */
 /* -------------------------------------------------------------------------- */
@@ -211,13 +220,39 @@ function DetailsStep({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // R-3: dates that cannot both be true. Live, off the same two pieces of
+  // state, using the same pure rule the server re-applies on save.
+  // NO_GRACE: the reference here is the customer's OWN clock, so the timezone
+  // slack the server needs is zero, and any grace would only wave a typo of
+  // "tomorrow" through. The server keeps its day (lib/claim-flow.ts).
+  const dateIssue = useMemo(
+    () => validatePurchaseDates(purchaseDate, deliveryDate, new Date(), NO_GRACE),
+    [purchaseDate, deliveryDate]
+  );
+
   // The day count reacts as the date is typed — same pure rule the server
   // re-applies on save, so the message can never disagree with the record.
   const dayInfo = useMemo(() => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate.trim())) return null;
     return dayCountMessage(deliveryDate.trim());
   }, [deliveryDate]);
-  const needsEarlyChoice = dayInfo ? earlyPreferenceRequired(dayInfo.day) : false;
+
+  // Both of these stand down while the pair is impossible. A delivery in the
+  // future makes journeyDay negative, so without this the screen would announce
+  // "night -3" and offer the before-night-31 choice underneath a correction.
+  // `day >= 0` is belt to that brace: a night count below zero must never
+  // reach the screen, whatever the rule's tolerance is set to.
+  const showDayCount = Boolean(dateIssue.ok && dayInfo && dayInfo.day >= 0);
+  const needsEarlyChoice = showDayCount
+    ? earlyPreferenceRequired(dayInfo!.day)
+    : false;
+
+  // Belt and braces on the pickers. The purchase bound needs no clock, so it is
+  // safe to render on the server; today's date is read after mount, because the
+  // server's calendar day and the customer's need not agree.
+  const [todayLocal, setTodayLocal] = useState("");
+  const refreshToday = useCallback(() => setTodayLocal(localToday()), []);
+  useEffect(refreshToday, [refreshToday]);
 
   function submit() {
     if (pending) return;
@@ -269,22 +304,40 @@ function DetailsStep({
       <Field
         label="Date of purchase"
         type="date"
+        // Bound by the delivery date only while the pair holds together. Once
+        // it does not, the message names this field, and a picker greyed out by
+        // the very date being questioned would trap the customer in it.
+        max={(dateIssue.ok ? deliveryDate : "") || todayLocal || undefined}
+        aria-invalid={!dateIssue.ok && dateIssue.field === "purchase" ? true : undefined}
+        onFocus={refreshToday}
         value={purchaseDate}
         onChange={(e) => setPurchaseDate(e.target.value)}
       />
       <Field
         label="Date of delivery"
         type="date"
+        // Read again on focus: this is a bedtime product, and a tab left open
+        // across midnight would otherwise bound the picker to yesterday.
+        max={todayLocal || undefined}
+        aria-invalid={!dateIssue.ok && dateIssue.field === "delivery" ? true : undefined}
+        onFocus={refreshToday}
         value={deliveryDate}
         onChange={(e) => setDeliveryDate(e.target.value)}
         hint="When it was delivered to you."
       />
 
-      {dayInfo && (
-        <ConciergeCard>
-          {dayInfo.message}
-        </ConciergeCard>
-      )}
+      {/* One card, two jobs. A correction and a night count must never be on
+          screen together: the count would be nonsense for the pair that earned
+          the correction. */}
+      <div aria-live="polite">
+        {!dateIssue.ok ? (
+          // Keyed so React remounts rather than swapping the text in place:
+          // otherwise the card's settle animation never plays on the change.
+          <ConciergeCard key="correction">{dateIssue.error}</ConciergeCard>
+        ) : showDayCount ? (
+          <ConciergeCard key="day-count">{dayInfo!.message}</ConciergeCard>
+        ) : null}
+      </div>
 
       {needsEarlyChoice && (
         <div className="space-y-2" role="radiogroup" aria-label="How to handle the early start">
@@ -308,9 +361,11 @@ function DetailsStep({
       </div>
 
       <StepActions onBack={onBack} backLabel={backLabel}>
+        {/* Only the way forward closes. StepActions keeps Back live, so nobody
+            is ever stranded on a screen they cannot satisfy. */}
         <Button
           onClick={submit}
-          disabled={pending || (needsEarlyChoice && !early)}
+          disabled={pending || !dateIssue.ok || (needsEarlyChoice && !early)}
         >
           Next — a few confirmations
         </Button>

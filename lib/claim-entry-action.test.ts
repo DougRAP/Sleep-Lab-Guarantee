@@ -256,3 +256,46 @@ describe("startClaimAction — coming back to the front door (wizard)", () => {
     expect(sessionClaimId).not.toBe(first);
   });
 });
+
+describe("saveClaimDetails — dates that cannot both be true (R-3)", () => {
+  // The client refuses these too, but the server is the authority: a form can
+  // be posted without ever rendering the step.
+  it("refuses a delivery date in the future", async () => {
+    await start(entryForm());
+    // The suite's clock is pinned to 2027-01-01.
+    const res = await saveClaimDetails(
+      detailsForm({ purchaseDate: "2026-12-01", deliveryDate: "2027-02-10" })
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/delivery date/i);
+
+    const claim = (await repo.getClaimById(sessionClaimId!))!;
+    expect(claim.deliveryDate).toBeNull();
+    expect(claim.step).toBe("items");
+  });
+
+  it("refuses a purchase date after the delivery date (Emy's case)", async () => {
+    await start(entryForm());
+    const res = await saveClaimDetails(
+      detailsForm({ purchaseDate: "2026-08-04", deliveryDate: "2026-07-29" })
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/purchase date/i);
+  });
+
+  it("still lets an ordinary pair through, and still counts the nights", async () => {
+    await start(entryForm());
+    const res = await saveClaimDetails(detailsForm());
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.day).toBe(40);
+  });
+
+  it("does not block a request that is simply past the window", async () => {
+    // R-3 is a typo guard. Past night 90 still submits, as v3 requires.
+    await start(entryForm());
+    const res = await saveClaimDetails(
+      detailsForm({ purchaseDate: "2026-01-01", deliveryDate: "2026-01-05" })
+    );
+    expect(res.ok).toBe(true);
+  });
+});

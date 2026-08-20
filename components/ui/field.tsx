@@ -31,6 +31,10 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
             // 16px minimum: anything smaller makes iOS Safari auto-zoom on
             // focus and leave the page zoomed (review 2026-07-22).
             "h-12 w-full rounded-xl border bg-white/[0.04] px-4 text-[16px] text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40",
+            // Firefox paints its own red glow on :user-invalid, which reaches
+            // any input carrying min/max. DESIGN.md forbids red validation, so
+            // the browser's version goes too — ours is apricot or nothing.
+            "[&:user-invalid]:shadow-none [&:-moz-ui-invalid]:shadow-none",
             error ? "border-dawn/70" : "border-[var(--line)]",
             className
           )}

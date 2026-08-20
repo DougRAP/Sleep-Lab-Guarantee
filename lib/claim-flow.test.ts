@@ -10,10 +10,13 @@ import {
   dayCountMessage,
   dayCountState,
   earlyPreferenceRequired,
+  NO_GRACE,
   isBackwardStage,
+  plainCalendarDate,
   previousStage,
   stageForStep,
   stepForStage,
+  validatePurchaseDates,
   validateClaimEntry,
   windowOpensOn,
 } from "./claim-flow";
@@ -291,5 +294,163 @@ describe("stepping back is the only move the stage action may make", () => {
       const prev = previousStage(stage);
       if (prev) expect(isBackwardStage(stage, prev)).toBe(true);
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-3 — dates that cannot both be true                                       */
+/* -------------------------------------------------------------------------- */
+
+// Emy, 2026-08-19: filed with purchase 08/04/2026 and delivery 07/29/2026 —
+// delivered six days before it was bought — and the app answered "night 21".
+// Doug: "the date of the claim should not be before the delivery date" and
+// "the date of delivery should not be greater than today's date".
+//
+// A typo guard, not a policy gate: nothing here stops a request from being
+// SENT. Before night 31 and past night 90 both still submit.
+
+const TODAY = "2026-08-20";
+
+describe("purchase and delivery dates", () => {
+  it("accepts an ordinary pair", () => {
+    expect(validatePurchaseDates("2026-06-29", "2026-07-06", TODAY).ok).toBe(true);
+  });
+
+  it("accepts delivery on the same day it was bought", () => {
+    expect(validatePurchaseDates("2026-07-06", "2026-07-06", TODAY).ok).toBe(true);
+  });
+
+  it("accepts a delivery that happened today", () => {
+    expect(validatePurchaseDates("2026-08-01", TODAY, TODAY).ok).toBe(true);
+  });
+
+  it("tolerates one day ahead, because timezones", () => {
+    // journeyDay compares the typed calendar date against the RUNTIME's local
+    // one. A customer in a zone ahead of the server would otherwise be told
+    // that this morning's delivery happens tomorrow.
+    expect(validatePurchaseDates("2026-08-01", "2026-08-21", TODAY).ok).toBe(true);
+  });
+
+  it("refuses a delivery further ahead than that", () => {
+    const check = validatePurchaseDates("2026-08-01", "2026-08-22", TODAY);
+    expect(check.ok).toBe(false);
+    if (!check.ok) expect(check.error).toMatch(/delivery date/i);
+  });
+
+  it("refuses a purchase that lands after the delivery (Emy, 2026-08-19)", () => {
+    const check = validatePurchaseDates("2026-08-04", "2026-07-29", TODAY);
+    expect(check.ok).toBe(false);
+    if (!check.ok) expect(check.error).toMatch(/purchase date/i);
+  });
+
+  it("refuses one day of it, not just the obvious gaps", () => {
+    expect(validatePurchaseDates("2026-07-07", "2026-07-06", TODAY).ok).toBe(false);
+  });
+
+  it("names the delivery first when both are wrong", () => {
+    // The future delivery is the one that also breaks the night count, so it
+    // is the one worth pointing at.
+    const check = validatePurchaseDates("2026-09-30", "2026-08-25", TODAY);
+    expect(check.ok).toBe(false);
+    if (!check.ok) expect(check.error).toMatch(/delivery date/i);
+  });
+
+  it("says nothing about a pair it cannot compare", () => {
+    // "Please add both dates" already owns the empty case; this rule only
+    // speaks when there are two real dates to weigh against each other.
+    expect(validatePurchaseDates("", "", TODAY).ok).toBe(true);
+    expect(validatePurchaseDates("2026-07-06", "", TODAY).ok).toBe(true);
+    expect(validatePurchaseDates("", "2026-07-06", TODAY).ok).toBe(true);
+    expect(validatePurchaseDates("not-a-date", "2026-07-06", TODAY).ok).toBe(true);
+  });
+
+  it("never speaks in alarm language", () => {
+    const bad = [
+      validatePurchaseDates("2026-08-01", "2026-08-30", TODAY),
+      validatePurchaseDates("2026-08-04", "2026-07-29", TODAY),
+    ];
+    for (const check of bad) {
+      expect(check.ok).toBe(false);
+      if (!check.ok) {
+        expect(check.error).not.toMatch(/invalid|error|required|must|cannot/i);
+        expect(check.error).not.toContain("!");
+      }
+    }
+  });
+});
+
+describe("the grace belongs to the server, not the browser", () => {
+  // The reviews converged on this: with the grace applied client-side, where
+  // the reference IS the customer's own clock, a delivery of exactly tomorrow
+  // passed. journeyDay then returned -1, dayCountState read it as "early", and
+  // the screen announced "night -1" over the before-night-31 choice — a smaller
+  // version of what Emy was shown, and exactly what R-3 exists to stop.
+  it("tolerates tomorrow when the reference is a server clock", () => {
+    expect(validatePurchaseDates("2026-08-01", "2026-08-21", TODAY).ok).toBe(true);
+  });
+
+  it("refuses tomorrow when the reference is the customer's own clock", () => {
+    const check = validatePurchaseDates("2026-08-01", "2026-08-21", TODAY, NO_GRACE);
+    expect(check.ok).toBe(false);
+    if (!check.ok) expect(check.field).toBe("delivery");
+  });
+
+  it("still accepts today with no grace at all", () => {
+    expect(validatePurchaseDates("2026-08-01", TODAY, TODAY, NO_GRACE).ok).toBe(true);
+  });
+
+  it("names the field its message is about, so the input can be marked", () => {
+    const future = validatePurchaseDates("2026-08-01", "2026-08-30", TODAY);
+    const backwards = validatePurchaseDates("2026-08-04", "2026-07-29", TODAY);
+    if (!future.ok) expect(future.field).toBe("delivery");
+    if (!backwards.ok) expect(backwards.field).toBe("purchase");
+  });
+});
+
+describe("dates that are well-formed but not real", () => {
+  // Date.UTC rolls over silently, so without a round trip "2026-02-30" would be
+  // weighed as March 2: a purchase of 2026-02-30 against a delivery of
+  // 2026-03-01 reads as ordered and would have been refused.
+  it("refuses to parse a day that does not exist", () => {
+    expect(plainCalendarDate("2026-02-30")).toBeNull();
+    expect(plainCalendarDate("2026-13-45")).toBeNull();
+    expect(plainCalendarDate("2026-00-00")).toBeNull();
+  });
+
+  it("refuses a year JavaScript would quietly move to the 1900s", () => {
+    expect(plainCalendarDate("0099-01-01")).toBeNull();
+    expect(plainCalendarDate("0026-08-01")).toBeNull();
+  });
+
+  it("keeps the real ones, leap day included", () => {
+    expect(plainCalendarDate("2028-02-29")).toBe("2028-02-29");
+    expect(plainCalendarDate("2026-02-28")).toBe("2026-02-28");
+    expect(plainCalendarDate(" 2026-07-06 ")).toBe("2026-07-06");
+  });
+
+  it("stays silent on a pair it cannot parse, rather than guessing", () => {
+    expect(validatePurchaseDates("2026-02-30", "2026-03-01", TODAY).ok).toBe(true);
+    expect(validatePurchaseDates("2026-03-01", "2026-13-45", TODAY).ok).toBe(true);
+  });
+});
+
+describe("calendar edges the arithmetic must survive", () => {
+  it("crosses a leap day", () => {
+    expect(validatePurchaseDates("2028-02-28", "2028-02-29", "2028-03-05").ok).toBe(true);
+    expect(validatePurchaseDates("2028-03-01", "2028-02-29", "2028-03-05").ok).toBe(false);
+  });
+
+  it("crosses a year boundary", () => {
+    expect(validatePurchaseDates("2025-12-31", "2026-01-01", TODAY).ok).toBe(true);
+    expect(validatePurchaseDates("2026-01-01", "2025-12-31", TODAY).ok).toBe(false);
+  });
+
+  it("crosses a month end", () => {
+    expect(validatePurchaseDates("2026-07-31", "2026-08-01", TODAY).ok).toBe(true);
+    expect(validatePurchaseDates("2026-08-01", "2026-07-31", TODAY).ok).toBe(false);
+  });
+
+  it("spans decades without complaint", () => {
+    expect(validatePurchaseDates("1975-03-04", "1990-06-01", TODAY).ok).toBe(true);
   });
 });

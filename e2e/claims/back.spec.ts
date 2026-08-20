@@ -12,22 +12,12 @@
 // value once, with no polling, and prove it again with the round trips slowed.
 
 import { test, expect, type Page } from "@playwright/test";
+import { startAClaim } from "./support";
 
 const MODEL = "CM-QUEEN-01";
 
 function backControl(page: Page) {
   return page.getByRole("button", { name: /Back/ });
-}
-
-/** Identify + contact on the landing page, which redirects into /claim. */
-async function startAClaim(page: Page) {
-  await page.goto("/");
-  await page.getByLabel("First name").fill("Emy");
-  await page.getByLabel("Last name", { exact: true }).fill("Tester");
-  await page.getByLabel("Sales order number").fill("123");
-  await page.getByLabel("Email").fill("emy@rapqa.com");
-  await page.getByRole("button", { name: "Get started" }).click();
-  await page.waitForURL("**/claim");
 }
 
 /** Fill the purchase details and move on to the qualification checkboxes. */
