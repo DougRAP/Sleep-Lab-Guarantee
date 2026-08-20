@@ -3,6 +3,8 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
+import { MAX_STORY_CHARS } from "../../lib/claim-flow";
+import { ProseField } from "../ui/prose-field";
 import { StepActions } from "../ui/step-actions";
 import { StillNeeded } from "./still-needed";
 import { saveIntake, sendIntakeMessage } from "../../lib/actions/fitting";
@@ -106,20 +108,22 @@ function GuidedIntake({
     <form onSubmit={submit} className="space-y-6">
       <ConciergeCard>{greeting}</ConciergeCard>
 
-      <Prose
+      <ProseField
         label="Your experience"
         hint="Whatever comes to mind — there's no wrong way to say it."
         value={reason}
         onChange={setReason}
         placeholder="It's been firmer than I expected, and my shoulder wakes me…"
+        maxLength={MAX_STORY_CHARS}
       />
 
-      <Prose
+      <ProseField
         label="What you'd rather have"
         hint="A feel, a model, or just a direction — softer, firmer, something else."
         value={preference}
         onChange={setPreference}
         placeholder="Something softer through the shoulder, same size…"
+        maxLength={MAX_STORY_CHARS}
       />
 
       <StillNeeded items={stillNeeded} />
@@ -142,44 +146,6 @@ function GuidedIntake({
         </button>
       )}
     </form>
-  );
-}
-
-function Prose({
-  label,
-  hint,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  hint: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  const id = label.toLowerCase().replace(/\s+/g, "-");
-  return (
-    <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block font-mono text-[11px] uppercase tracking-[0.12em] text-mist"
-      >
-        {label}
-      </label>
-      <textarea
-        id={id}
-        rows={4}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        aria-describedby={`${id}-hint`}
-        className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-4 py-3 text-[16px] leading-relaxed text-cloud outline-none transition-colors placeholder:text-mist/60 focus-visible:border-dawn/70 focus-visible:ring-2 focus-visible:ring-dawn/40"
-      />
-      <p id={`${id}-hint`} className="text-[13px] text-mist">
-        {hint}
-      </p>
-    </div>
   );
 }
 

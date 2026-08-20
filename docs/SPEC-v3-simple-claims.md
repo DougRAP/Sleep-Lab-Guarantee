@@ -31,6 +31,10 @@ Reuse the existing fitting step components wherever noted. Design stays locked (
      - **< 31 days:** allow submission. Advise it's not quite 31 nights yet, and ask the customer to choose: **auto-submit when day 31 is reached**, or **request a call from an agent**. Choice stored on the claim (`early_preference`).
      - **31–90:** "you're in your exchange window, day {n} of 90."
      - **> 90 days:** calm warning that the 90-night window has passed; allow submission anyway (agent adjudicates) and suggest calling.
+4b. **In their own words — optional** *(added 2026-08-21, R-8; Emy's review, Adrian's call. NOT from the Doug call: he walked her sheet item by item and this one never came up, so it is an addition to this section rather than something it always said.)* — two optional long-form fields on the same details step, reusing the fitting's control: **"Your experience"** and **"What you'd rather have"**, storing `reason_experience` and `preferred_replacement`.
+   - Both detail views already rendered these and nothing filled them, so every v3 request reached the agent as ticked checkboxes and the line "Nothing recorded here". For a product whose premise is that a human decides each case, that was the costliest thing missing.
+   - Neither is required and neither gates the step. Bounded at `MAX_STORY_CHARS` on the server and on the control.
+
 5. **Qualification checkboxes** *(reuse `confirmations-step` / `CONFIRMATION_TERMS`, copy updated to CMFG-90-CITY-GS)* — all required before submit:
    - 31+ nights since delivery · not more than 90 nights
    - No stains, odors, or damage; like-new condition

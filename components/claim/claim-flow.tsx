@@ -1,13 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
 import { Field } from "../ui/field";
 import { FrostedCard } from "../ui/frosted-card";
+import { ProseField } from "../ui/prose-field";
 import { StepActions } from "../ui/step-actions";
 import { Stat } from "../ui/stat";
 import { ConfirmRow } from "../fitting/confirm-row";
@@ -22,9 +30,10 @@ import {
   submitAnonymousClaim,
 } from "../../lib/actions/claim";
 import {
-  NO_GRACE,
   dayCountMessage,
   earlyPreferenceRequired,
+  MAX_STORY_CHARS,
+  NO_GRACE,
   previousStage,
   validatePurchaseDates,
   type ClaimStage,
@@ -45,6 +54,9 @@ export interface ClaimFlowProps {
     /** True when the entry form already captured the order number. */
     hasSalesOrder: boolean;
     earlyPreference: EarlyPreference | null;
+    /** R-8: the customer's own account, both optional. */
+    reasonExperience: string;
+    preferredReplacement: string;
   };
   confirmations: ConfirmationKey[];
   protectorUsed: boolean;
@@ -216,6 +228,19 @@ function DetailsStep({
   const [purchaseDate, setPurchaseDate] = useState(initial.purchaseDate);
   const [deliveryDate, setDeliveryDate] = useState(initial.deliveryDate);
   const [salesOrderNumber, setSalesOrderNumber] = useState("");
+  // R-8. Optional, and deliberately outside every gate on this screen: the
+  // dates can be impossible while these stay usable, because a customer
+  // correcting a typo should not lose the sentence they were writing.
+  const [reason, setReason] = useState(initial.reasonExperience);
+  const [preference, setPreference] = useState(initial.preferredReplacement);
+  // Mirrors of the two above, read at submit time instead of closure time.
+  // Nothing disables these while a save is in flight, and useTransition keeps
+  // the page interactive on purpose, so a customer who keeps typing during a
+  // slow round trip had the rest of their sentence dropped: it reached neither
+  // the FormData nor the state Back restores. R-2 was refuted once on exactly
+  // this, on this screen; this is the same failure on the longest field on it.
+  const latest = useRef({ reason, preference });
+  latest.current = { reason, preference };
   const [early, setEarly] = useState<EarlyPreference | null>(initial.earlyPreference);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -262,6 +287,8 @@ function DetailsStep({
       form.set("purchaseDate", purchaseDate);
       form.set("deliveryDate", deliveryDate);
       form.set("salesOrderNumber", salesOrderNumber);
+      form.set("reasonExperience", latest.current.reason);
+      form.set("preferredReplacement", latest.current.preference);
       if (needsEarlyChoice && early) form.set("earlyPreference", early);
       const res = await saveClaimDetails(form);
       if (res.ok) {
@@ -273,6 +300,12 @@ function DetailsStep({
           hasSalesOrder: initial.hasSalesOrder || Boolean(salesOrderNumber.trim()),
           // Mirrors the server: normalized to null once the date is in window.
           earlyPreference: needsEarlyChoice ? early : null,
+          // R-2's invariant: Back must show what they typed, and these are
+          // the longest thing on the screen to lose. Read from the mirror, so
+          // Back shows what was actually sent rather than what had been typed
+          // by the time the button was pressed.
+          reasonExperience: latest.current.reason,
+          preferredReplacement: latest.current.preference,
         });
       } else setError(res.error);
     });
@@ -281,9 +314,46 @@ function DetailsStep({
   return (
     <div className="space-y-6">
       <ConciergeCard>
-        A few details about the mattress itself — they're on the tag at the foot
-        of the bed and on your receipt.
+        Tell me how it&apos;s been, if you&apos;d like. Then a few details about
+        the mattress itself — they&apos;re on the tag at the foot of the bed and
+        on your receipt.
       </ConciergeCard>
+
+      {/* R-8 (Emy): both detail views render the customer's own words and
+          nothing filled them, so the agent deciding the case saw ticked boxes
+          and "Nothing recorded here".
+          FIRST on the screen, not last, for two reasons. It is what the
+          customer arrived wanting to say, and it needs nothing but them, while
+          everything below needs a receipt or a torch at the foot of the bed; an
+          abandoned draft then still carries the most useful thing on it. And it
+          puts the two things that can close the way forward, the dates and the
+          early choice, back within sight of the button they disable.
+          Optional, and never a gate. */}
+      <div className="space-y-3">
+        {/* Said once, above both, the way the qualification step marks the
+            protector line. In a hint it arrives after the box, which is after
+            the customer has already decided how much is expected of them. */}
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+          In your own words, if you&apos;d like — both optional
+        </p>
+        <ProseField
+          label="Your experience"
+          hint="Optional. Whatever comes to mind, and there's no wrong way to say it. A sentence or two is plenty."
+          value={reason}
+          onChange={setReason}
+          placeholder="It's been firmer than I expected, and my shoulder wakes me…"
+          maxLength={MAX_STORY_CHARS}
+        />
+
+        <ProseField
+          label="What you'd rather have"
+          hint="Optional. A feel, a model, or just a direction: softer, firmer, something else."
+          value={preference}
+          onChange={setPreference}
+          placeholder="Something softer through the shoulder, same size…"
+          maxLength={MAX_STORY_CHARS}
+        />
+      </div>
 
       <Field
         label="Model number"

@@ -36,6 +36,7 @@ import {
 } from "../concierge";
 import { resolveSetting } from "../app-settings";
 import { capInput } from "../chat-quota";
+import { MAX_STORY_CHARS } from "../claim-flow";
 import { enforceRateLimit } from "../rate-limit";
 import type {
   Claim,
@@ -56,7 +57,6 @@ const NO_DRAFT = "We couldn't find your request. Start again and we'll pick it b
 
 // Audit 2026-07-28 (#8): length ceilings on free-text fields written from the
 // client, so a script can't store megabytes per field. Generous for real input.
-const MAX_STORY_CHARS = 2000; // reason / preferred replacement (a paragraph)
 const MAX_LINE_CHARS = 200; // phone, email, model number (a single line)
 const MAX_ADDRESS_CHARS = 300; // a delivery address
 

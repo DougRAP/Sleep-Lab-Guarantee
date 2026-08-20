@@ -63,6 +63,8 @@ export default async function ClaimPage() {
               deliveryDate: claim.deliveryDate ?? "",
               hasSalesOrder: Boolean(claim.salesOrderNumber?.trim()),
               earlyPreference: claim.earlyPreference ?? null,
+              reasonExperience: claim.reasonExperience ?? "",
+              preferredReplacement: claim.preferredReplacement ?? "",
             }}
             confirmations={claim.confirmations ?? []}
             protectorUsed={claim.protectorUsed ?? false}

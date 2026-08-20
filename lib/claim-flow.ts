@@ -263,6 +263,49 @@ export function validatePurchaseDates(
   return OK;
 }
 
+/* -------------------------------------------------------------------------- */
+/* R-8 - the customer's own account of the problem                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How much of a paragraph the record holds.
+ *
+ * One constant for both flows. The fitting had its own copy of this number in
+ * lib/actions/fitting.ts and the claim added a second; two literals agreeing by
+ * luck is not agreement. The control enforces it too (ProseField's maxLength),
+ * so what the customer can see in the box is what the record keeps: an earlier
+ * cut capped only on save, which meant Back cheerfully re-displayed text the
+ * server had already thrown away.
+ */
+export const MAX_STORY_CHARS = 2000;
+
+/**
+ * What the customer wrote, or nothing.
+ *
+ * Emy's sheet, on a real claim: both detail views render "In your words" and
+ * the v3 flow had no field feeding them, so every request reached the agent as
+ * ticked boxes and the line "Nothing recorded here". For a product whose whole
+ * premise is that a human decides each case, that was the costliest thing
+ * missing.
+ *
+ * Whitespace alone is nothing. Both views test the field with .trim() before
+ * deciding whether to render the section, so a stored " " would open an empty
+ * section, which reads worse than the honest "Nothing recorded here" it would
+ * replace. The edges are trimmed and the inside is left exactly as typed:
+ * their paragraph breaks are theirs, and someone is going to read this.
+ *
+ * Length is not this rule's business: MAX_STORY_CHARS above is, and both flows
+ * apply it the same way round, trim first and then cap. The order matters more
+ * than it looks. Capping first and trimming after loses the tail of a paragraph
+ * that happened to start with a blank line, which is what a paste out of Notes
+ * or Word looks like, and the two flows would then store different things for
+ * identical typing.
+ */
+export function inTheirWords(value: string | null | undefined): string | null {
+  const said = (value ?? "").trim();
+  return said.length > 0 ? said : null;
+}
+
 /**
  * A date that is both well-formed AND real, or null.
  *

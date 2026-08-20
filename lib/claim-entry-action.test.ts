@@ -6,6 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRepository } from "./data/memory-repository";
+import { MAX_STORY_CHARS } from "./claim-flow";
 import { CONFIRMATION_KEYS } from "./fitting";
 import { isClaimNumber } from "./ra";
 
@@ -297,5 +298,80 @@ describe("saveClaimDetails — dates that cannot both be true (R-3)", () => {
       detailsForm({ purchaseDate: "2026-01-01", deliveryDate: "2026-01-05" })
     );
     expect(res.ok).toBe(true);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-8 — the customer's own account, through the action                       */
+/* -------------------------------------------------------------------------- */
+
+// The pure rule has its own tests in lib/claim-flow.test.ts. These are about
+// the integration R-8 actually adds: that saveClaimDetails persists the two
+// fields at all, that whitespace is stored as nothing rather than opening an
+// empty section on the agent's screen, and that the paragraph bound is applied
+// server-side, where a hand-rolled POST cannot get past it.
+
+describe("R-8 — what the customer wrote reaches the record", () => {
+  it("persists both fields", async () => {
+    await start(entryForm());
+    const said = "It's firmer than I expected, and my shoulder wakes me.";
+    const wanted = "Something softer through the shoulder.";
+
+    const res = await saveClaimDetails(
+      detailsForm({ reasonExperience: said, preferredReplacement: wanted })
+    );
+    expect(res.ok).toBe(true);
+
+    const claim = (await repo.getClaimById(sessionClaimId!))!;
+    expect(claim.reasonExperience).toBe(said);
+    expect(claim.preferredReplacement).toBe(wanted);
+  });
+
+  it("stores nothing when they wrote nothing", async () => {
+    // Both detail views decide whether to render on truthiness or .trim(), so
+    // a stored " " would open a section with nothing in it, which reads worse
+    // than the honest "Nothing recorded here" it would replace.
+    await start(entryForm());
+
+    await saveClaimDetails(
+      detailsForm({ reasonExperience: "   ", preferredReplacement: "" })
+    );
+
+    const claim = (await repo.getClaimById(sessionClaimId!))!;
+    expect(claim.reasonExperience).toBeNull();
+    expect(claim.preferredReplacement).toBeNull();
+  });
+
+  it("keeps their paragraph breaks and trims only the edges", async () => {
+    await start(entryForm());
+    const said = `Too firm through the shoulder.
+
+My partner is fine with it.`;
+
+    await saveClaimDetails(detailsForm({ reasonExperience: `  ${said}  ` }));
+
+    expect((await repo.getClaimById(sessionClaimId!))!.reasonExperience).toBe(said);
+  });
+
+  it("bounds a paragraph on the server, trimming before it cuts", async () => {
+    // The control carries maxLength, but the control is not the authority: a
+    // posted form never rendered it. Trim first, then cap, the same way round
+    // as the fitting, or a paste that begins with a blank line loses its tail.
+    await start(entryForm());
+    const long = "x".repeat(MAX_STORY_CHARS + 500);
+
+    await saveClaimDetails(detailsForm({ reasonExperience: `   ${long}` }));
+
+    const claim = (await repo.getClaimById(sessionClaimId!))!;
+    expect(claim.reasonExperience).toHaveLength(MAX_STORY_CHARS);
+  });
+
+  it("is optional: neither field can hold the step closed", async () => {
+    await start(entryForm());
+    const res = await saveClaimDetails(detailsForm());
+    expect(res.ok).toBe(true);
+    const claim = (await repo.getClaimById(sessionClaimId!))!;
+    expect(claim.reasonExperience).toBeNull();
+    expect(claim.step).toBe("confirmations");
   });
 });

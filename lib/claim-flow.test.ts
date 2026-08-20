@@ -10,6 +10,8 @@ import {
   dayCountMessage,
   dayCountState,
   earlyPreferenceRequired,
+  inTheirWords,
+  MAX_STORY_CHARS,
   NO_GRACE,
   isBackwardStage,
   plainCalendarDate,
@@ -452,5 +454,63 @@ describe("calendar edges the arithmetic must survive", () => {
 
   it("spans decades without complaint", () => {
     expect(validatePurchaseDates("1975-03-04", "1990-06-01", TODAY).ok).toBe(true);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-8 — the customer's own account of the problem                            */
+/* -------------------------------------------------------------------------- */
+
+// Emy's screenshot of claim CGAHAZA4:
+//
+//   IN YOUR WORDS
+//   Nothing recorded here.
+//
+// Both detail views render the customer's own words and nothing ever fills
+// them, so the agent deciding the case gets ticked boxes and not one line about
+// what is actually wrong with the mattress.
+//
+// Both views read the field with .trim(), so whitespace alone must be stored as
+// nothing: otherwise the section renders, empty, which is worse than the honest
+// "Nothing recorded here" it replaces.
+
+describe("inTheirWords - what counts as recorded", () => {
+  it("keeps what they wrote", () => {
+    expect(inTheirWords("It's firmer than I expected.")).toBe(
+      "It's firmer than I expected."
+    );
+  });
+
+  it("trims the edges, because a stray newline is not part of what they said", () => {
+    expect(inTheirWords(`  Too firm.
+ `)).toBe("Too firm.");
+  });
+
+  it("treats nothing, and whitespace alone, as nothing at all", () => {
+    expect(inTheirWords("")).toBeNull();
+    expect(inTheirWords("   ")).toBeNull();
+    expect(inTheirWords(`
+	  
+`)).toBeNull();
+    expect(inTheirWords(null)).toBeNull();
+    expect(inTheirWords(undefined)).toBeNull();
+  });
+
+  it("keeps the inside of what they wrote exactly as typed", () => {
+    // Their line breaks are theirs. An agent reads this.
+    const said = `Too firm through the shoulder.
+
+My partner is fine with it.`;
+    expect(inTheirWords(`  ${said}  `)).toBe(said);
+  });
+
+  it("imposes no length of its own — the bound is MAX_STORY_CHARS, elsewhere", () => {
+    // This rule trims and nothing more. Both write paths cap at
+    // MAX_STORY_CHARS, and both controls carry it as maxLength, so a long
+    // account IS cut; it is cut where the customer can watch it happen rather
+    // than silently on save. Keeping the two jobs apart is the point: the cap
+    // is policy and belongs with the flows, the trim is what "recorded" means.
+    const long = "x".repeat(MAX_STORY_CHARS + 3000);
+    expect(inTheirWords(long)).toBe(long);
   });
 });

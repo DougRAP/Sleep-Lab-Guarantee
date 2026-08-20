@@ -18,6 +18,8 @@ import {
   claimReadyToSubmit,
   dayCountMessage,
   earlyPreferenceRequired,
+  inTheirWords,
+  MAX_STORY_CHARS,
   isBackwardStage,
   isEarlyPreference,
   plainCalendarDate,
@@ -26,6 +28,7 @@ import {
   validateClaimEntry,
   validatePurchaseDates,
 } from "../claim-flow";
+import { capInput } from "../chat-quota";
 import { journeyDay } from "../eligibility";
 import { CLAIM_PHOTO_TARGETS, CONFIRMATION_TERMS, normalizeConfirmations } from "../fitting";
 import { photoUploadIssue, uploadClaimPhoto } from "../storage";
@@ -53,6 +56,17 @@ function plainDate(value: string): string | null {
 
 function line(value: unknown): string {
   return String(value ?? "").trim().slice(0, MAX_LINE_CHARS);
+}
+
+/**
+ * R-8: a paragraph, not a line. Trimmed first and capped after, exactly as the
+ * fitting does for the identical pair (lib/actions/fitting.ts), off the one
+ * shared constant. The other way round loses the tail of anything that arrives
+ * with leading whitespace, which is what a paste looks like.
+ */
+function story(value: unknown): string | null {
+  const said = inTheirWords(String(value ?? ""));
+  return said === null ? null : capInput(said, MAX_STORY_CHARS);
 }
 
 type ClaimContext =
@@ -185,6 +199,10 @@ export async function saveClaimDetails(form: FormData): Promise<
   const deliveryDate = plainDate(line(form.get("deliveryDate")));
   const salesOrderNumber = line(form.get("salesOrderNumber"));
   const earlyRaw = line(form.get("earlyPreference"));
+  // R-8: the customer's own account. Optional, so it is never validated and
+  // never blocks; inTheirWords decides what counts as recorded.
+  const reasonExperience = story(form.get("reasonExperience"));
+  const preferredReplacement = story(form.get("preferredReplacement"));
 
   if (!modelNumber) {
     return {
@@ -226,6 +244,8 @@ export async function saveClaimDetails(form: FormData): Promise<
       : {}),
     // Normalized every save: null once the date puts them in (or past) window.
     earlyPreference,
+    reasonExperience,
+    preferredReplacement,
     step: "confirmations",
   });
 

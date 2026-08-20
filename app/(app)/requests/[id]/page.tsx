@@ -168,18 +168,27 @@ export default async function RequestDetailPage({
 
         <Section title="In your words">
           {claim.reasonExperience?.trim() ? (
-            <p className="text-[15px] leading-relaxed text-cloud/90">
+            // whitespace-pre-line: their paragraph breaks are theirs. The rule
+            // that stores this deliberately keeps them (lib/claim-flow.ts), and
+            // without this the three paragraphs someone wrote arrive as one run
+            // of text.
+            <p className="whitespace-pre-line text-[15px] leading-relaxed text-cloud/90">
               {claim.reasonExperience}
             </p>
           ) : (
-            <Quiet>Nothing recorded here.</Quiet>
+            // Only when there is nothing at all. Since R-8 a customer can fill
+            // the second field and not the first, and this used to answer
+            // "Nothing recorded here" directly above the words they wrote.
+            !claim.preferredReplacement?.trim() && (
+              <Quiet>Nothing recorded here.</Quiet>
+            )
           )}
           {claim.preferredReplacement?.trim() && (
             <>
               <h3 className="pt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
                 What you&apos;d rather have
               </h3>
-              <p className="text-[15px] leading-relaxed text-cloud/90">
+              <p className="whitespace-pre-line text-[15px] leading-relaxed text-cloud/90">
                 {claim.preferredReplacement}
               </p>
             </>

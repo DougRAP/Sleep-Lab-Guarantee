@@ -247,7 +247,7 @@ export default async function StaffRequestDetailPage({
                     <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
                       What isn&apos;t working
                     </p>
-                    <p className="text-[15px] leading-relaxed text-cloud/90">
+                    <p className="whitespace-pre-line text-[15px] leading-relaxed text-cloud/90">
                       {claim.reasonExperience}
                     </p>
                   </div>
@@ -257,7 +257,7 @@ export default async function StaffRequestDetailPage({
                     <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
                       What they&apos;d rather have
                     </p>
-                    <p className="text-[15px] leading-relaxed text-cloud/90">
+                    <p className="whitespace-pre-line text-[15px] leading-relaxed text-cloud/90">
                       {claim.preferredReplacement}
                     </p>
                   </div>
