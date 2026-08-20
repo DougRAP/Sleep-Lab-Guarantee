@@ -2,10 +2,14 @@
 // Server actions for real accounts: sign up, log in, log out, password reset,
 // and linking a purchase to the signed-in account.
 //
-// Email confirmation is OFF for now (product owner's call), so sign-up returns
-// a session immediately. Nothing here assumes that: if confirmation is switched
-// on in Supabase later, signUp comes back without a session and we say so
-// calmly instead of dead-ending.
+// Email confirmation is OFF for now, so sign-up returns a session immediately.
+// The reason is deliverability, not policy: Supabase's built-in mailer is rate
+// limited to a handful of messages an hour, which is not a service. The plan is
+// Resend, and when that lands confirmation comes back on. Nothing here assumes
+// the current setting: if it is switched on, signUp comes back without a
+// session and we say so calmly instead of dead-ending. R-4 is waiting on the
+// same flip; see attachIntakeClaim on why sign-up cannot attach a claim while
+// an address proves nothing.
 //
 // Failures return a calm message for the caller to render (apricot, aria-live —
 // never red). Success redirects, so a returned value always means "not yet".

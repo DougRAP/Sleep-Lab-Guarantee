@@ -49,3 +49,9 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Supabase CLI scratch (version marker, nothing of ours)
+/supabase/.temp/
+
+/reviews/
+/misc/
