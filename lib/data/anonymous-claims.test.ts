@@ -68,7 +68,7 @@ describe("createAnonymousClaim", () => {
       purchaseDate: "2026-11-20",
       deliveryDate: "2026-11-22",
       protectorUsed: false,
-      contactEmail: "terri.osborne@example.com",
+      contactEmail: "terri.osborne@rapqa.com",
     });
 
     const saved = (await r.getClaimById(claim.id))!;
@@ -77,7 +77,7 @@ describe("createAnonymousClaim", () => {
     expect(saved.purchaseDate).toBe("2026-11-20");
     expect(saved.deliveryDate).toBe("2026-11-22");
     expect(saved.protectorUsed).toBe(false);
-    expect(saved.contactEmail).toBe("terri.osborne@example.com");
+    expect(saved.contactEmail).toBe("terri.osborne@rapqa.com");
   });
 });
 

@@ -3,8 +3,8 @@
 --
 -- PREREQUISITE: create the five auth users first (Supabase Dashboard →
 -- Authentication → Users → Add user, "Auto Confirm User" ticked):
---   smith@test.com, jones@test.com, osborn@test.com, johnson@test.com,
---   marks@test.com
+--   smith@rapqa.com, jones@rapqa.com, osborn@rapqa.com, johnson@rapqa.com,
+--   marks@rapqa.com
 --
 -- Then run this script. It is idempotent: re-running refreshes the delivery
 -- dates (relative to today) and re-links accounts. Timing (delivery = day 0,
@@ -27,15 +27,15 @@ select t.sales_order_number, t.guarantee_number, t.first_name, t.last_name,
        t.manufacturer, t.oem_model, t.description, t.price,
        current_date - t.day, t.access_token
 from (values
-  ('1011099801S', 'RAP-90-1011099801S', 'Sam',    'Smith',   'smith@test.com',
+  ('1011099801S', 'RAP-90-1011099801S', 'Sam',    'Smith',   'smith@rapqa.com',
    '5615550801', 'Serta',   'SN-1101', 'Serta Arctic Premier Plush King',      2899.00, 16, 'tok-test-smith'),
-  ('1011099802J', 'RAP-90-1011099802J', 'Jenna',  'Jones',   'jones@test.com',
+  ('1011099802J', 'RAP-90-1011099802J', 'Jenna',  'Jones',   'jones@rapqa.com',
    '5615550802', 'Sealy',   'PS-2202', 'Sealy Posturepedic Plus Firm Queen',   1799.00, 30, 'tok-test-jones'),
-  ('1011099803O', 'RAP-90-1011099803O', 'Owen',   'Osborn',  'osborn@test.com',
+  ('1011099803O', 'RAP-90-1011099803O', 'Owen',   'Osborn',  'osborn@rapqa.com',
    '5615550803', 'Stearns', 'ES-3303', 'Stearns & Foster Estate Medium Queen', 3299.00, 35, 'tok-test-osborn'),
-  ('1011099804W', 'RAP-90-1011099804W', 'Jill',   'Johnson', 'johnson@test.com',
+  ('1011099804W', 'RAP-90-1011099804W', 'Jill',   'Johnson', 'johnson@rapqa.com',
    '5615550804', 'Beautyrest', 'BH-4404', 'Beautyrest Harmony Lux Plush King', 2499.00, 45, 'tok-test-johnson'),
-  ('1011099805M', 'RAP-90-1011099805M', 'Marcus', 'Marks',   'marks@test.com',
+  ('1011099805M', 'RAP-90-1011099805M', 'Marcus', 'Marks',   'marks@rapqa.com',
    '5615550805', 'Tempur',  'CJ-5505', 'Tempur-Pedic ProAdapt Medium Queen',   3999.00, 60, 'tok-test-marks')
 ) as t(sales_order_number, guarantee_number, first_name, last_name, email,
        phone, manufacturer, oem_model, description, price, day, access_token)
@@ -59,7 +59,7 @@ update public.guarantees g
 set consumer_id = p.id, linked_via = 'lookup'
 from public.profiles p
 where lower(p.email) = lower(g.customer_email)
-  and g.customer_email like '%@test.com'
+  and g.customer_email like '%@rapqa.com'
   and (g.consumer_id is null or g.consumer_id = p.id);
 
 -- See where each account stands.
@@ -73,5 +73,5 @@ select g.customer_last_name, g.customer_email, g.sales_order_number,
        end as stage,
        (g.consumer_id is not null) as linked
 from public.guarantees g
-where g.customer_email like '%@test.com'
+where g.customer_email like '%@rapqa.com'
 order by day;

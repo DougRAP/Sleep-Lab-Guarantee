@@ -60,7 +60,7 @@ function completeClaim(overrides: Partial<Claim> = {}): Claim {
     preferredReplacement: "Something softer.",
     confirmations: [...CONFIRMATION_KEYS],
     contactPhone: "3365550101",
-    contactEmail: "a@example.com",
+    contactEmail: "a@rapqa.com",
     atDeliveryAddress: true,
     stillOwns: true,
     ...overrides,

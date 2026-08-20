@@ -26,13 +26,13 @@ insert into public.guarantees (
 ) values
   (
     '123', 'RAP-90-123', 'Andrew', 'Demo',
-    'andrew.demo@example.com', '3365086052', 'City Mattress', '101',
+    'andrew.demo@rapqa.com', '0005086052', 'City Mattress', '101',
     'Sealy', '1234', 'Sealy Pillow Top — Queen', 599.99,
     current_date, 'demo-primary-token'
   ),
   (
     '1011099326B', 'RAP-90-1011099326B', 'Maya', 'Rivera',
-    'mrivera@example.com', '7045551987', 'City Mattress', '101',
+    'mrivera@rapqa.com', '0005551987', 'City Mattress', '101',
     'Stearns & Foster', '5678', 'Stearns & Foster Luxury Firm — King', 1299.99,
     current_date - interval '6 days', 'demo-rivera-token'
   )
@@ -65,27 +65,27 @@ insert into public.guarantees (
   delivery_date, access_token
 ) values
   ('1011099412A', 'RAP-90-1011099412A', 'Denise', 'Calloway',
-   'd.calloway@example.com', '7045550214', 'City Mattress', '101',
+   'd.calloway@rapqa.com', '0005550214', 'City Mattress', '101',
    'Sealy', '2214', 'Sealy Posturepedic Plush — Queen', 749.99,
    current_date - 38, 'demo-calloway-token'),
   ('1011099437K', 'RAP-90-1011099437K', 'Marcus', 'Boyd',
-   'marcus.boyd@example.com', '8285550172', 'City Mattress', '101',
+   'marcus.boyd@rapqa.com', '0005550172', 'City Mattress', '101',
    'Serta', '8871', 'Serta Perfect Sleeper — King', 899.99,
    current_date - 45, 'demo-boyd-token'),
   ('1011099450M', 'RAP-90-1011099450M', 'Priya', 'Natarajan',
-   'priya.natarajan@example.com', '9805550346', 'City Mattress', '101',
+   'priya.natarajan@rapqa.com', '0005550346', 'City Mattress', '101',
    'Stearns & Foster', '4402', 'Stearns & Foster Estate — Queen', 1499.99,
    current_date - 58, 'demo-natarajan-token'),
   ('1011099461T', 'RAP-90-1011099461T', 'Evan', 'Kowalski',
-   'e.kowalski@example.com', '7045550488', 'City Mattress', '101',
+   'e.kowalski@rapqa.com', '0005550488', 'City Mattress', '101',
    'Beautyrest', '3320', 'Beautyrest Harmony — Split King (pair)', 1899.99,
    current_date - 63, 'demo-kowalski-token'),
   ('1011099478E', 'RAP-90-1011099478E', 'Gloria', 'Simmons',
-   'gloria.simmons@example.com', '8285550631', 'City Mattress', '101',
+   'gloria.simmons@rapqa.com', '0005550631', 'City Mattress', '101',
    'Sealy', '5583', 'Sealy Crown Jewel — Queen', 999.99,
    current_date - 74, 'demo-simmons-token'),
   ('1011099489R', 'RAP-90-1011099489R', 'Ray', 'Delgado',
-   'ray.delgado@example.com', '9805550759', 'City Mattress', '101',
+   'ray.delgado@rapqa.com', '0005550759', 'City Mattress', '101',
    'Serta', '1108', 'Serta iComfort — Twin XL', 579.99,
    current_date - 52, 'demo-delgado-token')
 on conflict (sales_order_number) do nothing;
@@ -123,27 +123,27 @@ select g.id, c.status, 'submitted', (select all_keys from confirmations), c.pre_
 from (values
   ('1011099412A', 'submitted',        true,
    'It sleeps much warmer than the floor model and I wake up with lower-back stiffness.',
-   'Something cooler, medium-firm.', '7045550214', 'mobile', 'd.calloway@example.com',
+   'Something cooler, medium-firm.', '0005550214', 'mobile', 'd.calloway@rapqa.com',
    true,  null, null, 'V7KM', 'RAP-W4XKQ7MD', 2,  null, null, null, 3,  2),
   ('1011099437K', 'in_review',        false,
    'Far softer than the one we tried in the store — I sink in and can''t turn over easily.',
-   'The firmer Perfect Sleeper we almost bought.', '8285550172', 'mobile', 'marcus.boyd@example.com',
+   'The firmer Perfect Sleeper we almost bought.', '0005550172', 'mobile', 'marcus.boyd@rapqa.com',
    true,  null, null, 'T4XG', 'RAP-N3TGV8PH', 6,  4,    null, null, 7,  4),
   ('1011099450M', 'approved',         true,
    'Pressure points at the hip and shoulder every morning, even after two months.',
-   'A plusher Estate model, same size.', '9805550346', 'home', 'priya.natarajan@example.com',
+   'A plusher Estate model, same size.', '0005550346', 'home', 'priya.natarajan@rapqa.com',
    true,  null, null, 'R8DP', 'RAP-C6RJDM24', 12, 9,    7,    null, 13, 7),
   ('1011099461T', 'dealer_scheduled', false,
    'Both halves of the split king feel firmer than expected; neither of us has adjusted.',
-   'The softer Harmony option on both sides.', '7045550488', 'mobile', 'e.kowalski@example.com',
+   'The softer Harmony option on both sides.', '0005550488', 'mobile', 'e.kowalski@rapqa.com',
    false, '412 Pinehurst Ct, Shelby, NC 28150', null, 'H6WC', 'RAP-F9HWSL73', 16, 13, 11, null, 17, 5),
   ('1011099478E', 'completed',        true,
    'Too firm from the first week and it never broke in the way the store said it would.',
-   'The pillow-top version of the same set.', '8285550631', 'home', 'gloria.simmons@example.com',
+   'The pillow-top version of the same set.', '0005550631', 'home', 'gloria.simmons@rapqa.com',
    true,  null, null, 'Q3NF', 'RAP-D2QNXB85', 30, 27,   24,   18,   31, 18),
   ('1011099489R', 'denied',           false,
    'Feels lumpy on one side after a month and a half.',
-   'Whatever holds its shape better.', '9805550759', 'mobile', 'ray.delgado@example.com',
+   'Whatever holds its shape better.', '0005550759', 'mobile', 'ray.delgado@rapqa.com',
    true,  null, 'Law tag removed — outside the guarantee''s like-new condition terms.',
    'B9SL', 'RAP-G7VKTP36', 10, 8,    null, null, 11, 8)
 ) as c(sales_order_number, status, pre_verified, reason_experience, preferred_replacement,
@@ -218,7 +218,7 @@ select
   true, 40, null,
   'Softer than expected around the edges and I roll toward the middle.',
   'Something with firmer edge support.',
-  '7045551340', 'mobile', 'terri.osborne@example.com',
+  '0005551340', 'mobile', 'terri.osborne@rapqa.com',
   (current_date - 4) + interval '15 hours',
   (current_date - 4) + interval '15 hours',
   (current_date - 4) + interval '15 hours'
@@ -238,15 +238,15 @@ insert into public.guarantees (
   delivery_date, access_token
 ) values
   ('1011099501F', 'RAP-90-1011099501F', 'Alma', 'Fleming',
-   'alma.fleming@example.com', '7045550901', 'City Mattress', '101',
+   'alma.fleming@rapqa.com', '0005550901', 'City Mattress', '101',
    'Sealy', '7710', 'Sealy Essentials — Queen', 649.99,
    current_date, 'demo-fleming-token'),
   ('1011099502M', 'RAP-90-1011099502M', 'Victor', 'Mendez',
-   'victor.mendez@example.com', '7045550902', 'City Mattress', '101',
+   'victor.mendez@rapqa.com', '0005550902', 'City Mattress', '101',
    'Serta', '6620', 'Serta Blue Lagoon — Full', 799.99,
    current_date - 15, 'demo-mendez-token'),
   ('1011099503T', 'RAP-90-1011099503T', 'June', 'Tran',
-   'june.tran@example.com', '7045550903', 'City Mattress', '101',
+   'june.tran@rapqa.com', '0005550903', 'City Mattress', '101',
    'Beautyrest', '5510', 'Beautyrest Silver — Queen', 1099.99,
    current_date - 35, 'demo-tran-token')
 on conflict (sales_order_number) do nothing;

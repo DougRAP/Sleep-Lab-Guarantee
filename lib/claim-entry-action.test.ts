@@ -44,7 +44,7 @@ function entryForm(overrides: Record<string, string> = {}): FormData {
   form.set("lastName", "Osborne");
   form.set("salesOrderNumber", "");
   form.set("deliveryZip", "28105");
-  form.set("contactEmail", "terri@example.com");
+  form.set("contactEmail", "terri@rapqa.com");
   form.set("contactPhone", "");
   for (const [k, v] of Object.entries(overrides)) form.set(k, v);
   return form;
@@ -92,7 +92,7 @@ describe("startClaimAction — the entry form", () => {
     expect(claim.firstName).toBe("Terri");
     expect(claim.lastName).toBe("Osborne");
     expect(claim.deliveryZip).toBe("28105");
-    expect(claim.contactEmail).toBe("terri@example.com");
+    expect(claim.contactEmail).toBe("terri@rapqa.com");
     expect(claim.step).toBe("items");
   });
 
@@ -102,13 +102,13 @@ describe("startClaimAction — the entry form", () => {
         deliveryZip: "",
         salesOrderNumber: "1011099600S",
         contactEmail: "",
-        contactPhone: "(704) 555-1340",
+        contactPhone: "(000) 555-1340",
       })
     );
     const claim = (await repo.getClaimById(sessionClaimId!))!;
     expect(claim.deliveryZip).toBeNull();
     expect(claim.salesOrderNumber).toBe("1011099600S");
-    expect(claim.contactPhone).toBe("(704) 555-1340");
+    expect(claim.contactPhone).toBe("(000) 555-1340");
     expect(claim.contactPhoneKind).toBe("mobile");
   });
 

@@ -62,7 +62,7 @@ flow works offline. Demo purchase for the linked journey: sales order `123`, las
 2. Seed: `supabase/seed.sql`, plus the optional test data —
    `supabase/seed-test-claims.sql` (five anonymous CG claims across the lifecycle) and
    `supabase/seed-test-accounts.sql` (five staged logins: Smith day 16, Jones day 30, Osborn day 35,
-   Johnson day 45, Marks day 60 — create the `*@test.com` auth users first).
+   Johnson day 45, Marks day 60 — create the `*@rapqa.com` auth users first).
 3. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`), `SUPABASE_SERVICE_ROLE_KEY` and `SESSION_SECRET`.
    No code changes — the repository switches over on its own. See `.env.example` for the rest.

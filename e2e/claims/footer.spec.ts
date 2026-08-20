@@ -25,7 +25,7 @@ async function startAClaim(page: Page) {
   await page.getByLabel("First name").fill("Emy");
   await page.getByLabel("Last name", { exact: true }).fill("Tester");
   await page.getByLabel("Sales order number").fill("123");
-  await page.getByLabel("Email").fill("emy@test.com");
+  await page.getByLabel("Email").fill("emy@rapqa.com");
   await page.getByRole("button", { name: "Get started" }).click();
   await page.waitForURL("**/claim");
 }

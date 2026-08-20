@@ -2,7 +2,7 @@
 -- TEST DATA (v3) — additional anonymous CG claims for exercising the admin
 -- board, the TTC write-back, and claim links. Safe to run repeatedly
 -- (idempotent). Run AFTER schema.sql and seed.sql. Delete rows freely; this
--- is throwaway test data ("@example.com" addresses, 555 phone numbers).
+-- is throwaway test data ("@rapqa.com" addresses, 555 phone numbers).
 -- ---------------------------------------------------------------------------
 
 -- Five anonymous claims across the lifecycle. None match a seeded guarantee,
@@ -39,14 +39,14 @@ from (values
    '1011099701A', 'SN-4415', 40, 38, true, 38, null::text,
    'Wakes up hot every night; the store model felt much cooler.',
    'Same size, a cooling hybrid.',
-   '7045550991', 'mobile', 'marcus.whitfield@example.com', null::text,
+   '7045550991', 'mobile', 'marcus.whitfield@rapqa.com', null::text,
    0, null::int, 0),
   -- 2. Early submission (day 24) — customer chose auto-submit at day 31.
   ('CG2WPD84', null, 'submitted', 'Janet', 'Rios', '33445',
    '1011099702B', 'PL-8830', 26, 24, false, 24, 'auto_submit_day_31',
    'Too firm from day one; hoping it breaks in but not confident.',
    'A plush pillow-top.',
-   '5615550242', 'mobile', 'janet.rios@example.com', null,
+   '5615550242', 'mobile', 'janet.rios@rapqa.com', null,
    0, null, 0),
   -- 3. Early submission (day 18) — customer asked for an agent call.
   ('CG9KFH37', null, 'submitted', 'Harold', 'Pemberton', '33483',
@@ -61,14 +61,14 @@ from (values
    '1011099704D', 'BH-6612', 55, 52, true, 47, null,
    'Sagging slightly where I sleep; edge feels soft when sitting.',
    'Firmer edge support, same comfort on top.',
-   '7045550563', 'mobile', 'alicia.grantham@example.com', null,
+   '7045550563', 'mobile', 'alicia.grantham@rapqa.com', null,
    5, 2, 2),
   -- 5. Inspection scheduled — tech visit arranged, TTC number assigned.
   ('CGW8QM25', 'TTC-100467', 'inspection_scheduled', 'Devon', 'Sattler', '28031',
    '1011099705E', 'CJ-9954', 70, 67, false, 60, null,
    'A ridge formed down the middle between our two sides.',
    'Whatever resists body impressions best.',
-   '9805550818', 'mobile', 'devon.sattler@example.com', null,
+   '9805550818', 'mobile', 'devon.sattler@rapqa.com', null,
    7, 4, 1)
 ) as c(claim_number, ttc_claim, status, first_name, last_name, delivery_zip,
        sales_order_number, model_number, purchase_days_ago, delivery_days_ago,

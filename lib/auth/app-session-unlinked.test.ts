@@ -39,7 +39,7 @@ const { requireGuarantee, requireSignedInAllowUnlinked } = await import("./app-s
 const CONSUMER = {
   userId: "auth-user-1",
   role: "consumer" as Role,
-  email: "customer@example.com",
+  email: "customer@rapqa.com",
   dealerLocationId: null,
 };
 
@@ -62,7 +62,7 @@ describe("an unlinked consumer account (real auth)", () => {
     expect(view.guarantee).toBeNull();
     expect(view.session).toBeNull();
     expect(view.viewer?.userId).toBe("auth-user-1");
-    expect(view.viewer?.email).toBe("customer@example.com");
+    expect(view.viewer?.email).toBe("customer@rapqa.com");
   });
 
   it("both gates still turn an unauthenticated visitor to login", async () => {

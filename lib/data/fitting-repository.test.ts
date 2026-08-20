@@ -173,7 +173,7 @@ describe("submitting — the claim number", () => {
       preferredReplacement: "Softer.",
       confirmations: [...CONFIRMATION_KEYS],
       contactPhone: "3365550101",
-      contactEmail: "a@example.com",
+      contactEmail: "a@rapqa.com",
       atDeliveryAddress: true,
       stillOwns: true,
     });

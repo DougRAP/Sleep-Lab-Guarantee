@@ -10,9 +10,9 @@
 - **Self-contained HTML**: inline CSS only, no external assets, prints cleanly (this will be emailed and printed). Borrow the clean look of `docs/CMFG-90-CITY-GS.html` (same font stack / heading treatment) so RAP documents feel like a family. Title: "Sleep Lab — Testing Guide". Footer: Risk Assurance Partners, LLC + date.
 - **Environments section**: production URL `https://sleep-lab-comfort-guarantee.netlify.app` · Supabase is live (data persists) · claims mode is the default product.
 - **Test credentials table** (verify against `supabase/seed-test-accounts.sql`):
-  - smith@test.com — day 16, too early by 15 days
-  - jones@test.com — day 30, too early by 1 day
-  - osborn@test.com — day 35 · johnson@test.com — day 45 · marks@test.com — day 60 (all in window)
+  - smith@rapqa.com — day 16, too early by 15 days
+  - jones@rapqa.com — day 30, too early by 1 day
+  - osborn@rapqa.com — day 35 · johnson@rapqa.com — day 45 · marks@rapqa.com — day 60 (all in window)
   - Passwords: "the password set when the accounts were created (default suggestion Test1234!)" — do not invent a definite password.
   - Admin: dwright@raptns.com (role rap_admin). Note that admin sees /admin, consumers never do.
 - **Seeded claims table** (verify against `supabase/seed-test-claims.sql` + `seed.sql`): CG7MKQ42 Osborne, CGX4T9RM Whitfield, CG2WPD84 Rios (auto day-31), CG9KFH37 Pemberton (wants call), CG5RVN68 Grantham (TTC-100482 + EA link), CGW8QM25 Sattler (TTC-100467 + tech report), plus the six legacy named claims.
@@ -22,7 +22,7 @@
   3. Anonymous claim, past 90: warning, still submits.
   4. Entry validation: missing last name; neither order nor ZIP; neither email nor phone → calm messages.
   5. Full terms link → `/comfort-guarantee.html`.
-  6. Linked journey: osborn@test.com → eligible → exchange flow → CG confirmation. smith/jones → gated states.
+  6. Linked journey: osborn@rapqa.com → eligible → exchange flow → CG confirmation. smith/jones → gated states.
   7. Account tracking: create a fresh account → skip linking → `/requests` empty state → add claim by CG + last name → detail page.
   8. `/link` relaxed form: order path, ZIP path, miss → "Continue anyway".
   9. Admin: search (CG, name, ZIP), filters, status change (incl. Inspection scheduled), staff note, add document link (rap_admin only), unlinked chip, TTC display, early-preference markers.

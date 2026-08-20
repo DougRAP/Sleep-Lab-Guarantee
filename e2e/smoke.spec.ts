@@ -203,12 +203,12 @@ test.describe("staff desk (punch list D)", () => {
   test("staff search finds by email and by formatted phone (Emmy)", async ({ page }) => {
     await enterAsRap(page);
 
-    await page.getByLabel("Search").fill("d.calloway@example.com");
+    await page.getByLabel("Search").fill("d.calloway@rapqa.com");
     await page.getByRole("button", { name: "Search" }).click();
     await expect(page.getByText("Denise Calloway")).toBeVisible();
     await expect(page.getByText("Evan Kowalski")).toHaveCount(0);
 
-    await page.getByLabel("Search").fill("(704) 555-0488");
+    await page.getByLabel("Search").fill("(000) 555-0488");
     await page.getByRole("button", { name: "Search" }).click();
     await expect(page.getByText("Evan Kowalski")).toBeVisible();
     await expect(page.getByText("Denise Calloway")).toHaveCount(0);

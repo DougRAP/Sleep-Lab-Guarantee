@@ -116,7 +116,7 @@ describe("a request completes with no storage backend", () => {
       reasonExperience: "Too firm.",
       preferredReplacement: "Softer.",
       confirmations: [...CONFIRMATION_KEYS],
-      contactEmail: "a@example.com",
+      contactEmail: "a@rapqa.com",
       atDeliveryAddress: true,
       stillOwns: true,
     });

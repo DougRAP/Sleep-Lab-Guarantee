@@ -116,7 +116,7 @@ describe("listClaimRecords — search semantics", () => {
   it("matches an email address exactly, case-insensitively (Emmy 2026-07-23)", async () => {
     const r = new MemoryRepository();
     expect(
-      (await r.listClaimRecords(ALL, "D.Calloway@Example.com")).map((x) => x.claimId)
+      (await r.listClaimRecords(ALL, "D.Calloway@Rapqa.com")).map((x) => x.claimId)
     ).toEqual(["seed-claim-calloway"]);
     // A fragment never surfaces someone else's record.
     expect(await r.listClaimRecords(ALL, "calloway@")).toEqual([]);
@@ -125,10 +125,10 @@ describe("listClaimRecords — search semantics", () => {
   it("matches a phone number by its digits, tolerant of formatting (Emmy 2026-07-23)", async () => {
     const r = new MemoryRepository();
     expect(
-      (await r.listClaimRecords(ALL, "7045550214")).map((x) => x.claimId)
+      (await r.listClaimRecords(ALL, "0005550214")).map((x) => x.claimId)
     ).toEqual(["seed-claim-calloway"]);
     expect(
-      (await r.listClaimRecords(ALL, "(704) 555-0214")).map((x) => x.claimId)
+      (await r.listClaimRecords(ALL, "(000) 555-0214")).map((x) => x.claimId)
     ).toEqual(["seed-claim-calloway"]);
     // A short digit fragment is not a phone — it must not match one.
     expect(await r.listClaimRecords(ALL, "0214")).toEqual([]);
@@ -535,7 +535,7 @@ describe("unlinked claims on the staff desk", () => {
       (await r.listClaimRecords(ALL, OSBORNE.salesOrderNumber!)).map((x) => x.claimId)
     ).toEqual(["seed-claim-osborne"]);
     expect(
-      (await r.listClaimRecords(ALL, "terri.osborne@example.com")).map((x) => x.claimId)
+      (await r.listClaimRecords(ALL, "terri.osborne@rapqa.com")).map((x) => x.claimId)
     ).toEqual(["seed-claim-osborne"]);
   });
 

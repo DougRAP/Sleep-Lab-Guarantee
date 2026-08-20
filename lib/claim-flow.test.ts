@@ -28,8 +28,8 @@ function entry(overrides: Partial<ClaimEntryInput> = {}): ClaimEntryInput {
     lastName: "Osborne",
     salesOrderNumber: "1011099600S",
     deliveryZip: "28105",
-    contactEmail: "terri@example.com",
-    contactPhone: "7045551340",
+    contactEmail: "terri@rapqa.com",
+    contactPhone: "0005551340",
     ...overrides,
   };
 }
@@ -74,10 +74,10 @@ describe("validateClaimEntry", () => {
 
   it("email OR mobile — at least one, and it must look real", () => {
     expect(
-      validateClaimEntry(entry({ contactEmail: "", contactPhone: "7045551340" })).ok
+      validateClaimEntry(entry({ contactEmail: "", contactPhone: "0005551340" })).ok
     ).toBe(true);
     expect(
-      validateClaimEntry(entry({ contactEmail: "terri@example.com", contactPhone: "" }))
+      validateClaimEntry(entry({ contactEmail: "terri@rapqa.com", contactPhone: "" }))
         .ok
     ).toBe(true);
     const neither = validateClaimEntry(
@@ -156,7 +156,7 @@ describe("day-count boundaries (delivery = day 0)", () => {
 describe("claimReadyToSubmit", () => {
   const complete = {
     lastName: "Osborne",
-    contactEmail: "terri@example.com",
+    contactEmail: "terri@rapqa.com",
     contactPhone: null,
     modelNumber: "PL-2290",
     purchaseDate: "2026-06-01",
