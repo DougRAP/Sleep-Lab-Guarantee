@@ -1,11 +1,14 @@
 "use client";
 
+import * as React from "react";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
 import { Field } from "../ui/field";
 import { FrostedCard } from "../ui/frosted-card";
+import { StepActions } from "../ui/step-actions";
 import { Stat } from "../ui/stat";
 import { ConfirmRow } from "../fitting/confirm-row";
 import { StillNeeded } from "../fitting/still-needed";
@@ -24,7 +27,6 @@ import {
   previousStage,
   type ClaimStage,
 } from "../../lib/claim-flow";
-import { useRegisterBack } from "../nav/back-context";
 import { CLAIM_PHOTO_TARGETS, CONFIRMATION_TERMS } from "../../lib/fitting";
 import { COMFORT_EXCHANGE_FEE } from "../../lib/eligibility";
 import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../content/support";
@@ -103,10 +105,26 @@ export function ClaimFlow(props: ClaimFlowProps) {
     [pending, stage]
   );
 
-  // Nothing to go back to from the first stage, and nothing at all once the
-  // claim number exists. Registering null clears the footer's control.
-  const back = claimNumber ? null : previousStage(stage);
-  useRegisterBack(back ? () => go(back) : null, "Back to the previous step");
+  const router = useRouter();
+
+  /**
+   * Where Back goes from here. The flow starts at Get started, so the first
+   * step reaches back to the front door rather than dead-ending: the form
+   * there arrives filled in, and saving it edits this same request.
+   * Once the claim number exists there is no back at all.
+   */
+  const onBack = React.useMemo(() => {
+    if (claimNumber) return undefined;
+    const prev = previousStage(stage);
+    if (prev) return () => go(prev);
+    return () => {
+      if (pending) return;
+      router.push("/");
+    };
+  }, [claimNumber, stage, go, pending, router]);
+  const backLabel = previousStage(stage)
+    ? "Back to the previous step"
+    : "Back to your details";
 
   if (stage === "done" && claimNumber) {
     return <DoneScreen claimNumber={claimNumber} authConfigured={props.authConfigured} />;
@@ -120,6 +138,8 @@ export function ClaimFlow(props: ClaimFlowProps) {
     case "details":
       return (
         <DetailsStep
+          onBack={onBack}
+          backLabel={backLabel}
           initial={details}
           onDone={(saved) => {
             setDetails(saved);
@@ -130,6 +150,7 @@ export function ClaimFlow(props: ClaimFlowProps) {
     case "qualification":
       return (
         <QualificationStep
+          onBack={onBack}
           initialConfirmations={confirmations}
           initialProtector={protectorUsed}
           onDone={(saved, protector) => {
@@ -142,6 +163,7 @@ export function ClaimFlow(props: ClaimFlowProps) {
     case "photos":
       return (
         <ClaimPhotos
+          onBack={onBack}
           storageConfigured={props.storageConfigured}
           capturedAngles={captured}
           photoThumbs={props.photoThumbs}
@@ -155,6 +177,7 @@ export function ClaimFlow(props: ClaimFlowProps) {
     default:
       return (
         <ProcessStep
+          onBack={onBack}
           onSubmitted={(cg) => {
             setClaimNumber(cg);
             setStage("done");
@@ -169,9 +192,13 @@ export function ClaimFlow(props: ClaimFlowProps) {
 /* -------------------------------------------------------------------------- */
 
 function DetailsStep({
+  onBack,
+  backLabel,
   initial,
   onDone,
 }: {
+  onBack?: () => void;
+  backLabel?: string;
   initial: ClaimFlowProps["details"];
   /** Hands the saved values up, so Back can show them without a round trip. */
   onDone: (saved: ClaimFlowProps["details"]) => void;
@@ -280,12 +307,14 @@ function DetailsStep({
         {error && <p className="text-[13px] text-mist">{error}</p>}
       </div>
 
-      <Button
-        onClick={submit}
-        disabled={pending || (needsEarlyChoice && !early)}
-      >
-        Next — a few confirmations
-      </Button>
+      <StepActions onBack={onBack} backLabel={backLabel}>
+        <Button
+          onClick={submit}
+          disabled={pending || (needsEarlyChoice && !early)}
+        >
+          Next — a few confirmations
+        </Button>
+      </StepActions>
     </div>
   );
 }
@@ -295,10 +324,12 @@ function DetailsStep({
 /* -------------------------------------------------------------------------- */
 
 function QualificationStep({
+  onBack,
   initialConfirmations,
   initialProtector,
   onDone,
 }: {
+  onBack?: () => void;
   initialConfirmations: ConfirmationKey[];
   initialProtector: boolean;
   onDone: (confirmations: ConfirmationKey[], protectorUsed: boolean) => void;
@@ -369,9 +400,11 @@ function QualificationStep({
         {error && <p className="text-[13px] text-mist">{error}</p>}
       </div>
 
-      <Button onClick={submit} disabled={!ready || pending}>
-        Next — photos, if you&apos;d like
-      </Button>
+      <StepActions onBack={onBack}>
+        <Button onClick={submit} disabled={!ready || pending}>
+          Next — photos, if you&apos;d like
+        </Button>
+      </StepActions>
     </div>
   );
 }
@@ -381,12 +414,14 @@ function QualificationStep({
 /* -------------------------------------------------------------------------- */
 
 function ClaimPhotos({
+  onBack,
   storageConfigured,
   capturedAngles,
   photoThumbs,
   onCaptured,
   onDone,
 }: {
+  onBack?: () => void;
   storageConfigured: boolean;
   capturedAngles: PhotoAngle[];
   photoThumbs: Partial<Record<PhotoAngle, string>>;
@@ -410,6 +445,7 @@ function ClaimPhotos({
         </>
       }
       nextLabel="Continue — I can skip these"
+      onBack={onBack}
       onCaptured={onCaptured}
       onDone={onDone}
     />
@@ -420,7 +456,13 @@ function ClaimPhotos({
 /* Step 4 — how the process works, then submit (spec §2.7–§2.8)               */
 /* -------------------------------------------------------------------------- */
 
-function ProcessStep({ onSubmitted }: { onSubmitted: (claimNumber: string) => void }) {
+function ProcessStep({
+  onBack,
+  onSubmitted,
+}: {
+  onBack?: () => void;
+  onSubmitted: (claimNumber: string) => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -459,9 +501,11 @@ function ProcessStep({ onSubmitted }: { onSubmitted: (claimNumber: string) => vo
         {error && <p className="text-[13px] text-mist">{error}</p>}
       </div>
 
-      <Button onClick={submit} disabled={pending}>
-        Send my request
-      </Button>
+      <StepActions onBack={onBack}>
+        <Button onClick={submit} disabled={pending}>
+          Send my request
+        </Button>
+      </StepActions>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
+import { StepActions } from "../ui/step-actions";
 import { StillNeeded } from "./still-needed";
 import { downscaleImage } from "./downscale";
 import { capturePhoto, finishPhotos } from "../../lib/actions/fitting";
@@ -50,6 +51,7 @@ export function PhotosStep({
   capturedAngles,
   storageConfigured,
   initialThumbs,
+  onBack,
   onDone,
   onCaptured,
   capture = capturePhoto,
@@ -63,6 +65,8 @@ export function PhotosStep({
   /** Server-signed URLs for already-persisted photos, so navigating away and
    *  back shows the captures instead of an empty "Retake" tile. */
   initialThumbs?: Partial<Record<PhotoAngle, string>>;
+  /** Absent when the flow has nowhere to go back to from this step. */
+  onBack?: () => void;
   onDone: (captured: PhotoAngle[]) => void;
   /**
    * Fired after each successful capture (v3 /claim). The claim flow keeps the
@@ -289,9 +293,11 @@ export function PhotosStep({
 
       {note && <p className="text-[13px] text-mist">{note}</p>}
 
-      <Button onClick={submit} disabled={!ready || pending}>
-        {nextLabel}
-      </Button>
+      <StepActions onBack={onBack}>
+        <Button onClick={submit} disabled={!ready || pending}>
+          {nextLabel}
+        </Button>
+      </StepActions>
     </div>
   );
 }

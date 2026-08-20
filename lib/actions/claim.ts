@@ -102,6 +102,13 @@ async function guardEntryAttempt(): Promise<boolean> {
  * The landing form: validate, open the anonymous draft, remember it in the
  * claimant cookie, and step into the flow. On success this REDIRECTS to
  * /claim; only a failure returns a result.
+ *
+ * The wizard's Back reaches this page from the first step, so the form arrives
+ * pre-filled and pressing Get started again is an EDIT, not a new request. With
+ * an open draft in the cookie it patches that row and leaves the progress
+ * alone; without one (first visit, or the previous request already submitted)
+ * it opens a fresh draft as before. Otherwise every customer who steps back to
+ * the front door would leave an orphan in the dashboard.
  */
 export async function startClaimAction(form: FormData): Promise<ActionResult> {
   const entry = validateClaimEntry({
@@ -114,23 +121,43 @@ export async function startClaimAction(form: FormData): Promise<ActionResult> {
   });
   if (!entry.ok) return { ok: false, error: entry.error };
 
-  if (!(await guardEntryAttempt())) return { ok: false, error: TOO_MANY };
-
   const repo = getRepository();
-  const claim = await repo.createAnonymousClaim({
+  const identity = {
     firstName: entry.value.firstName,
     lastName: entry.value.lastName,
     deliveryZip: entry.value.deliveryZip,
-  });
-  await repo.updateClaim(claim.id, {
     salesOrderNumber: entry.value.salesOrderNumber,
     contactEmail: entry.value.contactEmail,
     contactPhone: entry.value.contactPhone,
-    contactPhoneKind: entry.value.contactPhone ? "mobile" : null,
-    step: "items",
+    contactPhoneKind: entry.value.contactPhone ? "mobile" as const : null,
+  };
+
+  const open = await openDraft();
+  if (open) {
+    // Editing who you are must not reset where you are: no `step` in this patch.
+    await repo.updateClaim(open.id, identity);
+    redirect("/claim");
+  }
+
+  // Only a genuinely new request is rate limited; editing one is not an attempt.
+  if (!(await guardEntryAttempt())) return { ok: false, error: TOO_MANY };
+
+  const claim = await repo.createAnonymousClaim({
+    firstName: identity.firstName,
+    lastName: identity.lastName,
+    deliveryZip: identity.deliveryZip,
   });
+  await repo.updateClaim(claim.id, { ...identity, step: "items" });
   await setClaimSession(claim.id);
   redirect("/claim");
+}
+
+/** The request in flight, if the claimant cookie still names a live draft. */
+async function openDraft(): Promise<Claim | null> {
+  const session = await getClaimSession();
+  if (!session) return null;
+  const claim = await getRepository().getClaimById(session.claimId);
+  return claim && claim.status === "draft" ? claim : null;
 }
 
 /* -------------------------------------------------------------------------- */

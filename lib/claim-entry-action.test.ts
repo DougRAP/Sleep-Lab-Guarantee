@@ -210,3 +210,49 @@ describe("the full anonymous flow", () => {
     expect(quals.ok).toBe(false);
   });
 });
+
+describe("startClaimAction — coming back to the front door (wizard)", () => {
+  // The Back on the first step lands here, with the form already filled. Pressing
+  // Get started again has to EDIT the request in flight, not open a second one,
+  // or every customer who steps back leaves an orphan in the dashboard.
+  it("reuses the open draft instead of minting another", async () => {
+    await start(entryForm());
+    const first = sessionClaimId!;
+
+    await start(entryForm({ lastName: "Osborne-Reid", deliveryZip: "28110" }));
+
+    expect(sessionClaimId).toBe(first);
+    const claim = (await repo.getClaimById(first))!;
+    expect(claim.lastName).toBe("Osborne-Reid");
+    expect(claim.deliveryZip).toBe("28110");
+    expect(claim.firstName).toBe("Terri");
+  });
+
+  it("keeps the progress already made rather than resetting to step one", async () => {
+    await start(entryForm());
+    await saveClaimDetails(detailsForm());
+    const before = (await repo.getClaimById(sessionClaimId!))!;
+    expect(before.step).toBe("confirmations");
+    expect(before.modelNumber).toBe("PL-2290");
+
+    await start(entryForm({ contactEmail: "terri.new@rapqa.com" }));
+
+    const after = (await repo.getClaimById(sessionClaimId!))!;
+    expect(after.contactEmail).toBe("terri.new@rapqa.com");
+    // Editing who you are must not throw away what you already filled in.
+    expect(after.modelNumber).toBe("PL-2290");
+    expect(after.step).toBe("confirmations");
+  });
+
+  it("opens a fresh request once the previous one is submitted", async () => {
+    await start(entryForm());
+    const first = sessionClaimId!;
+    await saveClaimDetails(detailsForm());
+    await saveClaimQualifications({ confirmations: CONFIRMATION_KEYS, protectorUsed: false });
+    await submitAnonymousClaim();
+
+    await start(entryForm());
+
+    expect(sessionClaimId).not.toBe(first);
+  });
+});

@@ -11,7 +11,6 @@ import { PhotosStep, type PhotoTargetView } from "./photos-step";
 import { VerifyStep } from "./verify-step";
 import { SubmittedStep } from "./submitted-step";
 import { previousStep } from "../../lib/fitting";
-import { useRegisterBack } from "../nav/back-context";
 import { saveStep } from "../../lib/actions/fitting";
 import type {
   ClaimItem,
@@ -70,10 +69,12 @@ export function FittingFlow(props: FittingFlowProps) {
     });
   }
 
+  // Back sits beside each step's own button, the way a wizard reads (Adrian,
+  // 2026-08-20). The rule that decides where it goes is unchanged; only where
+  // the control is drawn. The first step has no Back: "Leave for now" below is
+  // the way out of the flow.
   const back = step === "submitted" ? null : previousStep(step);
-  // R-2: Back moved into the footer, so there is ONE control in the app rather
-  // than one per flow. The rule that decides where it goes is unchanged.
-  useRegisterBack(back ? () => go(back) : null, "Back to the previous step");
+  const onBack = back ? () => go(back) : undefined;
 
   if (step === "submitted" && result) {
     return (
@@ -97,6 +98,7 @@ export function FittingFlow(props: FittingFlowProps) {
           greeting={props.greeting}
           initialReason={props.intake.reasonExperience}
           initialPreference={props.intake.preferredReplacement}
+          onBack={onBack}
           onDone={() => go("items")}
         />
       )}
@@ -105,6 +107,7 @@ export function FittingFlow(props: FittingFlowProps) {
         <ItemsStep
           key={props.items.map((i) => i.id).join(",")}
           initial={props.items}
+          onBack={onBack}
           onDone={() => go("confirmations")}
         />
       )}
@@ -113,6 +116,7 @@ export function FittingFlow(props: FittingFlowProps) {
         <ConfirmationsStep
           key={props.confirmations.join(",")}
           initial={props.confirmations}
+          onBack={onBack}
           onDone={() => go("photos")}
         />
       )}
@@ -123,6 +127,7 @@ export function FittingFlow(props: FittingFlowProps) {
           capturedAngles={props.capturedAngles}
           storageConfigured={props.storageConfigured}
           initialThumbs={props.photoThumbs}
+          onBack={onBack}
           onDone={() => go("verify")}
         />
       )}
@@ -130,6 +135,7 @@ export function FittingFlow(props: FittingFlowProps) {
       {step === "verify" && (
         <VerifyStep
           key={`${props.verify.contactPhone}|${props.verify.contactEmail}|${props.verify.atDeliveryAddress}|${props.verify.stillOwns}`}
+          onBack={onBack}
           initial={props.verify}
           onSubmitted={(r) => {
             setResult(r);

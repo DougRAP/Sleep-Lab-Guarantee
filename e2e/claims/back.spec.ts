@@ -91,10 +91,24 @@ test.describe("R-2 — Back through the claim", () => {
     ).toBeVisible();
   });
 
-  test("the first step offers no way back", async ({ page }) => {
+  test("the first step goes back to the front door, already filled in", async ({
+    page,
+  }) => {
     await startAClaim(page);
-    // The entry form is a different page and the claim already exists.
-    await expect(backControl(page)).toHaveCount(0);
+
+    // The flow starts at Get started, so Back reaches all the way there.
+    await backControl(page).click();
+    await page.waitForURL((url) => new URL(url).pathname === "/");
+
+    // Filled in, or it would be starting over rather than going back.
+    expect(await page.getByLabel("First name").inputValue()).toBe("Emy");
+    expect(await page.getByLabel("Last name", { exact: true }).inputValue()).toBe("Tester");
+    expect(await page.getByLabel("Email").inputValue()).toBe("emy@rapqa.com");
+
+    // And the button now offers to continue the request in flight, not open one.
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL("**/claim");
+    await expect(page.getByLabel("Model number")).toBeVisible();
   });
 
   test("no flow, no control: the front door has none", async ({ page }) => {

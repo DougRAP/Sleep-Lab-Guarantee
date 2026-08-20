@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
+import { StepActions } from "../ui/step-actions";
 import { ConfirmRow } from "./confirm-row";
 import { StillNeeded } from "./still-needed";
 import { CONFIRMATION_TERMS } from "../../lib/fitting";
@@ -12,8 +13,11 @@ import type { ConfirmationKey } from "../../lib/types";
 /** Step 3 — the 90-Night terms, tapped one at a time. All are needed to go on. */
 export function ConfirmationsStep({
   initial,
+  onBack,
   onDone,
 }: {
+  /** Absent on the first screen of the flow. */
+  onBack?: () => void;
   initial: ConfirmationKey[];
   onDone: () => void;
 }) {
@@ -65,9 +69,11 @@ export function ConfirmationsStep({
 
       {note && <p className="text-[13px] text-mist">{note}</p>}
 
-      <Button onClick={submit} disabled={!ready || pending}>
-        Next — a few photos
-      </Button>
+      <StepActions onBack={onBack}>
+        <Button onClick={submit} disabled={!ready || pending}>
+          Next — a few photos
+        </Button>
+      </StepActions>
     </div>
   );
 }

@@ -532,6 +532,9 @@ export class SupabaseRepository implements GuaranteeRepository {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: Record<string, any> = {};
     if (patch.step !== undefined) row.step = patch.step;
+    if (patch.firstName !== undefined) row.first_name = patch.firstName;
+    if (patch.lastName !== undefined) row.last_name = patch.lastName;
+    if (patch.deliveryZip !== undefined) row.delivery_zip = patch.deliveryZip;
     if (patch.reasonExperience !== undefined) row.reason_experience = patch.reasonExperience;
     if (patch.preferredReplacement !== undefined) {
       row.preferred_replacement = patch.preferredReplacement;

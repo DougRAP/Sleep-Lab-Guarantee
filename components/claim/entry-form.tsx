@@ -8,18 +8,48 @@ import { validateClaimEntry } from "../../lib/claim-flow";
 
 /**
  * v3 entry (spec §2.2): identify + contact in ONE form on the landing page.
+ *
+ * The wizard's Back reaches this page from the first step, so `initial` seeds
+ * the fields from the request already in flight and submitting EDITS that same
+ * request (lib/actions/claim.ts, startClaimAction). Coming back to an empty
+ * form would not be going back, it would be starting over.
  * Sales order OR delivery ZIP; email OR mobile. Validation runs client-side
  * first with the same shared rule the action re-applies, so the calm message
  * appears without a round-trip. On success the action sets the claimant
  * cookie and redirects into /claim; only a failure returns here.
  */
-export function ClaimEntryForm() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [salesOrderNumber, setSalesOrderNumber] = useState("");
-  const [deliveryZip, setDeliveryZip] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
+export interface ClaimEntryInitial {
+  firstName: string;
+  lastName: string;
+  salesOrderNumber: string;
+  deliveryZip: string;
+  contactEmail: string;
+  contactPhone: string;
+}
+
+const EMPTY: ClaimEntryInitial = {
+  firstName: "",
+  lastName: "",
+  salesOrderNumber: "",
+  deliveryZip: "",
+  contactEmail: "",
+  contactPhone: "",
+};
+
+export function ClaimEntryForm({
+  initial = EMPTY,
+  resuming = false,
+}: {
+  initial?: ClaimEntryInitial;
+  /** True when a request is already in flight, so the button reads Continue. */
+  resuming?: boolean;
+} = {}) {
+  const [firstName, setFirstName] = useState(initial.firstName);
+  const [lastName, setLastName] = useState(initial.lastName);
+  const [salesOrderNumber, setSalesOrderNumber] = useState(initial.salesOrderNumber);
+  const [deliveryZip, setDeliveryZip] = useState(initial.deliveryZip);
+  const [contactEmail, setContactEmail] = useState(initial.contactEmail);
+  const [contactPhone, setContactPhone] = useState(initial.contactPhone);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -106,7 +136,7 @@ export function ClaimEntryForm() {
       </div>
 
       <Button type="submit" disabled={pending}>
-        Get started
+        {resuming ? "Continue" : "Get started"}
       </Button>
     </form>
   );

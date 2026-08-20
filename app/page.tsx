@@ -132,6 +132,18 @@ async function ClaimLanding({ realAuth }: { realAuth: boolean }) {
     ? await getRepository().getClaimById(session.claimId)
     : null;
   const hasDraft = Boolean(draft && draft.status === "draft");
+  // Back from the first step lands here. The form shows what is already on the
+  // request so nothing has to be retyped, and saving edits that same request.
+  const initial = hasDraft && draft
+    ? {
+        firstName: draft.firstName ?? "",
+        lastName: draft.lastName ?? "",
+        salesOrderNumber: draft.salesOrderNumber ?? "",
+        deliveryZip: draft.deliveryZip ?? "",
+        contactEmail: draft.contactEmail ?? "",
+        contactPhone: draft.contactPhone ?? "",
+      }
+    : undefined;
 
   return (
     <>
@@ -176,15 +188,16 @@ async function ClaimLanding({ realAuth }: { realAuth: boolean }) {
 
           {hasDraft && (
             <p className="font-serif text-[17px] italic text-dawn">
-              You have a request in progress.{" "}
+              Your request is still open. Your details are below, change
+              anything you need, or{" "}
               <Link href="/claim" className="underline-offset-4 hover:underline">
-                Continue where you left off
+                pick up where you left off
               </Link>
-              , or start fresh below.
+              .
             </p>
           )}
 
-          <ClaimEntryForm />
+          <ClaimEntryForm initial={initial} resuming={hasDraft} />
 
           {realAuth && (
             <p className="text-[13px] text-mist">

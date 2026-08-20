@@ -69,6 +69,6 @@ The app becomes navigable without breaking the poster-first, printed-light calm.
 - **The Coach is set apart, not a peer tab** — the guide's presence, a serif/`--dawn` affordance divided from the utility tabs by a hairline (e.g. a trailing segment). It reads as "your guide," never a menu item.
 - **Hidden during focused flows** (the fitting, entry/verify) — those stay full-bleed, one-breath screens.
   **Overridden 2026-08-19 (R-1, Doug):** the bar is app-wide now, so the front door and the claim carry it as well, and it is withheld only from the staff desk and the account screens. It never offers a destination the current visitor would be bounced from, so do not revert it as a regression (`footerPlan()`, `lib/shell.ts`).
-- **Added 2026-08-19 (R-2, Doug: *"everybody likes back buttons… you could just put a footer on it"*):** a leading **Back** cell, divided from the tabs by the same hairline the Coach uses, in `--mist`/`--cloud` and never `--dawn`. It exists only while a step flow registers one (the claim and the fitting), so an ordinary page shows no Back at all.
+- **The bar carries no Back** *(R-2, revised 2026-08-20)*. Doug suggested hanging one off the footer; it lives in the step instead, beside that step's own button, because a wizard reads as a pair of controls in the form and not as chrome (`components/ui/step-actions.tsx`): ghost on the narrower third, primary on the rest, so exactly one action still invites.
 - Motion: cross-fade route transitions, no bounce; honor `prefers-reduced-motion`.
 

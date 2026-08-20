@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
+import { StepActions } from "../ui/step-actions";
 import { Field } from "../ui/field";
 import { ConfirmRow } from "./confirm-row";
 import { StillNeeded } from "./still-needed";
@@ -27,8 +28,11 @@ const EMPTY: Draft = {
 /** Step 2 — the mattress itself: model number + three condition confirmations. */
 export function ItemsStep({
   initial,
+  onBack,
   onDone,
 }: {
+  /** Absent on the first screen of the flow. */
+  onBack?: () => void;
   initial: ClaimItem[];
   onDone: () => void;
 }) {
@@ -137,9 +141,11 @@ export function ItemsStep({
 
       {note && <p className="text-[13px] text-mist">{note}</p>}
 
-      <Button onClick={submit} disabled={!ready || pending}>
-        Next — a few confirmations
-      </Button>
+      <StepActions onBack={onBack}>
+        <Button onClick={submit} disabled={!ready || pending}>
+          Next — a few confirmations
+        </Button>
+      </StepActions>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import * as React from "react";
 import { cn } from "../../lib/utils";
 import { footerPlan, type FooterVisitor } from "../../lib/shell";
-import { useBackTarget } from "./back-context";
 import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../content/support";
 
 // Persistent bottom navigation (DESIGN.md "Bottom navigation").
@@ -81,12 +80,6 @@ const TABS: Tab[] = [
 
 export function BottomNav({ visitor }: { visitor: FooterVisitor }) {
   const pathname = usePathname() || "";
-  // R-2: the leading slot is filled by whichever flow is mounted, through the
-  // back registry. R-1 shipped it as a `leading` prop, which nothing could
-  // reach: the only caller is the root layout, and it has no pathname and no
-  // flow state. Nothing registered renders nothing, so a page without a flow
-  // gets exactly the bar R-1 shipped.
-  const back = useBackTarget();
 
   // One bar, every surface (lib/shell.ts owns the rules). Claims mode — the v3
   // default — shows Guarantee · Requests · Shop and no Coach; the companion
@@ -94,18 +87,12 @@ export function BottomNav({ visitor }: { visitor: FooterVisitor }) {
   // visitor would be bounced from is never offered. Same component throughout,
   // so the bar never forks.
   const plan = footerPlan(pathname, visitor);
-  // A registered Back keeps the bar alive on its own. footerPlan answers a
-  // question about TABS, and it withholds the bar from staff everywhere — which
-  // silently took Back away from an agent filing on a customer's behalf, a
-  // control the fitting used to render unconditionally (reviews, 2026-08-19).
-  if (!plan.visible && !back) return null;
+  if (!plan.visible) return null;
 
-  const tabs = plan.visible
-    ? TABS.filter((tab) => plan.hrefs.includes(tab.href))
-    : [];
+  const tabs = TABS.filter((tab) => plan.hrefs.includes(tab.href));
   const coach = plan.coach;
   /** Nowhere else to go: the bar carries the way to a person instead. */
-  const bare = plan.visible && plan.bare;
+  const bare = plan.bare;
   /** A lone tab keeps its natural width; stretching it reads as a button. */
   const stretch = tabs.length > 1;
 
@@ -121,30 +108,9 @@ export function BottomNav({ visitor }: { visitor: FooterVisitor }) {
       <div
         className={cn(
           "mx-auto flex w-full max-w-md items-stretch",
-          // Only centre when there is nothing anchored left, or Back drifts
-          // to the middle and its hairline reads as a divider between peers.
-          stretch || back ? undefined : "justify-center"
+          stretch ? undefined : "justify-center"
         )}
       >
-        {/* Divided by the same hairline the Coach uses, so Back reads as
-            chrome rather than as a peer tab. h-full, not padding alone: the
-            cell stretches to the bar, so the control matches the tabs' touch
-            target instead of being the height of its own text. */}
-        {back && (
-          <div className="flex shrink-0 items-stretch border-r border-[var(--line)]">
-            <button
-              type="button"
-              onClick={back.run}
-              aria-label={back.label}
-              className="flex h-full items-center px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
-            >
-              {/* Decorative, like the Coach's word mark and the support middot:
-                  the chevron is not part of the name a screen reader reads. */}
-              <span aria-hidden>&lsaquo;&nbsp;</span>Back
-            </button>
-          </div>
-        )}
-
         {/* Nothing reachable — an anonymous claimant, or an account with
             nothing linked yet. An empty bar would be chrome that does nothing,
             so it offers the two things that always work: a phone and an inbox

@@ -3,6 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
+import { StepActions } from "../ui/step-actions";
 import { StillNeeded } from "./still-needed";
 import { saveIntake, sendIntakeMessage } from "../../lib/actions/fitting";
 
@@ -21,8 +22,11 @@ export function IntakeStep({
   greeting,
   initialReason,
   initialPreference,
+  onBack,
   onDone,
 }: {
+  /** Absent on the first screen of the flow. */
+  onBack?: () => void;
   aiEnabled: boolean;
   greeting: string;
   initialReason: string;
@@ -34,6 +38,7 @@ export function IntakeStep({
   if (written) {
     return (
       <GuidedIntake
+        onBack={onBack}
         greeting={greeting}
         initialReason={initialReason}
         initialPreference={initialPreference}
@@ -58,6 +63,7 @@ export function IntakeStep({
 /* -------------------------------------------------------------------------- */
 
 function GuidedIntake({
+  onBack,
   greeting,
   initialReason,
   initialPreference,
@@ -65,6 +71,7 @@ function GuidedIntake({
   onSwitchBack,
   onDone,
 }: {
+  onBack?: () => void;
   greeting: string;
   initialReason: string;
   initialPreference: string;
@@ -119,9 +126,11 @@ function GuidedIntake({
 
       {note && <p className="text-[13px] text-mist">{note}</p>}
 
-      <Button type="submit" disabled={stillNeeded.length > 0 || pending}>
-        Next — the mattress itself
-      </Button>
+      <StepActions onBack={onBack}>
+        <Button type="submit" disabled={stillNeeded.length > 0 || pending}>
+          Next — the mattress itself
+        </Button>
+      </StepActions>
 
       {canSwitchBack && (
         <button

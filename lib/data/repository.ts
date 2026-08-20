@@ -74,6 +74,14 @@ export interface CreateDraftClaimInput {
 /** Everything the fitting can patch onto a draft, one step at a time. */
 export interface UpdateClaimInput {
   step?: FittingStep;
+  /**
+   * Identity, the three fields the front door owns (createAnonymousClaim sets
+   * them). Updatable because the wizard's Back reaches the front door: editing
+   * there has to land on the SAME request, not open a second one.
+   */
+  firstName?: string;
+  lastName?: string;
+  deliveryZip?: string | null;
   reasonExperience?: string | null;
   preferredReplacement?: string | null;
   confirmations?: ConfirmationKey[];

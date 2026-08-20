@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ConciergeCard } from "../concierge-card";
 import { Button } from "../ui/button";
+import { StepActions } from "../ui/step-actions";
 import { Chip } from "../ui/chip";
 import { Field } from "../ui/field";
 import { ConfirmRow } from "./confirm-row";
@@ -19,8 +20,11 @@ const PHONE_KINDS: { key: PhoneKind; label: string }[] = [
 /** Step 5 — how to reach them, where the mattress is, and that they still own it. */
 export function VerifyStep({
   initial,
+  onBack,
   onSubmitted,
 }: {
+  /** Absent on the first screen of the flow. */
+  onBack?: () => void;
   initial: {
     contactPhone: string;
     contactPhoneKind: PhoneKind | null;
@@ -140,9 +144,11 @@ export function VerifyStep({
 
       {note && <p className="text-[13px] text-mist">{note}</p>}
 
-      <Button onClick={submit} disabled={!ready || pending}>
-        {pending ? "Passing it along…" : "Send this to my dealer"}
-      </Button>
+      <StepActions onBack={onBack}>
+        <Button onClick={submit} disabled={!ready || pending}>
+          {pending ? "Passing it along…" : "Send this to my dealer"}
+        </Button>
+      </StepActions>
     </div>
   );
 }

@@ -16,8 +16,10 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
-  // The claims suite has its own config and its own server.
-  testIgnore: "**/claims/**",
+  // Each of these has its own config and its own server: the claims suite
+  // (playwright.claims.config.ts) and the headed walkthrough (e2e/walk, run by
+  // hand with playwright.walk.config.ts). Neither belongs in this run.
+  testIgnore: ["**/claims/**", "**/walk/**"],
   timeout: 45_000,
   fullyParallel: false,
   workers: 1,

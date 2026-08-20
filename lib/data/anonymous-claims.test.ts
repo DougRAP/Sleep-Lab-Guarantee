@@ -428,3 +428,42 @@ describe("inspection_scheduled status edges (v3)", () => {
     expect(approved.status).toBe("approved");
   });
 });
+
+describe("updateClaim — the identity fields the front door owns", () => {
+  // Stepping back to the front door and editing has to land on the same row,
+  // so the three fields createAnonymousClaim sets must also be updatable.
+  it("updates first name, last name and delivery ZIP in place", async () => {
+    const repo = new MemoryRepository();
+    const claim = await repo.createAnonymousClaim({
+      firstName: "Terri",
+      lastName: "Osborne",
+      deliveryZip: "28105",
+    });
+
+    await repo.updateClaim(claim.id, {
+      firstName: "Theresa",
+      lastName: "Osborne-Reid",
+      deliveryZip: "28110",
+    });
+
+    const saved = (await repo.getClaimById(claim.id))!;
+    expect(saved.firstName).toBe("Theresa");
+    expect(saved.lastName).toBe("Osborne-Reid");
+    expect(saved.deliveryZip).toBe("28110");
+  });
+
+  it("leaves them alone when the patch does not mention them", async () => {
+    const repo = new MemoryRepository();
+    const claim = await repo.createAnonymousClaim({
+      firstName: "Terri",
+      lastName: "Osborne",
+      deliveryZip: "28105",
+    });
+
+    await repo.updateClaim(claim.id, { modelNumber: "PL-2290" });
+
+    const saved = (await repo.getClaimById(claim.id))!;
+    expect(saved.firstName).toBe("Terri");
+    expect(saved.deliveryZip).toBe("28105");
+  });
+});

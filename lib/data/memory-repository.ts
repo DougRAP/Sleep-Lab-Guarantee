@@ -410,6 +410,9 @@ export class MemoryRepository implements GuaranteeRepository {
     const row = this.claims.find((c) => c.id === claimId);
     if (!row) throw new Error(`No claim ${claimId}`);
     if (patch.step !== undefined) row.step = patch.step;
+    if (patch.firstName !== undefined) row.firstName = patch.firstName;
+    if (patch.lastName !== undefined) row.lastName = patch.lastName;
+    if (patch.deliveryZip !== undefined) row.deliveryZip = patch.deliveryZip;
     if (patch.reasonExperience !== undefined) row.reasonExperience = patch.reasonExperience;
     if (patch.preferredReplacement !== undefined) {
       row.preferredReplacement = patch.preferredReplacement;
