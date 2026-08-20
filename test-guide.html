@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía de prueba · R-1 a R-4</title>
+<style>
+  body{background:#fff;color:#1b1b1b;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+       font-size:15px;line-height:1.6;margin:0;padding:32px 20px 80px}
+  main{max-width:940px;margin:0 auto}
+  h1{font-size:26px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:19px;margin:38px 0 10px;padding-bottom:6px;border-bottom:1px solid #ddd}
+  h3{font-size:15px;margin:24px 0 8px}
+  p,ul,ol{margin:0 0 12px}
+  ul,ol{padding-left:22px}
+  li{margin-bottom:5px}
+  .sub{color:#666;font-size:13px;margin-bottom:24px}
+  table{border-collapse:collapse;width:100%;margin:12px 0 18px;font-size:14px}
+  th,td{border:1px solid #ddd;padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#f5f5f5;font-weight:600}
+  td.st{text-align:center;width:52px;font-size:17px}
+  td.n{width:44px;text-align:center;color:#666}
+  code{background:#f2f2f2;border:1px solid #e2e2e2;border-radius:3px;padding:1px 5px;
+       font-family:Consolas,"SF Mono",Menlo,monospace;font-size:13px}
+  td code{white-space:nowrap}
+  pre{background:#f7f7f7;border:1px solid #e2e2e2;border-radius:4px;padding:10px 12px;
+      overflow-x:auto;font-family:Consolas,"SF Mono",Menlo,monospace;font-size:13px;margin:8px 0 14px}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:10px;
+         border:1px solid #ccc;background:#f5f5f5;color:#444;vertical-align:middle}
+  .badge.imp{background:#fdecea;border-color:#e8b4ae;color:#8a2b21}
+  .badge.pen{background:#fdf6e3;border-color:#e3d3a0;color:#7a5c14}
+  .badge.r1{background:#eef3fb;border-color:#b9cbe6;color:#274a7a}
+  .badge.r2{background:#eaf4ee;border-color:#b3d6c2;color:#1f5c39}
+  .badge.r3{background:#f6eef8;border-color:#d6bade;color:#5c2f6b}
+  .badge.r4{background:#fdf0ea;border-color:#e6c3ad;color:#8a4a1f}
+  .box{border:1px solid #ddd;border-left:3px solid #999;padding:12px 14px;margin:14px 0;background:#fafafa}
+  .box.warn{border-left-color:#c9a227;background:#fdfaf0}
+  .box.crit{border-left-color:#b03a2e;background:#fdf3f2}
+  .chk{list-style:none;padding-left:0}
+  .chk li{margin-bottom:7px}
+  .chk li::before{content:"☐  ";font-size:16px}
+  @media print{body{padding:0;font-size:12px}h2{page-break-after:avoid}table{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Guía de prueba: R-1 a R-4, con los datos exactos</h1>
+<p class="sub">
+  Proyecto: <strong>RAP Sleep Lab</strong> (<code>SleepLabComfortGuarantee</code>) ·
+  Rama: <code>main</code> · Commits: <code>ccfeec1</code> (R-1), <code>bb9796e</code> y
+  <code>2920290</code> (R-2), <code>8771edb</code> (R-3), <code>de85d43</code> (R-4) ·
+  Base: <code>097256d</code> ·
+  Actualizada el 20 de agosto de 2026
+</p>
+
+<h2>Qué se prueba</h2>
+<ul>
+  <li><span class="badge r1">R-1</span> La barra inferior existe en toda la app, y nunca ofrece una pestaña que expulsaría al visitante.</li>
+  <li><span class="badge r2">R-2</span> Un asistente de verdad: en cada paso hay dos botones juntos, volver y continuar. Se recorre entero hacia adelante y hacia atrás sin perder nada de lo escrito.</li>
+  <li><span class="badge r3">R-3</span> Dos fechas que no pueden ser ciertas a la vez no pasan del paso de detalles. Es un guardián de erratas: <strong>ningún envío se bloquea nunca</strong>.</li>
+  <li><span class="badge r4">R-4</span> Al <strong>entrar</strong> a una cuenta que ya existe, la reclamación presentada desde ese navegador se engancha sola, sin teclear el número. Requiere Supabase configurado.</li>
+</ul>
+
+<div class="box warn">
+  <p><span class="badge imp">Leer antes de empezar</span> <strong>Los bloques 1 a 3 no piden iniciar sesión en ningún paso.</strong> La reclamación de la portada <strong>no crea ninguna cuenta</strong>: pide datos y emite un número <code>CG######</code>, sin contraseña en ningún momento.</p>
+  <p><strong>El bloque 4 sí necesita sesión</strong>, y por tanto necesita un <code>.env.local</code> con <code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> y <code>SUPABASE_SERVICE_ROLE_KEY</code>. Sin esas tres claves la autenticación real no puede funcionar, el enlace "Log in" de la portada no se pinta y el middleware devuelve <code>/login</code> a la raíz. Eso es el comportamiento de siempre y no algo roto, pero significa que el bloque 4 no se puede probar.</p>
+</div>
+
+<div class="box">
+  <p><strong>Qué cambió respecto a la versión anterior de esta guía.</strong> El botón Atrás estaba en la
+     barra inferior. Ahora vive <strong>dentro del formulario, al lado del botón que avanza</strong>, en todos
+     los pasos, incluido el primero. Desde el primer paso se vuelve a la portada, y allí el formulario aparece
+     relleno. La barra inferior ya no lleva Atrás: solo pestañas y soporte.</p>
+</div>
+
+<h2>Datos de prueba</h2>
+<p>Todo lo que hay que teclear, en un solo sitio. Los tres perfiles se diferencian únicamente en las fechas, que son las que deciden qué mensaje muestra la app.</p>
+
+<h3>Identificación (pantalla <code>/</code>, igual para los tres perfiles)</h3>
+<p>
+  <strong>Convención de datos de QA:</strong> todos los correos van en el dominio
+  <code>@rapqa.com</code> y todos los teléfonos empiezan por <code>000</code>, para que ningún dato de
+  prueba pueda confundirse con uno real ni alcanzar a una persona. Rige también para las semillas y
+  los tests automáticos.
+</p>
+<table>
+  <tr><th>Campo</th><th>Qué poner</th><th>Regla</th></tr>
+  <tr><td>First name</td><td><code>Adrian</code></td><td>Obligatorio.</td></tr>
+  <tr><td>Last name</td><td><code>Smith</code></td><td>Obligatorio.</td></tr>
+  <tr><td>Sales order number</td><td><code>1011099600S</code></td><td>Este <strong>o</strong> el código postal. Con poner uno basta.</td></tr>
+  <tr><td>Delivery ZIP code</td><td><code>14201</code></td><td>Si lo usás, exactamente 5 dígitos.</td></tr>
+  <tr><td>Email</td><td><code>qa.smith@rapqa.com</code></td><td>Este <strong>o</strong> el móvil. Debe tener forma de correo.</td></tr>
+  <tr><td>Mobile number</td><td><code>0005551234</code></td><td>Si lo usás, tiene que llevar dígitos.</td></tr>
+  <tr><td colspan="3">Botón: <strong>Get started</strong> la primera vez. Si ya tenés una reclamación abierta, el mismo botón dice <strong>Continue</strong>.</td></tr>
+</table>
+
+<h3>Detalles de la compra (pantalla <code>/claim</code>, paso 1)</h3>
+<p>
+  El campo "Model number" es obligatorio. Las fechas se teclean en formato <strong>MM/DD/AAAA</strong>,
+  porque la app está en inglés.
+</p>
+<table>
+  <tr><th>Perfil</th><th>Model number</th><th>Date of purchase</th><th>Date of delivery</th><th>Qué debe responder la app</th></tr>
+  <tr>
+    <td><strong>A</strong><br>en ventana</td>
+    <td><code>CM-QUEEN-01</code></td><td><code>06/29/2026</code></td><td><code>07/06/2026</code></td>
+    <td>"That makes today night <strong>45</strong> of your 90 — you're in your exchange window."</td>
+  </tr>
+  <tr>
+    <td><strong>B</strong><br>antes de la noche 31</td>
+    <td><code>CM-KING-02</code></td><td><code>07/23/2026</code></td><td><code>07/30/2026</code></td>
+    <td>"…night <strong>21</strong> — your exchange window opens on <strong>August 30, 2026</strong> (night 31)…" y aparecen <strong>dos opciones obligatorias</strong> (ver abajo).</td>
+  </tr>
+  <tr>
+    <td><strong>C</strong><br>pasada la ventana</td>
+    <td><code>CM-FULL-03</code></td><td><code>05/10/2026</code></td><td><code>05/17/2026</code></td>
+    <td>"That makes today night <strong>95</strong>, past the 90-night window. You can still send this in…"</td>
+  </tr>
+  <tr><td colspan="5">Botones: <strong>‹ Back</strong> y <strong>Next — a few confirmations</strong>, uno al lado del otro.</td></tr>
+</table>
+
+<div class="box warn">
+  <p><span class="badge imp">Importante</span> <strong>Estas fechas solo dan esos números el 20 de agosto de 2026.</strong>
+     Cada día que pase, la cuenta sube en uno. La regla para recalcularlas es siempre la misma:</p>
+  <p><code>Date of delivery = hoy menos N días</code>, donde N es la noche que querés ver. Para la compra, poné una semana antes de la entrega.</p>
+</div>
+
+<h3>Solo en el perfil B: la elección obligatoria</h3>
+<p>Cuando faltan noches para la 31 aparecen dos opciones y el botón de avanzar queda deshabilitado hasta elegir una:</p>
+<ul>
+  <li><code>Submit now and start my exchange automatically on day 31.</code></li>
+  <li><code>Have an agent call me to talk it through.</code></li>
+</ul>
+<p>Para la guía, marcá la primera.</p>
+
+<h3>Calificación (paso 2)</h3>
+<p>Hay <strong>9 casillas obligatorias</strong>. Hasta marcarlas todas, el botón de avanzar sigue deshabilitado y abajo se lista lo que falta bajo "STILL NEEDED".</p>
+<ol>
+  <li>The mattress is clean and sanitary.</li>
+  <li>The law tag is still attached and legible.</li>
+  <li>The model tag is still attached and legible.</li>
+  <li>The mattress is in like-new condition.</li>
+  <li>Both sleep partners can be there to choose the replacement.</li>
+  <li>We're between day 31 and day 90 of the 90 nights.</li>
+  <li>I'm still the original owner of this mattress.</li>
+  <li>It's still in my possession and has only had household use.</li>
+  <li>I'm in the US and bought from my original dealer.</li>
+</ol>
+<p>Y una décima, <strong>opcional</strong>, bajo "ONE MORE, JUST FOR OUR NOTES — NOT REQUIRED": <code>I've been using a mattress protector.</code> Dejala sin marcar para comprobar que igual deja avanzar.</p>
+<p>Botones: <strong>‹ Back</strong> y <strong>Next — photos, if you'd like</strong></p>
+
+<h3>Fotos (paso 3)</h3>
+<p>Cuatro casillas, <strong>todas opcionales</strong>: Law tag, Model tag, Top-down y Receipt. Cada una ofrece Camera y Gallery en escritorio y Android, y un único botón "Take" en iPhone.</p>
+<p>Botones: <strong>‹ Back</strong> y <strong>Continue — I can skip these</strong></p>
+
+<h3>Proceso y envío (paso 4)</h3>
+<p>Pantalla informativa con cuatro puntos. Botones: <strong>‹ Back</strong> y <strong>Send my request</strong>. Al enviar sale el número <code>CG######</code>, y en esa última pantalla <strong>ya no hay Atrás</strong>.</p>
+
+<h3>Modo compañero (solo para los pasos de <code>/fitting</code>)</h3>
+<table>
+  <tr><th>Campo</th><th>Qué poner</th></tr>
+  <tr><td>Sales order number</td><td><code>123</code></td></tr>
+  <tr><td>Last name</td><td><code>Demo</code></td></tr>
+  <tr><td colspan="2">Botón: <strong>Find my purchase</strong></td></tr>
+</table>
+<p>
+  Esa compra está en el <strong>día 0</strong>, así que el cambio no está disponible todavía. Para abrir la
+  ventana usá el control <em>Demo · preview day</em> de abajo a la izquierda y elegí <strong>31</strong>
+  (los presets son 0, 12, 31, 60, 90 y 91).
+</p>
+
+<h2>Precondiciones</h2>
+<ul>
+  <li>Rama <code>main</code>, commit <code>8771edb</code>. Sin subir al remoto.</li>
+  <li>Node 22. <code>npm install</code> si es un checkout nuevo.</li>
+  <li>Sin variables de entorno: la app arranca contra el repositorio en memoria.</li>
+  <li>Ancho de móvil en las herramientas de desarrollo (por ejemplo 390 x 844).</li>
+</ul>
+<div class="box">
+  <p><strong>Para no repetir el formulario en cada pasada:</strong> la cookie del reclamo dura 7 días, así que
+     <code>/</code> te ofrece continuar y <code>/claim</code> retoma donde estabas. Lo que sí borra todo es
+     <strong>reiniciar <code>npm run dev</code></strong>, porque sin Supabase los datos viven en la memoria
+     del proceso. Si querés empezar limpio a propósito, borrá las cookies del sitio.</p>
+</div>
+
+<h2>Puertas automáticas</h2>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">1</td><td><pre>npx tsc --noEmit</pre></td><td>Sin salida, código 0.</td><td class="st">☐</td></tr>
+  <tr><td class="n">2</td><td><pre>npm test</pre></td><td><code>623 passed</code>. Eran 563 antes de R-1.</td><td class="st">☐</td></tr>
+  <tr><td class="n">3</td><td><pre>npm run build</pre></td><td>Compila. Parar antes cualquier servidor de dev, porque el build escribe en <code>.next</code>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">4</td><td><pre>npm run test:e2e</pre></td><td>15 en verde (compañero) y luego 16 (claims). Unos 3 minutos. Este sí convive con tu <code>npm run dev</code>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">5</td><td><pre>npx playwright test -c playwright.walk.config.ts</pre></td><td><strong>Opcional.</strong> Recorre esta guía sola, en una ventana visible, en unos 45 segundos. Ver <code>e2e/walk/README.md</code>.</td><td class="st">☐</td></tr>
+</table>
+
+<h2>Pruebas manuales</h2>
+<p>Arrancar con <code>npm run dev</code> y abrir <code>http://localhost:3000</code>. El modo claims es el valor por defecto.</p>
+
+<h3>Bloque 1 · La barra aparece donde antes no había <span class="badge r1">R-1</span></h3>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">6</td><td>Abrir <code>/</code>.</td>
+      <td>Hay barra inferior, que antes no existía aquí. Muestra <strong>CALL 1-855-513-5435 · EMAIL US</strong> y <strong>ninguna pestaña</strong>. Tampoco lleva Atrás.</td><td class="st">☐</td></tr>
+  <tr><td class="n">7</td><td>Bajar hasta el final de <code>/</code>.</td>
+      <td>El botón <em>Get started</em> queda por encima de la barra, nunca tapado.</td><td class="st">☐</td></tr>
+  <tr><td class="n">8</td><td>Rellenar la identificación con los datos de arriba y pulsar <em>Get started</em>.</td>
+      <td>Llega a <code>/claim</code>. La barra sigue ahí, con teléfono y correo. Esta pantalla tampoco tenía barra antes.</td><td class="st">☐</td></tr>
+  <tr><td class="n">9</td><td>Abrir <code>/admin</code> en otra pestaña.</td>
+      <td><strong>Sin barra</strong> y <strong>sin el control "Demo · preview day"</strong>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">10</td><td>Abrir <code>/login</code>.</td>
+      <td>Redirige a <code>/</code>, porque sin Supabase la autenticación real no puede funcionar.</td><td class="st">☐</td></tr>
+</table>
+
+<h3>Bloque 2 · El asistente, adelante y atrás <span class="badge r2">R-2</span></h3>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">11</td><td>En el paso 1 de <code>/claim</code>, mirar la zona de botones.</td>
+      <td>Dos botones juntos: <strong>‹ Back</strong> a la izquierda, más estrecho y apagado, y el principal a la derecha. <strong>Ninguno de los dos está en la barra inferior.</strong></td><td class="st">☐</td></tr>
+  <tr><td class="n">12</td><td><strong>Volver al principio del todo.</strong> Pulsar <em>‹ Back</em> desde ese primer paso.</td>
+      <td>Vuelve a la portada. El formulario de identificación <strong>aparece relleno</strong> con lo que pusiste, y el botón ahora dice <strong>Continue</strong> en vez de <em>Get started</em>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">13</td><td>Cambiar el apellido a <code>Smith-Rey</code> y pulsar <em>Continue</em>.</td>
+      <td>Vuelve al paso 1. <strong>No se creó una segunda reclamación</strong>: seguís en la misma, con el apellido corregido.</td><td class="st">☐</td></tr>
+  <tr><td class="n">14</td><td>Cargar el <strong>perfil A</strong>: <code>CM-QUEEN-01</code>, <code>06/29/2026</code>, <code>07/06/2026</code>.</td>
+      <td>Aparece la tarjeta: "That makes today night <strong>45</strong> of your 90 — you're in your exchange window."</td><td class="st">☐</td></tr>
+  <tr><td class="n">15</td><td>Pulsar <em>Next — a few confirmations</em>.</td>
+      <td>Salen las 9 casillas, y otra vez el par <strong>‹ Back</strong> y el botón de avanzar juntos abajo.</td><td class="st">☐</td></tr>
+  <tr><td class="n">16</td><td><strong>La prueba clave.</strong> Pulsar <em>‹ Back</em> y mirar "Model number" <strong>en el instante</strong> en que aparece la pantalla.</td>
+      <td>Ya debe leer <code>CM-QUEEN-01</code>, y "Date of delivery" <code>07/06/2026</code>. <strong>Si parpadea vacío aunque sea un momento, es el fallo que se corrigió: reportalo.</strong></td><td class="st">☐</td></tr>
+  <tr><td class="n">17</td><td>Poner el navegador en "Slow 3G" (pestaña Network) y repetir 15 y 16.</td>
+      <td>Idéntico: el valor está desde el primer fotograma.</td><td class="st">☐</td></tr>
+  <tr><td class="n">18</td><td>De vuelta en el paso 1, recargar con F5.</td>
+      <td>Sigue en el paso de detalles con los valores. El punto de retomado retrocedió con vos.</td><td class="st">☐</td></tr>
+  <tr><td class="n">19</td><td>Cambiar el modelo a <code>CM-QUEEN-99</code>, avanzar, volver con <em>‹ Back</em>.</td>
+      <td>Se ve <code>CM-QUEEN-99</code>. Nunca debe reaparecer <code>CM-QUEEN-01</code>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">20</td><td>Marcar las 9 casillas (dejar el protector sin marcar) y avanzar a fotos. Capturar o elegir una imagen en "Law tag". Pulsar <em>‹ Back</em> y volver a avanzar a fotos.</td>
+      <td>La captura sigue marcada.</td><td class="st">☐</td></tr>
+  <tr><td class="n">21</td><td>Avanzar hasta el último paso. Comprobar que ahí también hay <em>‹ Back</em>, y pulsar <em>Send my request</em>.</td>
+      <td>Sale el <code>CG######</code> y en esa pantalla <strong>ya no hay Atrás</strong>. Anotá el número aquí: ____________</td><td class="st">☐</td></tr>
+</table>
+
+<h3>Bloque 3 · Fechas imposibles <span class="badge r3">R-3</span></h3>
+<p>Todas estas se prueban en el paso 1 de <code>/claim</code>. Recordá que <strong>lo que se bloquea es avanzar de paso, nunca el envío</strong>.</p>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">22</td><td><strong>El caso literal de Emy.</strong> Compra <code>08/04/2026</code>, entrega <code>07/29/2026</code>.</td>
+      <td>Sale <em>"That purchase date lands after the delivery date…"</em>, <strong>no hay ningún conteo de noches</strong> en pantalla, y el botón de avanzar queda apagado.</td><td class="st">☐</td></tr>
+  <tr><td class="n">23</td><td>Con esa corrección en pantalla, mirar el botón <em>‹ Back</em>.</td>
+      <td><strong>Sigue activo.</strong> Nunca se puede quedar encerrado en una pantalla que no se puede satisfacer.</td><td class="st">☐</td></tr>
+  <tr><td class="n">24</td><td>Abrir el selector de la fecha de compra.</td>
+      <td>Deja elegir hasta hoy. Cuando el par está roto, el tope <strong>no</strong> es la fecha de entrega cuestionada: si no, quedarías atrapado en el campo que el mensaje te pide corregir.</td><td class="st">☐</td></tr>
+  <tr><td class="n">25</td><td>Corregir a un par normal: entrega hace 45 días, compra hace 52.</td>
+      <td>Desaparece la corrección, vuelve <em>"night 45 of your 90"</em> y el botón se habilita. Un guardián que no suelta es peor que el fallo que arregla.</td><td class="st">☐</td></tr>
+  <tr><td class="n">26</td><td><strong>Entrega mañana.</strong> Poner la fecha de entrega en el día siguiente a hoy.</td>
+      <td><em>"That delivery date is still ahead of us…"</em>, sin conteo de noches, sin las opciones de la noche 31, y el botón apagado. Antes esto colaba y la pantalla anunciaba <em>"night -1"</em>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">27</td><td><strong>Entrega hoy.</strong> Poner la fecha de entrega en el día de hoy.</td>
+      <td>Pasa sin problema y muestra <em>"night 0"</em>. El reloj no puede ser un obstáculo para quien acaba de recibirlo.</td><td class="st">☐</td></tr>
+  <tr><td class="n">28</td><td><strong>Que no bloquea el envío.</strong> Entrega hace 120 días, compra hace 130.</td>
+      <td><em>"…past the 90-night window…"</em> y el botón <strong>habilitado</strong>. Pasada la ventana se sigue enviando, como manda la v3.</td><td class="st">☐</td></tr>
+  <tr><td class="n">29</td><td>Con la corrección en pantalla, recorrer con lector de pantalla o inspeccionar el campo señalado.</td>
+      <td>El campo que nombra el mensaje lleva <code>aria-invalid="true"</code>, y el mensaje está en una región que se anuncia sola.</td><td class="st">☐</td></tr>
+</table>
+
+<h3>Bloque 4 · Los otros dos perfiles de fecha</h3>
+<p>Borrá las cookies del sitio para empezar un reclamo nuevo, y repetí la identificación.</p>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">30</td><td><strong>Perfil B</strong>: <code>CM-KING-02</code>, <code>07/23/2026</code>, <code>07/30/2026</code>.</td>
+      <td>"…night <strong>21</strong> — your exchange window opens on <strong>August 30, 2026</strong> (night 31)…" y aparecen las dos opciones. El botón de avanzar queda deshabilitado hasta elegir una, pero <strong>el Atrás sigue activo</strong>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">31</td><td><strong>Perfil C</strong>: <code>CM-FULL-03</code>, <code>05/10/2026</code>, <code>05/17/2026</code>.</td>
+      <td>"…night <strong>95</strong>, past the 90-night window…" y <strong>deja enviar igual</strong>. Nunca se bloquea el envío.</td><td class="st">☐</td></tr>
+</table>
+
+<h3>Bloque 5 · Modo compañero</h3>
+<pre># PowerShell — parar antes el servidor anterior
+$env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">32</td><td>En <code>/</code>, poner <code>123</code> y <code>Demo</code>, pulsar <em>Find my purchase</em>.</td>
+      <td>Entra a <code>/tonight</code> con <strong>cuatro pestañas</strong> (Tonight, Guarantee, Requests, Shop) más el <strong>Coach</strong>. Igual que antes de R-1.</td><td class="st">☐</td></tr>
+  <tr><td class="n">33</td><td>Navegar entre Guarantee, Requests y Shop.</td>
+      <td>La barra se mantiene, la activa en albaricoque, y ninguna redirige a otro sitio. <strong>Sin Atrás en la barra</strong> en ninguna de ellas.</td><td class="st">☐</td></tr>
+  <tr><td class="n">34</td><td>Poner el día de demo en <strong>31</strong> y entrar a <code>/fitting</code> desde Guarantee.</td>
+      <td>La barra aparece una sola vez. Los puntos de progreso siguen arriba. En el <strong>primer paso no hay Atrás</strong>: la salida es el enlace <em>"Leave for now"</em> de abajo.</td><td class="st">☐</td></tr>
+  <tr><td class="n">35</td><td>Avanzar un paso y mirar la zona de botones.</td>
+      <td>El par <strong>‹ Back</strong> más el botón de avanzar, con la misma forma que en <code>/claim</code>. Los dos asistentes se ven igual.</td><td class="st">☐</td></tr>
+  <tr><td class="n">36</td><td>Pulsar <em>‹ Back</em>.</td>
+      <td>Vuelve al paso anterior con lo escrito intacto.</td><td class="st">☐</td></tr>
+</table>
+
+
+<h3>Bloque 4 · La solicitud te sigue al entrar <span class="badge r4">R-4</span></h3>
+
+<div class="box warn">
+  <p><strong>Solo al entrar, no al darse de alta.</strong> Crear una cuenta nueva <em>no</em> engancha la reclamación, y es a propósito: la confirmación de correo de Supabase está apagada, así que darse de alta con una dirección no prueba nada. Quien crea su cuenta por primera vez teclea el <code>CG</code> una vez, con el número en pantalla.</p>
+  <p><strong>No hay botón de cerrar sesión en las pantallas de cliente</strong> (solo en <code>/admin</code>). Para volver a ser anónimo, usá una <strong>ventana privada</strong> o borrá las cookies del sitio.</p>
+</div>
+
+<h4>Cuenta de prueba</h4>
+<table>
+  <tr><th>Campo</th><th>Qué poner</th></tr>
+  <tr><td>Correo de la cuenta A</td><td><code>qa.smith@rapqa.com</code></td></tr>
+  <tr><td>Correo de la cuenta B</td><td><code>qa.other@rapqa.com</code></td></tr>
+  <tr><td>Contraseña (las dos)</td><td><code>Rapqa-2026</code> · mínimo 8 caracteres</td></tr>
+</table>
+
+<h4>Caso que funciona: la cuenta ya existe</h4>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">47</td><td>Abrir <code>/</code>.</td>
+      <td>Arriba se ve el enlace <strong>Log in</strong>. Si no aparece, falta <code>.env.local</code> y este bloque no se puede probar.</td><td class="st">☐</td></tr>
+  <tr><td class="n">48</td><td>Abrir <code>/signup</code> y crear la <strong>cuenta A</strong> con <code>qa.smith@rapqa.com</code>.</td>
+      <td>Aterriza en <code>/requests</code> con la lista vacía. <strong>Se ve el bloque "Have a claim number? Add it here"</strong>.</td><td class="st">☐</td></tr>
+  <tr><td class="n">49</td><td>Abrir una <strong>ventana privada</strong> y volver a <code>http://localhost:3000</code>.</td>
+      <td>Sos anónimo otra vez: la portada muestra el formulario de reclamación.</td><td class="st">☐</td></tr>
+  <tr><td class="n">50</td><td>Presentar una reclamación completa (perfil A del bloque 2), poniendo en <strong>Email</strong> exactamente <code>qa.smith@rapqa.com</code>.</td>
+      <td>Sale el <code>CG######</code>. Anotalo aquí: ____________</td><td class="st">☐</td></tr>
+  <tr><td class="n">51</td><td>En esa misma pantalla, pulsar <em>Create an account or log in</em> y <strong>entrar</strong> con la cuenta A.</td>
+      <td><strong>La prueba clave.</strong> Aterriza en <code>/requests</code> y <strong>la fila con ese <code>CG</code> ya está ahí</strong>, sin haber tecleado el número en ningún momento.</td><td class="st">☐</td></tr>
+  <tr><td class="n">52</td><td>Escribir <code>/claim</code> en la barra de direcciones.</td>
+      <td>Rebota a <code>/</code>: la cookie de reclamante se gastó al enganchar. Es lo esperado.</td><td class="st">☐</td></tr>
+  <tr><td class="n">53</td><td>Borrar las cookies, entrar otra vez con la cuenta A y mirar <code>/requests</code>.</td>
+      <td><strong>Una sola fila</strong>, la misma. No se duplica ni cambia de dueño.</td><td class="st">☐</td></tr>
+</table>
+
+<h4>Caso que no engancha: otro correo</h4>
+<p>Esto <strong>no es un fallo</strong>. Es el segundo requisito: la dirección de la cuenta tiene que ser la misma que se puso en el formulario.</p>
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">54</td><td>Ventana privada nueva. Presentar otra reclamación con <strong>Email</strong> <code>qa.other@rapqa.com</code>. Anotar el <code>CG</code>: ____________</td>
+      <td>Sale el número normalmente.</td><td class="st">☐</td></tr>
+  <tr><td class="n">55</td><td>Entrar con la <strong>cuenta A</strong> (<code>qa.smith@rapqa.com</code>), que no coincide.</td>
+      <td>Aterriza en <code>/requests</code> y <strong>no aparece nada nuevo</strong>, en silencio.</td><td class="st">☐</td></tr>
+  <tr><td class="n">56</td><td>Usar el bloque "Have a claim number? Add it here" con ese <code>CG</code> y el apellido del formulario.</td>
+      <td>La fila aparece. Esa es la salida para todos los casos que no enganchan solos.</td><td class="st">☐</td></tr>
+  <tr><td class="n">57</td><td>Con una cuenta que tenga una <strong>compra vinculada</strong>, abrir <code>/requests</code>.</td>
+      <td>El bloque del número de reclamación <strong>se ve igual que sin compra vinculada</strong>. Antes de R-4 no se pintaba, y esa cuenta no tenía ninguna forma de añadir un <code>CG</code>.</td><td class="st">☐</td></tr>
+</table>
+
+<h2>Escenarios negativos</h2>
+<table>
+  <tr><th class="n">#</th><th>Caso</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">37</td><td>En <code>/</code>, pulsar <em>Get started</em> con todo vacío.</td><td>"Please share your first and last name."</td><td class="st">☐</td></tr>
+  <tr><td class="n">38</td><td>Poner nombre y apellido, y dejar pedido y código postal vacíos.</td><td>"Please add your sales order number or the ZIP code…"</td><td class="st">☐</td></tr>
+  <tr><td class="n">39</td><td>Poner código postal <code>142</code>.</td><td>"That ZIP code doesn't look quite right — five digits is all we need."</td><td class="st">☐</td></tr>
+  <tr><td class="n">40</td><td>Poner correo <code>adrian@rapqa</code> (sin punto ni TLD).</td><td>"That email doesn't look quite right…"</td><td class="st">☐</td></tr>
+  <tr><td class="n">41</td><td>Dejar correo y móvil vacíos.</td><td>"Please add an email or a mobile number…"</td><td class="st">☐</td></tr>
+  <tr><td class="n">42</td><td>Pulsar <em>‹ Back</em> tres veces muy rápido.</td><td>Un paso por pulsación como máximo. Las que llegan durante la escritura se ignoran.</td><td class="st">☐</td></tr>
+  <tr><td class="n">43</td><td>Ir y volver varias veces entre el paso 1 y la portada.</td><td>Sigue habiendo <strong>una sola</strong> reclamación. Si tenés acceso al dashboard, comprobalo ahí.</td><td class="st">☐</td></tr>
+  <tr><td class="n">44</td><td>Abrir <code>/logins</code> o <code>/admins-choice</code> (rutas inventadas que empiezan igual).</td><td>404 con barra. La regla compara segmentos completos.</td><td class="st">☐</td></tr>
+  <tr><td class="n">45</td><td>Recorrer el formulario con el teclado (Tab) hasta el <em>‹ Back</em> y pulsar Enter.</td><td>Foco visible y funciona. El lector de pantalla anuncia "Back to the previous step", no el símbolo <code>‹</code>. En el primer paso anuncia "Back to your details".</td><td class="st">☐</td></tr>
+  <tr><td class="n">46</td><td>Emulador de móvil con muesca, en los dos modos.</td><td>La barra respeta el área segura inferior y no tapa el par de botones.</td><td class="st">☐</td></tr>
+  <tr><td class="n">58</td><td><span class="badge r4">R-4</span> Presentar una reclamación con <code>qa.new@rapqa.com</code> y <strong>crear</strong> la cuenta con ese mismo correo desde la pantalla del <code>CG</code>.</td><td><strong>No se engancha</strong>, a propósito. Hay que usar el formulario del número. El alta no ata mientras la confirmación de correo esté apagada.</td><td class="st">☐</td></tr>
+  <tr><td class="n">59</td><td><span class="badge r4">R-4</span> Una reclamación presentada hace <strong>más de 48 horas</strong>, y entrar con el correo que sí coincide.</td><td>No se engancha. La ventana se mide desde el envío, no desde la cookie. Formulario del número.</td><td class="st">☐</td></tr>
+  <tr><td class="n">60</td><td><span class="badge r4">R-4</span> Con una reclamación <strong>ya presentada</strong> en el navegador, entrar con una cuenta de personal (<code>rap_admin</code> o <code>dealer</code>).</td><td>No se engancha, y la cookie se desarma: al volver a <code>/claim</code> rebota a <code>/</code>. Un agente no se queda con la solicitud de un cliente.</td><td class="st">☐</td></tr>
+  <tr><td class="n">61</td><td><span class="badge r4">R-4</span> <strong>El caso que se rompió y se arregló.</strong> Con un <strong>borrador a medias</strong> (empezado pero sin enviar, todavía sin <code>CG</code>), entrar con una cuenta de personal en ese mismo navegador. Después volver a <code>/claim</code>.</td><td><strong>El borrador sigue ahí, con todo lo escrito.</strong> Si te lleva a un formulario en blanco, es la regresión: reportalo. Un borrador no tiene número ni dueño, así que borrar su cookie lo pierde para siempre.</td><td class="st">☐</td></tr>
+</table>
+
+<h2>Checklist final</h2>
+<ul class="chk">
+  <li><code>npx tsc --noEmit</code> limpio.</li>
+  <li><code>npm test</code> en verde con 639 casos.</li>
+  <li><code>npm run build</code> en verde.</li>
+  <li><code>npm run test:e2e</code>: 15 compañero y 16 claims.</li>
+  <li>La barra aparece en <code>/</code> y en <code>/claim</code>, que antes no la tenían.</li>
+  <li>El visitante anónimo no recibe ninguna pestaña, solo teléfono y correo.</li>
+  <li><strong>La barra inferior no lleva Atrás en ninguna pantalla.</strong></li>
+  <li>Cada paso del asistente muestra los dos botones juntos, incluido el primero.</li>
+  <li>Desde el primer paso se vuelve a la portada y el formulario está relleno.</li>
+  <li>Ir y volver no crea reclamaciones de más.</li>
+  <li><strong>Volver atrás conserva lo escrito, también con la red frenada.</strong></li>
+  <li>Volver y avanzar de nuevo no pierde las fotos capturadas.</li>
+  <li>El Atrás desaparece al emitirse el <code>CG######</code>.</li>
+  <li>Los dos asistentes, <code>/claim</code> y <code>/fitting</code>, se ven igual.</li>
+  <li>Los tres perfiles de fecha dan los tres mensajes distintos, y ninguno bloquea el envío.</li>
+  <li>El par de Emy se rechaza, y corregirlo vuelve a habilitar el avance.</li>
+  <li>Una entrega con fecha de mañana se rechaza; una de hoy pasa.</li>
+  <li>Nunca aparece un conteo de noches junto a una corrección, ni un conteo negativo.</li>
+  <li><strong>Entrar con la cuenta cuyo correo coincide trae la reclamación sola</strong>, sin teclear el número.</li>
+  <li>Crear la cuenta por primera vez <strong>no</strong> la trae, y el formulario del número está a la vista para hacerlo a mano.</li>
+  <li>Entrar con otro correo no trae nada y no rompe nada.</li>
+  <li>El bloque "Have a claim number? Add it here" se ve <strong>con y sin compra vinculada</strong>.</li>
+  <li>Una cuenta de personal nunca se queda con la reclamación de un cliente.</li>
+  <li><strong>Un borrador a medias sobrevive a que entre un empleado en el mismo navegador.</strong></li>
+  <li>El modo compañero se comporta igual que antes de R-1.</li>
+</ul>
+
+<h2>Notas, riesgos y pendientes</h2>
+<ul>
+  <li><strong>Doug había sugerido el Atrás en el footer.</strong> Se hizo dentro del formulario porque un solo control ahí abajo no se lee como asistente, y faltaba en el primer paso. Queda escrito y fechado en <code>DESIGN.md</code>, para que nadie lo revierta pensando que es una regresión.</li>
+  <li><strong>El Atrás solo existe dentro del asistente.</strong> En una página normal la navegación es la barra inferior. Ahí "atrás" significaría el historial del navegador, que no es lo que un cliente quiere decir.</li>
+  <li><span class="badge pen">Pendiente</span> <strong>El texto de las dos correcciones espera aprobación de Doug</strong>, igual que los mensajes del conteo de noches (spec §7). Lo redactado es un borrador en la voz del guía.</li>
+  <li><strong>El guardián actúa al salir del paso de detalles</strong>, no al enviar. Un borrador creado antes de este cambio y ya parado en un paso posterior puede llegar al escritorio con el par imposible. No hay ninguno así hoy, y revalidar al enviar habría bloqueado un envío, que es justo lo que la v3 no hace.</li>
+  <li><strong>Las fechas de los perfiles caducan.</strong> Solo dan esos números el 20 de agosto de 2026. Recalculalas con "hoy menos N días".</li>
+  <li><strong>De R-1 sigue vigente:</strong> <code>/_not-found</code> y <code>/concierge</code> son dinámicas porque el layout raíz lee cookies, y el 404 no reserva espacio para la barra (hoy no tapa nada).</li>
+  <li><span class="badge imp">R-4</span> <strong>Ninguna prueba automática cubre R-4.</strong> Las dos suites de Playwright vacían las variables de Supabase a propósito, así que la autenticación real no puede correr ahí. Lo que sí está cubierto son las funciones puras: 25 casos nuevos en <code>lib/auth/link.test.ts</code>, incluidos los de la ventana, el correo que no coincide y el borrador que no se debe tocar. El bloque 4 de esta guía es la única cobertura del recorrido completo.</li>
+  <li><span class="badge r4">R-4</span> <strong>Doug pidió esto por el caso de una cuenta que ya existía</strong> ("I created one yesterday, but it let me in as if I didn't have an account"), y ese caso queda resuelto entero. El primerizo teclea su número una vez. Si algún día se enciende la confirmación de correo en Supabase, el alta también engancha sola, sin tocar código.</li>
+  <li><span class="badge pen">Pendiente</span> <strong>No existe ningún "desvincular" en toda la aplicación.</strong> Si una reclamación acaba en la cuenta equivocada, solo se deshace con un <code>UPDATE</code> a mano en la base de datos. Es anterior a R-4 y queda para el pase de seguridad.</li>
+  <li><span class="badge pen">Pendiente</span> <strong>Al enviar, la reclamación se asigna sola a una cuenta si coinciden apellido y código postal</strong>, sin ningún inicio de sesión de por medio. Dos personas de la misma familia en la misma dirección pueden cruzarse. También es anterior a R-4 y también es del pase de seguridad.</li>
+  <li><strong>Los commits no están subidos.</strong> Están en <code>main</code>, seis por delante de <code>origin/main</code>.</li>
+</ul>
+
+</main>
+</body>
+</html>
