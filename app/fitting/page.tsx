@@ -4,13 +4,14 @@ import { LivingSky } from "../../components/living-sky";
 import { AppHeader } from "../../components/app-header";
 import { DayCount } from "../../components/day-count";
 import { ConciergeCard } from "../../components/concierge-card";
+import { FittingEntry } from "../../components/fitting/entry-question";
 import { FittingFlow } from "../../components/fitting/fitting-flow";
 import { buttonVariants } from "../../components/ui/button";
 import { isPreVerifiedSession, requireGuarantee } from "../../lib/auth/app-session";
 import { getRepository } from "../../lib/data";
 import { effectiveReferenceDate } from "../../lib/demo-server";
 import { evaluateEligibility } from "../../lib/eligibility";
-import { photoTargetsFor, resumeStep } from "../../lib/fitting";
+import { entryPrompt, photoTargetsFor, resumeStep } from "../../lib/fitting";
 import { intakeGreeting } from "../../lib/fitting-intake";
 import { hasAnthropicKey } from "../../lib/concierge";
 import { claimPhotoThumbs, isPhotoStorageConfigured } from "../../lib/storage";
@@ -66,11 +67,34 @@ export default async function FittingPage() {
   // nothing (Emmy's ghost fix, 2026-07-23): the draft is born lazily inside
   // the first server action, so an untouched visit leaves no trace.
   const claim = await repo.getDraftClaim(guarantee.id);
-  const [items, photos, dealer] = await Promise.all([
+  const [items, photos, dealer, byGuarantee, byUser] = await Promise.all([
     claim ? repo.listClaimItems(claim.id) : Promise.resolve([]),
     claim ? repo.listClaimPhotos(claim.id) : Promise.resolve([]),
     repo.getDealerLocationForGuarantee(guarantee.id),
+    // R-5: the same two lists /requests merges, so "see my requests" always
+    // points at something the customer will actually find there. The light
+    // verify path has no userId, so that half is simply empty — which also
+    // means Doug's own two-purchase case cannot fire on the demo build, since
+    // a second purchase's claims only surface through listClaimsForUser.
+    //
+    // Yes, this asks the claims table about this guarantee twice, once here and
+    // once in getDraftClaim above. Deliberate: getDraftClaim is the fitting's
+    // long-standing source for WHICH draft to resume, and re-deriving that from
+    // this list to save a query would risk the two disagreeing about it.
+    repo.listClaimsForGuarantee(guarantee.id),
+    session.userId
+      ? repo.listClaimsForUser(session.userId)
+      : Promise.resolve([]),
   ]);
+
+  // R-5: ask whether this is a new request or an existing one, instead of
+  // deciding for them. Reading this creates nothing (Emmy's lazy-draft rule).
+  const prompt = entryPrompt({
+    draft: claim,
+    items,
+    photos,
+    others: [...byGuarantee, ...byUser],
+  });
 
   const preVerified = claim?.preVerified ?? isPreVerifiedSession(session);
   const step = claim ? resumeStep({ claim, items, photos }) : "intake";
@@ -93,41 +117,43 @@ export default async function FittingPage() {
         </h1>
 
         <div className="mt-6">
-          <FittingFlow
-            initialStep={step}
-            aiEnabled={hasAnthropicKey()}
-            storageConfigured={isPhotoStorageConfigured()}
-            greeting={intakeGreeting({
-              firstName: guarantee.customerFirstName?.trim() || null,
-            })}
-            photoTargets={photoTargetsFor(preVerified)}
-            capturedAngles={photos.filter((p) => p.captured).map((p) => p.angle)}
-            photoThumbs={photoThumbs}
-            items={items}
-            confirmations={claim?.confirmations ?? []}
-            intake={{
-              reasonExperience: claim?.reasonExperience ?? "",
-              preferredReplacement: claim?.preferredReplacement ?? "",
-            }}
-            verify={{
-              contactPhone: claim?.contactPhone ?? guarantee.customerPhone ?? "",
-              contactPhoneKind: claim?.contactPhoneKind ?? null,
-              contactEmail: claim?.contactEmail ?? guarantee.customerEmail ?? "",
-              atDeliveryAddress: claim?.atDeliveryAddress ?? null,
-              newAddress: claim?.newAddress ?? "",
-              stillOwns: claim?.stillOwns === true,
-            }}
-            submitted={
-              /* v3 (M-S3): the CG claim number is the reference a submitted
-                 request carries — RA/tracking are no longer minted here. */
-              claim?.claimNumber
-                ? {
-                    claimNumber: claim.claimNumber,
-                    dealerName: dealer?.name ?? guarantee.dealerName ?? null,
-                  }
-                : null
-            }
-          />
+          <FittingEntry prompt={prompt} sessionKey={claim?.id ?? guarantee.id}>
+            <FittingFlow
+              initialStep={step}
+              aiEnabled={hasAnthropicKey()}
+              storageConfigured={isPhotoStorageConfigured()}
+              greeting={intakeGreeting({
+                firstName: guarantee.customerFirstName?.trim() || null,
+              })}
+              photoTargets={photoTargetsFor(preVerified)}
+              capturedAngles={photos.filter((p) => p.captured).map((p) => p.angle)}
+              photoThumbs={photoThumbs}
+              items={items}
+              confirmations={claim?.confirmations ?? []}
+              intake={{
+                reasonExperience: claim?.reasonExperience ?? "",
+                preferredReplacement: claim?.preferredReplacement ?? "",
+              }}
+              verify={{
+                contactPhone: claim?.contactPhone ?? guarantee.customerPhone ?? "",
+                contactPhoneKind: claim?.contactPhoneKind ?? null,
+                contactEmail: claim?.contactEmail ?? guarantee.customerEmail ?? "",
+                atDeliveryAddress: claim?.atDeliveryAddress ?? null,
+                newAddress: claim?.newAddress ?? "",
+                stillOwns: claim?.stillOwns === true,
+              }}
+              submitted={
+                /* v3 (M-S3): the CG claim number is the reference a submitted
+                   request carries — RA/tracking are no longer minted here. */
+                claim?.claimNumber
+                  ? {
+                      claimNumber: claim.claimNumber,
+                      dealerName: dealer?.name ?? guarantee.dealerName ?? null,
+                    }
+                  : null
+              }
+            />
+          </FittingEntry>
         </div>
       </main>
     </>

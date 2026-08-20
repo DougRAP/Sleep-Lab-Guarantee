@@ -264,6 +264,137 @@ export function draftHasContent(
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* R-5 — new claim or existing one                                            */
+/* -------------------------------------------------------------------------- */
+
+/** What, if anything, to ask a signed-in customer on the way into the fitting. */
+export type EntryPrompt =
+  | { ask: false }
+  | {
+      ask: true;
+      /**
+       * "resume" — a request for this purchase is already under way.
+       * "new"    — nothing under way, but they have sent us one before.
+       */
+      kind: "resume" | "new";
+      /** How many others they have on record, for the copy's plural. */
+      others: number;
+    };
+
+/**
+ * R-5: is this a new request, or an existing one?
+ *
+ * Doug, on the call: "So what if I have one mattress and I return it, and I get
+ * another one, and then I have another claim, I log in as Doug Wright, we
+ * should ask, is this a new claim or an existing one?"
+ *
+ * Today the fitting answers for them. It resumes an open draft without saying
+ * so, and otherwise drops into intake as though they had never been here.
+ * Neither moment offers the other option.
+ *
+ * Only two situations are worth a question, and the order matters. A draft with
+ * real progress is the more urgent of the two, because the customer is already
+ * mid-request; their other claims are one tap away on Requests either way. With
+ * no draft under way, the question is Doug's, word for word.
+ *
+ * THE RESUME SHAPE DOES NOT OFFER A FRESH START, and that is the one place this
+ * departs from the brief, which said "offer to continue it, or start a new one".
+ * It cannot: createDraftClaim returns the draft that already exists rather than
+ * making a second one, in both backends, so the button would drop the customer
+ * back into the very draft they said was not the one they meant. Nothing in the
+ * app discards a draft either. The honest move is to withhold the option and
+ * say why on screen (see entryCopy), not to offer a no-op. Note this is NOT the
+ * one-exchange rule, which B-29 retired: a prior SENT request does not block a
+ * new one, which is why the other shape offers exactly that.
+ *
+ * KNOWN LIMIT, deliberately left: a content-bearing draft on a DIFFERENT
+ * purchase is not counted, because judging "content-bearing" costs a query per
+ * claim and the copy has no third shape for it. /requests does show that row,
+ * so the two surfaces disagree in that one case. Multi-purchase accounts are
+ * B-28's account switcher, out of scope here.
+ *
+ * With nothing of theirs on record there is no question to ask, and asking a
+ * first-time customer about history they do not have is noise.
+ *
+ * "Started" is judged by draftHasContent, the same rule /requests uses to
+ * decide whether a draft deserves a row (Emmy's ghost fix): an untouched draft
+ * is indistinguishable from a fresh start, so offering to pick it up would be a
+ * lie. Reading it here also means merely being asked creates nothing, which is
+ * what the lazy-draft rule requires.
+ *
+ * Pure. Nothing here decides what the screen says, and nothing here writes.
+ */
+export function entryPrompt(input: {
+  /** The open draft for the ACTIVE purchase (repo.getDraftClaim), or null. */
+  draft: Claim | null;
+  /** That draft's items and photos, which the fitting page already holds. */
+  items: Pick<ClaimItem, "modelNumber">[];
+  photos: Pick<ClaimPhoto, "captured">[];
+  /**
+   * Everything else of theirs, from the two lists /requests merges:
+   * listClaimsForGuarantee plus listClaimsForUser. Passed raw — this dedupes
+   * and drops drafts itself, rather than trusting every caller to remember.
+   */
+  others: Pick<Claim, "id" | "status">[];
+}): EntryPrompt {
+  const { draft, items, photos, others } = input;
+
+  const seen = new Set<string>(draft ? [draft.id] : []);
+  const sent = others.filter((c) => {
+    if (c.status === "draft" || seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  }).length;
+
+  if (draft && draftHasContent(draft, items, photos)) {
+    return { ask: true, kind: "resume", others: sent };
+  }
+  if (sent > 0) return { ask: true, kind: "new", others: sent };
+  return { ask: false };
+}
+
+/** Every word this question puts on screen. */
+export interface EntryCopy {
+  question: string;
+  /** The rule behind a withheld option, in the quieter register. Null when none. */
+  note: string | null;
+  primary: string;
+  away: string;
+}
+
+/**
+ * The words for a prompt. Here rather than in the component because
+ * vitest.config.ts only collects test files under lib/: copy that branches on a
+ * count is exactly the kind a later edit breaks in silence, and this way the
+ * suite that already exists covers it.
+ *
+ * Register notes. "This purchase", not "this mattress": a request can carry two
+ * (MAX_ITEMS), and /requests will call the same row "2 mattresses". The resume
+ * question is a yes or no, so its second control has to be an answer and not
+ * merely a destination.
+ */
+export function entryCopy(prompt: Extract<EntryPrompt, { ask: true }>): EntryCopy {
+  if (prompt.kind === "resume") {
+    return {
+      question:
+        "You already have a request under way for this purchase. Shall we pick it up where you left off?",
+      note: "We keep one request going at a time, so we'll carry on with this one rather than start another.",
+      primary: "Pick it up where I left off",
+      away: "Not now, see my requests",
+    };
+  }
+  const one = prompt.others === 1;
+  return {
+    question: one
+      ? "You've sent us a request before. Is this a new one, or are you here about that one?"
+      : "You've sent us requests before. Is this a new one, or are you here about one of those?",
+    note: null,
+    primary: "This is a new request",
+    away: "See my requests",
+  };
+}
+
 export function photosStatus(
   photos: ClaimPhoto[],
   preVerified: boolean | null | undefined

@@ -213,7 +213,10 @@ function UnlinkedHelp() {
  * The way INTO a new request, right where people look for it (review
  * 2026-07-22). Same rule as the /guarantee button: live only in the 31–90
  * window; outside it, a calm disabled affordance says when it opens.
- * /fitting resumes an open draft on its own, so this is always safe to tap.
+ * Since R-5 /fitting no longer resumes an open draft on its own: it asks first.
+ * So this stays safe to tap, but a customer with a request already under way
+ * lands on that question rather than on a blank one. The label is the honest
+ * thing to revisit if that ever reads wrong.
  */
 function StartRequestCta({
   eligible,

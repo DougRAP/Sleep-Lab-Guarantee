@@ -16,6 +16,8 @@ import {
   normalizeConfirmations,
   photoTargetsFor,
   draftHasContent,
+  entryCopy,
+  entryPrompt,
   photosStatus,
   previousStep,
   requiresReceiptPhoto,
@@ -360,5 +362,168 @@ describe("resumeStep", () => {
       photos: [],
     };
     expect(resumeStep(snapshot)).toBe("submitted");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-5 — new claim or existing one                                            */
+/* -------------------------------------------------------------------------- */
+
+// Doug, on the call: "So what if I have one mattress and I return it, and I get
+// another one, and then I have another claim, I log in as Doug Wright, we
+// should ask, is this a new claim or an existing one?"
+//
+// Today /fitting decides for them. It silently resumes an open draft
+// (app/fitting/page.tsx), and otherwise drops into intake as though the
+// customer had never been here. This rule decides whether there is anything to
+// ask about, and which of the two questions it is.
+//
+// It does NOT touch the anonymous front door: spec v3 §1 ("No login to file")
+// and the promise in the City Mattress explainer both stand. This only ever
+// runs for someone who has already signed in.
+
+describe("entryPrompt — is this a new request or an existing one?", () => {
+  const started = claim({ reasonExperience: "Too firm" });
+
+  it("asks nothing of a first-time customer", () => {
+    // Nothing of theirs exists, so there is nothing to be confused with. A
+    // question here would be noise on the way into an empty form.
+    expect(entryPrompt({ draft: null, items: [], photos: [], others: [] })).toEqual({
+      ask: false,
+    });
+  });
+
+  it("offers to pick up a draft they actually started", () => {
+    expect(
+      entryPrompt({ draft: started, items: [], photos: [], others: [] })
+    ).toEqual({ ask: true, kind: "resume", others: 0 });
+  });
+
+  it("counts what else they have, so the copy can say it out loud", () => {
+    expect(
+      entryPrompt({
+        draft: started,
+        items: [],
+        photos: [],
+        // "submitted", not "completed": a completed claim on THIS purchase
+        // resolves the exchange, so evaluateEligibility closes the window and
+        // the fitting returns its calm screen long before this rule runs.
+        others: [claim({ id: "c2", status: "submitted" })],
+      })
+    ).toEqual({ ask: true, kind: "resume", others: 1 });
+  });
+
+  it("asks new-or-existing when they have sent one before and no draft is open", () => {
+    // Doug's own scenario: a second mattress, a second claim. The earlier one
+    // arrives through listClaimsForUser, since it belongs to the other
+    // purchase. It cannot be "completed" and reach here on THIS purchase (see
+    // above), so the shape that matters is a request still on an agent's desk.
+    expect(
+      entryPrompt({
+        draft: null,
+        items: [],
+        photos: [],
+        others: [claim({ id: "c2", status: "submitted" })],
+      })
+    ).toEqual({ ask: true, kind: "new", others: 1 });
+  });
+
+  it("treats an untouched draft as no draft at all", () => {
+    // Emmy's ghost fix: an empty draft is indistinguishable from a fresh start,
+    // so offering to "pick up where you left off" would be a lie. Same rule
+    // /requests uses to decide whether a draft is worth a row.
+    const ghost = claim({});
+    expect(
+      entryPrompt({ draft: ghost, items: [], photos: [], others: [] })
+    ).toEqual({ ask: false });
+
+    expect(
+      entryPrompt({
+        draft: ghost,
+        items: [],
+        photos: [],
+        others: [claim({ id: "c2", status: "submitted" })],
+      })
+    ).toEqual({ ask: true, kind: "new", others: 1 });
+  });
+
+  it("reads progress the same way the rest of the fitting does", () => {
+    const ghost = claim({});
+    // A model number counts as started, exactly as draftHasContent says.
+    expect(
+      entryPrompt({ draft: ghost, items: [item()], photos: [], others: [] })
+    ).toEqual({ ask: true, kind: "resume", others: 0 });
+    // So does a captured photo.
+    expect(
+      entryPrompt({ draft: ghost, items: [], photos: [photo("law_tag")], others: [] })
+    ).toEqual({ ask: true, kind: "resume", others: 0 });
+  });
+
+  it("never counts a draft among the ones they have sent", () => {
+    // A draft on another purchase is not something they sent us, so it cannot
+    // be the "existing one" the question points at.
+    expect(
+      entryPrompt({
+        draft: null,
+        items: [],
+        photos: [],
+        others: [claim({ id: "c2", status: "draft" })],
+      })
+    ).toEqual({ ask: false });
+  });
+
+  it("never counts the open draft itself, whichever list it arrives in", () => {
+    expect(
+      entryPrompt({
+        draft: started,
+        items: [],
+        photos: [],
+        others: [{ ...started }],
+      })
+    ).toEqual({ ask: true, kind: "resume", others: 0 });
+  });
+
+  it("counts a claim once, however many lists it came from", () => {
+    // /requests merges listClaimsForGuarantee with listClaimsForUser and
+    // dedupes; the caller here passes the same two, so the rule dedupes rather
+    // than trusting every caller to remember.
+    const sent = claim({ id: "c2", status: "submitted" });
+    expect(
+      entryPrompt({ draft: null, items: [], photos: [], others: [sent, { ...sent }] })
+    ).toEqual({ ask: true, kind: "new", others: 1 });
+  });
+});
+
+describe("entryCopy — the words, and the plural that breaks in silence", () => {
+  it("names the purchase, not the mattress: a request can carry two", () => {
+    const copy = entryCopy({ ask: true, kind: "resume", others: 0 });
+    expect(copy.question).toContain("this purchase");
+    expect(copy.question).not.toContain("mattress");
+  });
+
+  it("says out loud why there is no fresh start", () => {
+    // The option is withheld because createDraftClaim returns the draft that
+    // already exists. Withholding it in silence is what the old screen did.
+    const copy = entryCopy({ ask: true, kind: "resume", others: 0 });
+    expect(copy.note).toContain("one request going at a time");
+  });
+
+  it("answers its own question: a yes-or-no gets a no", () => {
+    const copy = entryCopy({ ask: true, kind: "resume", others: 0 });
+    expect(copy.question).toMatch(/Shall we/);
+    expect(copy.away).toBe("Not now, see my requests");
+  });
+
+  it("uses the singular for one sent request and the plural for more", () => {
+    expect(entryCopy({ ask: true, kind: "new", others: 1 }).question).toBe(
+      "You've sent us a request before. Is this a new one, or are you here about that one?"
+    );
+    expect(entryCopy({ ask: true, kind: "new", others: 2 }).question).toBe(
+      "You've sent us requests before. Is this a new one, or are you here about one of those?"
+    );
+  });
+
+  it("carries no note when nothing is being withheld", () => {
+    expect(entryCopy({ ask: true, kind: "new", others: 1 }).note).toBeNull();
   });
 });

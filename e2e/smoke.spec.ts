@@ -96,6 +96,13 @@ test.describe("requests CTA (punch list C)", () => {
     await enterAsCustomer(page);
     await setDemoDay(page, 31);
     await page.goto("/fitting");
+    // The test above deliberately leaves a started draft on this purchase, and
+    // this file shares one in-memory store, so since R-5 the landing is the
+    // question. Answer it: the point of this test is the shell DURING the
+    // flow, and the heading and the nav both sit outside the question, so it
+    // would stay green while proving nothing.
+    await page.getByRole("button", { name: "Pick it up where I left off" }).click();
+    await expect(page.getByText(/model number/i).first()).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Your comfort exchange" })
     ).toBeVisible();
@@ -123,10 +130,13 @@ test.describe("re-filing a request (B-29, Doug 2026-07-27)", () => {
     await expect(page.getByRole("link", { name: "Start a new request" })).toBeVisible();
 
     // The fitting opens (the resumable/lazy draft flow works, not a refusal).
+    // Since R-5 it opens on the question, because Calloway has one on record.
     await page.goto("/fitting");
     await expect(
       page.getByRole("heading", { name: "Your comfort exchange" })
     ).toBeVisible();
+    await page.getByRole("button", { name: "This is a new request" }).click();
+    await expect(page.getByLabel("Your experience")).toBeVisible();
   });
 
   test("a resolved exchange still blocks — the one-time rule stays (terms)", async ({ page }) => {
@@ -281,5 +291,117 @@ test.describe("staff desk (punch list D)", () => {
     await expect(page.getByText("Return Authorization", { exact: true })).toBeVisible();
     await expect(page.getByText("$199 comfort exchange fee")).toBeVisible();
     await expect(page.getByText("Customer signature")).toBeVisible();
+  });
+});
+
+test.describe("R-5 — new request or an existing one (Doug 2026-08-19)", () => {
+  // "So what if I have one mattress and I return it, and I get another one, and
+  // then I have another claim, I log in as Doug Wright, we should ask, is this
+  // a new claim or an existing one?"
+  //
+  // Nothing here touches the anonymous front door. This only ever runs for
+  // someone already signed in, which is why spec v3 §1 ("No login to file")
+  // and the City Mattress promise are untouched.
+  //
+  // THE CEILING, stated plainly. These live here and not in e2e/claims/ because
+  // no test there can reach /fitting at all: in claims mode "/" is the
+  // anonymous claim door, and startAClaim files an anonymous claim rather than
+  // reaching a linked purchase. And both configs blank the Supabase env, so
+  // lib/auth/app-session.ts hands back userId: null and listClaimsForUser is
+  // never called. That means the half of the rule that reads claims ACROSS
+  // purchases — which is Doug's literal two-mattress case — cannot be covered
+  // by any e2e here, under either config. Its nine unit tests carry it.
+  //
+  // Each test owns a staged purchase nothing else in this file drives, because
+  // the store is shared and one earlier test deliberately leaves a draft
+  // behind. Mendez, Fleming and Boyd are driven by nothing else, and the test
+  // that leaves a draft behind tolerates finding its own on a re-run.
+
+  /** Light verify, for a purchase other than the demo one. */
+  async function enterAs(page: Page, salesOrder: string, lastName: string) {
+    await page.goto("/");
+    await page.getByLabel("Sales order number").fill(salesOrder);
+    await page.getByLabel("Last name", { exact: true }).fill(lastName);
+    await page.getByRole("button", { name: "Find my purchase" }).click();
+    await page.waitForURL("**/tonight");
+  }
+
+  test("a first-time customer is asked nothing", async ({ page }) => {
+    // Mendez has no claims of any kind, so there is nothing to be confused
+    // with and the question would be pure noise on the way into an empty form.
+    await enterAs(page, "1011099502M", "Mendez");
+    await setDemoDay(page, 31);
+    await page.goto("/fitting");
+
+    await expect(page.getByLabel("Your experience")).toBeVisible();
+    await expect(page.getByRole("button", { name: /This is a new request/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Pick it up/ })).toHaveCount(0);
+  });
+
+  test("a request already under way is offered, not silently resumed", async ({
+    page,
+  }) => {
+    await enterAs(page, "1011099501F", "Fleming");
+    await setDemoDay(page, 31);
+
+    // This test creates a draft and cannot remove it, so on a retry (or a
+    // second local run against the same warm server) it starts where it
+    // finished. Answer the question if it is already there, and the rest holds
+    // either way.
+    await page.goto("/fitting");
+    const resume = page.getByRole("button", { name: "Pick it up where I left off" });
+    if (await resume.isVisible().catch(() => false)) await resume.click();
+
+    // Leave real progress behind, the same way the ghost-fix test does.
+    await page.getByLabel("Your experience").fill("Too firm for me.");
+    await page.getByLabel("What you'd rather have").fill("Something softer.");
+    await page.getByRole("button", { name: /Next — the mattress/ }).click();
+    await expect(page.getByText(/model number/i).first()).toBeVisible({ timeout: 15000 });
+
+    // Come back on a clean sitting. Before R-5 this dropped straight into the
+    // resumed step with no word about it. The answer is remembered per tab, so
+    // a fresh context is what a returning customer actually looks like.
+    const fresh = await page.context().browser()!.newContext();
+    const later = await fresh.newPage();
+    await enterAs(later, "1011099501F", "Fleming");
+    await setDemoDay(later, 31);
+    await later.goto("/fitting");
+
+    await expect(later.getByText(/already have a request under way/i)).toBeVisible();
+    await expect(later.getByText(/one request going at a time/i)).toBeVisible();
+    await expect(later.getByLabel("Your experience")).toHaveCount(0);
+    // A yes-or-no question gets a no, and it is a real way out.
+    await expect(
+      later.getByRole("link", { name: "Not now, see my requests" })
+    ).toBeVisible();
+
+    // Picking it up lands exactly where it used to, with the words still there.
+    await later.getByRole("button", { name: "Pick it up where I left off" }).click();
+    await expect(later.getByText(/model number/i).first()).toBeVisible();
+
+    // And it stays answered across a reload, which is what coming back from the
+    // camera looks like on a phone.
+    await later.reload();
+    await expect(later.getByText(/model number/i).first()).toBeVisible();
+    await expect(later.getByText(/already have a request under way/i)).toHaveCount(0);
+
+    await fresh.close();
+  });
+
+  test("being asked creates nothing (the lazy-draft rule still holds)", async ({
+    page,
+  }) => {
+    // Boyd has a request in review and no draft, so the question renders, and
+    // "in_review" is not one of the statuses that resolve the exchange, so the
+    // window is still open and the page gets this far. Merely being asked must
+    // not mint a draft: /requests would grow a "Not yet submitted" row if it
+    // did.
+    await enterAs(page, "1011099437K", "Boyd");
+
+    await page.goto("/fitting");
+    await expect(page.getByText(/Is this a new one/i)).toBeVisible();
+
+    await page.goto("/requests");
+    await expect(page.getByText("Not yet submitted")).toHaveCount(0);
   });
 });

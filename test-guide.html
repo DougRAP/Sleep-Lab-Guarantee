@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guía de prueba · R-1 a R-4</title>
+<title>Guía de prueba · R-1 a R-5</title>
 <style>
   body{background:#fff;color:#1b1b1b;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
        font-size:15px;line-height:1.6;margin:0;padding:32px 20px 80px}
@@ -33,6 +33,7 @@
   .badge.r2{background:#eaf4ee;border-color:#b3d6c2;color:#1f5c39}
   .badge.r3{background:#f6eef8;border-color:#d6bade;color:#5c2f6b}
   .badge.r4{background:#fdf0ea;border-color:#e6c3ad;color:#8a4a1f}
+  .badge.r5{background:#eaf1f1;border-color:#aecccc;color:#1f5c5c}
   .box{border:1px solid #ddd;border-left:3px solid #999;padding:12px 14px;margin:14px 0;background:#fafafa}
   .box.warn{border-left-color:#c9a227;background:#fdfaf0}
   .box.crit{border-left-color:#b03a2e;background:#fdf3f2}
@@ -45,11 +46,11 @@
 <body>
 <main>
 
-<h1>Guía de prueba: R-1 a R-4, con los datos exactos</h1>
+<h1>Guía de prueba: R-1 a R-5, con los datos exactos</h1>
 <p class="sub">
   Proyecto: <strong>RAP Sleep Lab</strong> (<code>SleepLabComfortGuarantee</code>) ·
   Rama: <code>main</code> · Commits: <code>ccfeec1</code> (R-1), <code>bb9796e</code> y
-  <code>2920290</code> (R-2), <code>8771edb</code> (R-3), <code>de85d43</code> (R-4) ·
+  <code>2920290</code> (R-2), <code>8771edb</code> (R-3), <code>de85d43</code> (R-4), <code>R-5</code> ·
   Base: <code>097256d</code> ·
   Actualizada el 20 de agosto de 2026
 </p>
@@ -60,6 +61,7 @@
   <li><span class="badge r2">R-2</span> Un asistente de verdad: en cada paso hay dos botones juntos, volver y continuar. Se recorre entero hacia adelante y hacia atrás sin perder nada de lo escrito.</li>
   <li><span class="badge r3">R-3</span> Dos fechas que no pueden ser ciertas a la vez no pasan del paso de detalles. Es un guardián de erratas: <strong>ningún envío se bloquea nunca</strong>.</li>
   <li><span class="badge r4">R-4</span> Al <strong>entrar</strong> a una cuenta que ya existe, la reclamación presentada desde ese navegador se engancha sola, sin teclear el número. Requiere Supabase configurado.</li>
+  <li><span class="badge r5">R-5</span> Un cliente con sesión que abre el cambio ya no se encuentra la app decidiendo por él: se le pregunta si es una solicitud nueva o una que ya tenía.</li>
 </ul>
 
 <div class="box warn">
@@ -289,7 +291,7 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
 </table>
 
 
-<h3>Bloque 4 · La solicitud te sigue al entrar <span class="badge r4">R-4</span></h3>
+<h3>Bloque 6 · La solicitud te sigue al entrar <span class="badge r4">R-4</span></h3>
 
 <div class="box warn">
   <p><strong>Solo al entrar, no al darse de alta.</strong> Crear una cuenta nueva <em>no</em> engancha la reclamación, y es a propósito: la confirmación de correo de Supabase está apagada, así que darse de alta con una dirección no prueba nada. Quien crea su cuenta por primera vez teclea el <code>CG</code> una vez, con el número en pantalla.</p>
@@ -337,6 +339,46 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
       <td>El bloque del número de reclamación <strong>se ve igual que sin compra vinculada</strong>. Antes de R-4 no se pintaba, y esa cuenta no tenía ninguna forma de añadir un <code>CG</code>.</td><td class="st">☐</td></tr>
 </table>
 
+
+<h3>Bloque 7 · Nueva o ya existente <span class="badge r5">R-5</span></h3>
+
+<div class="box warn">
+  <p><strong>Esto vive en <code>/fitting</code>, el cambio de un cliente con sesión.</strong> No toca la portada anónima: quien presenta sin cuenta no ve nada de esto, y el <code>SPEC-v3</code> §1 ("No login to file") y lo prometido a City Mattress siguen igual.</p>
+  <p>Se prueba en <strong>modo compañero</strong>, con el mismo servidor del bloque 5:</p>
+  <pre>$env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
+  <p>Cada caso usa una <strong>compra distinta de la semilla</strong>, porque el almacén en memoria es compartido y una prueba deja rastro en la siguiente.</p>
+</div>
+
+<h4>Cuentas de la semilla que se usan aquí</h4>
+<table>
+  <tr><th>Cuenta</th><th>Sales order · Last name</th><th>Qué tiene</th></tr>
+  <tr><td><strong>Mendez</strong></td><td><code>1011099502M</code> · <code>Mendez</code></td><td>Ninguna reclamación. El caso del primerizo.</td></tr>
+  <tr><td><strong>Fleming</strong></td><td><code>1011099501F</code> · <code>Fleming</code></td><td>Ninguna. Se le crea un borrador durante la prueba.</td></tr>
+  <tr><td><strong>Boyd</strong></td><td><code>1011099437K</code> · <code>Boyd</code></td><td>Una solicitud <em>en revisión</em>, sin borrador.</td></tr>
+</table>
+
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">62</td><td>Entrar como <strong>Mendez</strong>, poner el día de demo en <strong>31</strong> y abrir <code>/fitting</code>.</td>
+      <td><strong>Ninguna pregunta.</strong> Aterriza directo en "Your experience". A quien no tiene nada, preguntarle por su historial es ruido.</td><td class="st">☐</td></tr>
+  <tr><td class="n">63</td><td>Entrar como <strong>Fleming</strong>, día 31, abrir <code>/fitting</code> y rellenar "Your experience" y "What you'd rather have". Avanzar un paso.</td>
+      <td>Llega al paso del modelo. Queda un borrador con contenido de verdad.</td><td class="st">☐</td></tr>
+  <tr><td class="n">64</td><td><strong>Abrir una ventana privada</strong> y volver a entrar como Fleming, día 31, <code>/fitting</code>.</td>
+      <td>Sale la tarjeta: <em>"You already have a request under way for this purchase. Shall we pick it up where you left off?"</em> y debajo, en gris, <em>"We keep one request going at a time…"</em>. <strong>No aterriza en el formulario.</strong></td><td class="st">☐</td></tr>
+  <tr><td class="n">65</td><td>Mirar las dos opciones.</td>
+      <td><strong>Pick it up where I left off</strong> y <strong>Not now, see my requests</strong>. La segunda es una respuesta al "shall we", no solo un destino. <strong>No hay "empezar una nueva"</strong>, y la línea gris dice por qué: una sola solicitud en curso a la vez.</td><td class="st">☐</td></tr>
+  <tr><td class="n">66</td><td>Pulsar <em>Pick it up where I left off</em>.</td>
+      <td>Aterriza en el paso del modelo, con lo escrito intacto. Exactamente donde caía antes de R-5, pero habiéndolo dicho.</td><td class="st">☐</td></tr>
+  <tr><td class="n">67</td><td><strong>Recargar con F5.</strong></td>
+      <td><strong>La pregunta NO vuelve.</strong> Sigue en el paso del modelo. Es lo que pasa al volver de la cámara en un móvil, y volver a preguntar ahí sería la app no escuchando.</td><td class="st">☐</td></tr>
+  <tr><td class="n">68</td><td>Entrar como <strong>Boyd</strong> y abrir <code>/fitting</code>.</td>
+      <td>La otra pregunta: <em>"You've sent us a request before. Is this a new one, or are you here about that one?"</em>, con <strong>This is a new request</strong> y <strong>See my requests</strong>. Este es el caso que describió Doug.</td><td class="st">☐</td></tr>
+  <tr><td class="n">69</td><td>Sin tocar nada más, ir a <code>/requests</code>.</td>
+      <td><strong>No aparece ninguna fila "Not yet submitted".</strong> Que te pregunten no crea nada: el borrador nace en la primera acción de servidor, no al mirar la pantalla.</td><td class="st">☐</td></tr>
+  <tr><td class="n">70</td><td>Volver a <code>/fitting</code> y pulsar <em>This is a new request</em>.</td>
+      <td>Entra al formulario en blanco. Una solicitud ya enviada no bloquea otra: eso lo decidió B-29 y sigue igual.</td><td class="st">☐</td></tr>
+</table>
+
 <h2>Escenarios negativos</h2>
 <table>
   <tr><th class="n">#</th><th>Caso</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
@@ -359,9 +401,9 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
 <h2>Checklist final</h2>
 <ul class="chk">
   <li><code>npx tsc --noEmit</code> limpio.</li>
-  <li><code>npm test</code> en verde con 639 casos.</li>
+  <li><code>npm test</code> en verde con 653 casos.</li>
   <li><code>npm run build</code> en verde.</li>
-  <li><code>npm run test:e2e</code>: 15 compañero y 16 claims.</li>
+  <li><code>npm run test:e2e</code>: 18 compañero y 16 claims.</li>
   <li>La barra aparece en <code>/</code> y en <code>/claim</code>, que antes no la tenían.</li>
   <li>El visitante anónimo no recibe ninguna pestaña, solo teléfono y correo.</li>
   <li><strong>La barra inferior no lleva Atrás en ninguna pantalla.</strong></li>
@@ -382,6 +424,11 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
   <li>El bloque "Have a claim number? Add it here" se ve <strong>con y sin compra vinculada</strong>.</li>
   <li>Una cuenta de personal nunca se queda con la reclamación de un cliente.</li>
   <li><strong>Un borrador a medias sobrevive a que entre un empleado en el mismo navegador.</strong></li>
+  <li><strong>Un cliente sin nada en su cuenta no ve ninguna pregunta al abrir el cambio.</strong></li>
+  <li>Con una solicitud a medias, la app lo ofrece en vez de reanudarla en silencio, y dice por qué no hay "empezar una nueva".</li>
+  <li>Con una solicitud ya enviada, pregunta si esta es nueva o si viene por aquella.</li>
+  <li><strong>La pregunta no vuelve al recargar</strong>, que es lo que pasa al volver de la cámara.</li>
+  <li>Que te pregunten no crea ningún borrador.</li>
   <li>El modo compañero se comporta igual que antes de R-1.</li>
 </ul>
 
@@ -397,7 +444,10 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
   <li><span class="badge r4">R-4</span> <strong>Doug pidió esto por el caso de una cuenta que ya existía</strong> ("I created one yesterday, but it let me in as if I didn't have an account"), y ese caso queda resuelto entero. El primerizo teclea su número una vez. Si algún día se enciende la confirmación de correo en Supabase, el alta también engancha sola, sin tocar código.</li>
   <li><span class="badge pen">Pendiente</span> <strong>No existe ningún "desvincular" en toda la aplicación.</strong> Si una reclamación acaba en la cuenta equivocada, solo se deshace con un <code>UPDATE</code> a mano en la base de datos. Es anterior a R-4 y queda para el pase de seguridad.</li>
   <li><span class="badge pen">Pendiente</span> <strong>Al enviar, la reclamación se asigna sola a una cuenta si coinciden apellido y código postal</strong>, sin ningún inicio de sesión de por medio. Dos personas de la misma familia en la misma dirección pueden cruzarse. También es anterior a R-4 y también es del pase de seguridad.</li>
-  <li><strong>Los commits no están subidos.</strong> Están en <code>main</code>, seis por delante de <code>origin/main</code>.</li>
+  <li><span class="badge r5">R-5</span> <strong>El caso literal de Doug, el de dos colchones, no tiene cobertura automática y no puede tenerla.</strong> Las dos suites de Playwright vacían las claves de Supabase, así que la sesión no lleva usuario y la lista de reclamaciones <em>de la cuenta</em> nunca se consulta: solo se ve la de la compra activa. Lo cubren las pruebas unitarias. En una demo local pasa lo mismo, así que la pregunta entre dos compras solo se ve con Supabase configurado.</li>
+  <li><span class="badge pen">Pendiente</span> <strong>Un borrador a medias en OTRA compra no cuenta.</strong> Juzgar si tiene contenido cuesta una consulta por reclamación y la copia no tiene una tercera forma para ese caso, así que <code>/requests</code> muestra esa fila y la pregunta no la menciona. Las cuentas con varias compras son del conmutador de B-28.</li>
+  <li><span class="badge pen">Pendiente</span> <strong>La fila de un borrador en <code>/requests</code> se titula "TRACKING / Not yet submitted"</strong>, que es lenguaje de tique en una pantalla a la que R-5 ahora manda gente, y <code>DESIGN.md</code> lo desaconseja. Anterior a R-5.</li>
+  <li><strong>Los commits no están subidos.</strong> Están en <code>main</code>, nueve por delante de <code>origin/main</code>.</li>
 </ul>
 
 </main>
