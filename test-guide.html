@@ -37,6 +37,7 @@
   .badge.r6{background:#f2f0e8;border-color:#ccc5a8;color:#5c5220}
   .badge.r7{background:#eeeaf4;border-color:#c3b8dd;color:#4a3a72}
   .badge.r8{background:#fbeef0;border-color:#e0b6bf;color:#7a2438}
+  .badge.r9{background:#eaf2f8;border-color:#aec8dd;color:#1f4a6b}
   .box{border:1px solid #ddd;border-left:3px solid #999;padding:12px 14px;margin:14px 0;background:#fafafa}
   .box.warn{border-left-color:#c9a227;background:#fdfaf0}
   .box.crit{border-left-color:#b03a2e;background:#fdf3f2}
@@ -54,9 +55,9 @@
   Proyecto: <strong>RAP Sleep Lab</strong> (<code>SleepLabComfortGuarantee</code>) ·
   Rama: <code>main</code> · Commits: <code>ccfeec1</code> (R-1), <code>bb9796e</code> y
   <code>2920290</code> (R-2), <code>8771edb</code> (R-3), <code>de85d43</code> (R-4), <code>9e19d95</code> (R-5), <code>f9268c9</code> (R-8),
-  <code>2b6776a</code> (R-6), <code>ec2f0be</code> (R-7) ·
+  <code>2b6776a</code> (R-6), <code>ec2f0be</code> (R-7), <code>12f5d1d</code> (R-9) ·
   Base: <code>097256d</code> ·
-  Actualizada el 20 de agosto de 2026
+  Actualizada el 21 de agosto de 2026
 </p>
 
 <h2>Qué se prueba</h2>
@@ -68,6 +69,7 @@
   <li><span class="badge r5">R-5</span> Un cliente con sesión que abre el cambio ya no se encuentra la app decidiendo por él: se le pregunta si es una solicitud nueva o una que ya tenía.</li>
   <li><span class="badge r8">R-8</span> El cliente cuenta <strong>con sus palabras</strong> qué le pasa, y el agente que decide el caso por fin lee algo más que casillas marcadas. Es lo último de la hoja de Emy.</li>
   <li><span class="badge r6">R-6</span> Guarantee y Shop <strong>funcionan sin compra vinculada</strong>. Antes rebotaban a Requests y por eso R-1 escondía las dos pestañas.</li>
+  <li><span class="badge r9">R-9</span> A quien <strong>ya tiene cuenta</strong>, la pantalla del <code>CG</code> deja de ofrecerle crear otra. Presentar sigue siendo anónimo para todo el mundo: lo único que cambia es la frase del final. Requiere Supabase configurado.</li>
   <li><span class="badge r7">R-7</span> El endpoint por el que TTC escribe su número de reclamación sobre el nuestro. <strong>Nace apagado</strong>: sin secreto configurado responde 501 y no toca nada.</li>
 </ul>
 
@@ -324,7 +326,7 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
       <td>Sos anónimo otra vez: la portada muestra el formulario de reclamación.</td><td class="st">☐</td></tr>
   <tr><td class="n">40</td><td>Presentar una reclamación completa (perfil A del bloque 2), poniendo en <strong>Email</strong> exactamente <code>qa.smith@rapqa.com</code>.</td>
       <td>Sale el <code>CG######</code>. Anotalo aquí: ____________</td><td class="st">☐</td></tr>
-  <tr><td class="n">41</td><td>En esa misma pantalla, pulsar <em>Create an account or log in</em> y <strong>entrar</strong> con la cuenta A.</td>
+  <tr><td class="n">41</td><td>En esa misma pantalla, pulsar <em>Log in</em> (<span class="badge r9">R-9</span> antes decía <em>Create an account or log in</em>; con la cuenta A ya creada, ahora dice otra cosa: eso es el bloque 11) y <strong>entrar</strong> con la cuenta A.</td>
       <td><strong>La prueba clave.</strong> Aterriza en <code>/requests</code> y <strong>la fila con ese <code>CG</code> ya está ahí</strong>, sin haber tecleado el número en ningún momento.</td><td class="st">☐</td></tr>
   <tr><td class="n">42</td><td>Escribir <code>/claim</code> en la barra de direcciones.</td>
       <td>Rebota a <code>/</code>: la cookie de reclamante se gastó al enganchar. Es lo esperado.</td><td class="st">☐</td></tr>
@@ -454,6 +456,40 @@ curl.exe -s -w "`n%{http_code}`n" -X POST http://localhost:3000/api/ttc `
       <td>Está documentada, con la advertencia de Netlify: las variables valen para <strong>todos</strong> los contextos por defecto, así que dejarla global pondría una copia viva y con secreto de este endpoint en cada URL de vista previa.</td><td class="st">☐</td></tr>
 </table>
 
+<h3>Bloque 11 · La pantalla ya sabe quién sos <span class="badge r9">R-9</span></h3>
+
+<div class="box warn">
+  <p><strong>La numeración sigue donde la dejó la versión anterior.</strong> Los pasos de este bloque empiezan en el 87 aunque aparezcan antes de los escenarios negativos, que van del 73 al 86. Se mantiene así a propósito, para que un informe viejo siga apuntando al mismo paso.</p>
+  <p><strong>Este bloque necesita Supabase configurado</strong>, igual que el 6. Sin las tres claves no hay cuentas que reconocer y no se pinta invitación de ninguna clase, ni la de siempre ni la nueva.</p>
+</div>
+
+<p>Doug, dos veces en la llamada: <em>"it doesn't recognize that I already have an account... it let me in as if I didn't have an account"</em>, y después <em>"No, do not create another account."</em> Presentó dos veces y la segunda la app lo trató como a un desconocido. <strong>Presentar sigue sin pedir cuenta a nadie.</strong> Lo único que cambia son las últimas dos líneas de la pantalla del <code>CG</code>.</p>
+
+<table>
+  <tr><th>Quién lee</th><th>Qué dice la pantalla</th></tr>
+  <tr><td>Alguien a quien no conocemos</td><td>"Want to follow along? <strong>Create an account or log in</strong> to track your request." <em>Idéntico a antes, carácter por carácter.</em></td></tr>
+  <tr><td>Alguien cuyo correo ya tiene cuenta</td><td>"There's already an account with this email. <strong>Log in</strong> to track this request."</td></tr>
+  <tr><td>Sin Supabase configurado</td><td>Nada. No se pinta ninguna de las dos.</td></tr>
+</table>
+
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">87</td><td>Con la <strong>cuenta A</strong> ya creada (paso 38), en ventana privada presentar una reclamación completa poniendo en <strong>Email</strong> exactamente <code>qa.smith@rapqa.com</code>.</td>
+      <td><strong>La prueba clave.</strong> Bajo el número se lee <em>"There's already an account with this email."</em> y el enlace dice <strong>Log in</strong>. No aparece la palabra <em>Create</em> por ninguna parte.</td><td class="st">☐</td></tr>
+  <tr><td class="n">88</td><td>Sin recargar, seguir en esa pantalla y pulsar <em>Log in</em>.</td>
+      <td>Lleva a <code>/login</code>. Entrando con la cuenta A, la fila del <code>CG</code> ya está en <code>/requests</code> (eso es R-4, encadenado).</td><td class="st">☐</td></tr>
+  <tr><td class="n">89</td><td><strong>Recargar</strong> <code>/claim</code> antes de entrar, con la cookie de reclamante todavía puesta.</td>
+      <td>La misma frase reconocida. Son dos caminos distintos por dentro (uno lo resuelve el envío, otro el servidor al pintar) y tienen que decir lo mismo.</td><td class="st">☐</td></tr>
+  <tr><td class="n">90</td><td>Ventana privada nueva. Presentar con un correo <strong>que no tenga cuenta</strong>, por ejemplo <code>qa.desconocido@rapqa.com</code>.</td>
+      <td>Se lee lo de siempre: <em>"Want to follow along? Create an account or log in to track your request."</em> <strong>Esta línea no puede haber cambiado ni un carácter.</strong></td><td class="st">☐</td></tr>
+  <tr><td class="n">91</td><td>Presentar con el correo de una cuenta de <strong>personal</strong> (<code>rap_admin</code> o <code>dealer</code>).</td>
+      <td>Sale la frase del <strong>desconocido</strong>, no la reconocida. A propósito: a un agente la app no le engancha la solicitud de un cliente, así que ofrecerle seguirla sería una promesa que no se cumple.</td><td class="st">☐</td></tr>
+  <tr><td class="n">92</td><td>Una reclamación presentada hace <strong>más de 48 horas</strong> (o cambiar <code>submitted_at</code> a mano en la base), y volver a <code>/claim</code> con la cookie todavía viva.</td>
+      <td>Vuelve la frase del desconocido. La cookie dura siete días pero el enganche caduca a las 48 horas; pasado ese punto, invitar a "seguir esta solicitud" llevaría a una pantalla que dice "Nothing here yet".</td><td class="st">☐</td></tr>
+  <tr><td class="n">93</td><td>En un móvil de 375 px (iPhone SE, 8, X, 11 Pro, 12 mini) o en el emulador a esa anchura, mirar el enlace <em>Log in</em>.</td>
+      <td><strong>Las dos palabras van juntas en la misma línea.</strong> Sin la regla que lo impide se parte, y queda un <em>in</em> de diez píxeles colgando debajo de <em>Log</em>: el único control de la pantalla.</td><td class="st">☐</td></tr>
+</table>
+
 <h2>Escenarios negativos</h2>
 <table>
   <tr><th class="n">#</th><th>Caso</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
@@ -471,12 +507,16 @@ curl.exe -s -w "`n%{http_code}`n" -X POST http://localhost:3000/api/ttc `
   <tr><td class="n">84</td><td><span class="badge r4">R-4</span> Una reclamación presentada hace <strong>más de 48 horas</strong>, y entrar con el correo que sí coincide.</td><td>No se engancha. La ventana se mide desde el envío, no desde la cookie. Formulario del número.</td><td class="st">☐</td></tr>
   <tr><td class="n">85</td><td><span class="badge r4">R-4</span> Con una reclamación <strong>ya presentada</strong> en el navegador, entrar con una cuenta de personal (<code>rap_admin</code> o <code>dealer</code>).</td><td>No se engancha, y la cookie se desarma: al volver a <code>/claim</code> rebota a <code>/</code>. Un agente no se queda con la solicitud de un cliente.</td><td class="st">☐</td></tr>
   <tr><td class="n">86</td><td><span class="badge r4">R-4</span> <strong>El caso que se rompió y se arregló.</strong> Con un <strong>borrador a medias</strong> (empezado pero sin enviar, todavía sin <code>CG</code>), entrar con una cuenta de personal en ese mismo navegador. Después volver a <code>/claim</code>.</td><td><strong>El borrador sigue ahí, con todo lo escrito.</strong> Si te lleva a un formulario en blanco, es la regresión: reportalo. Un borrador no tiene número ni dueño, así que borrar su cookie lo pierde para siempre.</td><td class="st">☐</td></tr>
+  <tr><td class="n">94</td><td><span class="badge r9">R-9</span> <strong>El caso que hay que intentar romper.</strong> Presentar poniendo en <strong>Email</strong> el comodín <code>a%@%.%</code>, que el formulario acepta porque solo comprueba la forma.</td><td>Sale la frase del <strong>desconocido</strong>. Si saliera la reconocida, la pregunta "¿existe esta dirección?" se habría convertido en un listado de las direcciones que sí existen: <code>%</code> y <code>_</code> son comodines para Postgres. Lo impide <code>likeLiteral</code>, con sus propias pruebas.</td><td class="st">☐</td></tr>
+  <tr><td class="n">95</td><td><span class="badge r9">R-9</span> Crear una cuenta con <code>qa.guion@rapqa.com</code> y después presentar con <code>qa_guion@rapqa.com</code> (guion bajo en vez de punto).</td><td>Frase del <strong>desconocido</strong>. Sin el escape, el guion bajo casaría con cualquier carácter y saludaríamos por su nombre a otra persona.</td><td class="st">☐</td></tr>
+  <tr><td class="n">96</td><td><span class="badge r9">R-9</span> Parar Supabase (o quitar las tres claves de <code>.env.local</code>) y presentar una reclamación.</td><td>Sale el <code>CG</code> con normalidad y <strong>no se pinta ninguna invitación</strong>. Presentar nunca depende de esta consulta.</td><td class="st">☐</td></tr>
+  <tr><td class="n">97</td><td><span class="badge r9">R-9</span> Presentar dejando el <strong>correo vacío</strong> y poniendo solo el móvil.</td><td>Sale el <code>CG</code> y la frase del desconocido. Sin dirección no hay nada que reconocer, y ni siquiera se consulta.</td><td class="st">☐</td></tr>
 </table>
 
 <h2>Checklist final</h2>
 <ul class="chk">
   <li><code>npx tsc --noEmit</code> limpio.</li>
-  <li><code>npx tsc --noEmit</code> limpio y <code>npm test</code> en verde con <strong>695 casos</strong> en 58 ficheros.</li>
+  <li><code>npx tsc --noEmit</code> limpio y <code>npm test</code> en verde con <strong>711 casos</strong> en 59 ficheros.</li>
   <li><code>npm run build</code> en verde.</li>
   <li><code>npm run test:e2e</code>: <strong>18 compañero y 23 claims</strong>.</li>
   <li>La barra aparece en <code>/</code> y en <code>/claim</code>, que antes no la tenían.</li>
@@ -511,6 +551,14 @@ curl.exe -s -w "`n%{http_code}`n" -X POST http://localhost:3000/api/ttc `
   <li>La tienda muestra el catálogo sin cupón, y sus notas no afirman uno que no existe.</li>
   <li>Vincular una compra devuelve las dos páginas a como estaban.</li>
   <li><strong>El endpoint de TTC responde 501 y no toca nada</strong>, con secreto o sin él, y 405 a cualquier otro verbo.</li>
+  <li><strong>A quien ya tiene cuenta, la pantalla del <code>CG</code> deja de ofrecerle crear otra</strong>, y el enlace dice <em>Log in</em>.</li>
+  <li><strong>La frase del desconocido no cambió ni un carácter</strong>, y hay una prueba que compara la cadena entera.</li>
+  <li>Una cuenta de personal lee la frase del desconocido: la app no le va a enganchar la solicitud.</li>
+  <li>Pasadas las 48 horas del enganche, la frase reconocida desaparece aunque la cookie siga viva.</li>
+  <li><strong>Un correo con <code>%</code> o <code>_</code> no reconoce a nadie</strong>: es una pregunta sobre una dirección, no una búsqueda.</li>
+  <li>Sin Supabase no se pinta invitación alguna, y presentar funciona igual.</li>
+  <li>En 375 px, <em>Log in</em> no se parte en dos líneas.</li>
+  <li>El recorrido en vivo (<code>playwright.walk.config.ts</code>) pasa los dos actos contra Supabase real.</li>
   <li>El modo compañero se comporta igual que antes de R-1.</li>
 </ul>
 
@@ -533,7 +581,11 @@ curl.exe -s -w "`n%{http_code}`n" -X POST http://localhost:3000/api/ttc `
   <li><span class="badge pen">Pendiente</span> <strong>La escritura de TTC no deja rastro de ninguna clase.</strong> Toda otra escritura de la aplicación deja una nota firmada; esta no, porque haría falta un tercer tipo de autor y con él una migración del esquema. Sin eso, un secreto filtrado sobrescribe el número real sin que nada registre que cambió. Va al pase de seguridad, junto con el límite de peticiones (que existe y no está conectado a nada), la lista de IP permitidas, y que los números <code>CG</code> se acuñan con <code>Math.random</code>.</li>
   <li><span class="badge pen">Pendiente</span> <span class="badge r6">R-6</span> <strong>Dónde aterriza una cuenta sin compra vinculada se movió sin querer.</strong> El middleware manda a <code>/guarantee</code> desde la raíz, y eso antes encadenaba a <code>/requests</code> porque la página rebotaba. Requests queda a una pestaña, así que nadie se pierde, pero la aplicación tiene dos casas para el mismo visitante. Y el personal con compra vinculada perdió el acceso a esas dos páginas: más estricto, pero nadie lo pidió.</li>
   <li><span class="badge pen">Pendiente</span> <span class="badge r6">R-6</span> <strong>La página de la garantía no dice en qué noche estás</strong> aunque la reclamación lleve su propia fecha de entrega y <code>/requests/[id]</code> ya calcule ese número con ella. Derivarlo aquí es una decisión de producto, no un arreglo, y quedó fuera a propósito.</li>
-  <li><strong>Los commits no están subidos.</strong> Están en <code>main</code>, doce por delante de <code>origin/main</code>.</li>
+  <li><span class="badge imp">R-9</span> <strong>Ninguna de las dos suites de CI cubre R-9, y no puede cubrirlo.</strong> Las dos vacían las claves de Supabase a propósito, así que no hay cuentas que reconocer: allí no se pinta ninguna de las dos frases. La única prueba del recorrido entero es el <strong>acto 1 del recorrido en vivo</strong> (<code>npx playwright test --config=playwright.walk.config.ts</code>), que crea la cuenta antes de presentar con la misma dirección y comprueba la frase reconocida. Lo demás son pruebas unitarias: las cuatro puertas en <code>lib/auth/link.test.ts</code> y el escape en <code>lib/data/account-lookup.test.ts</code>.</li>
+  <li><span class="badge pen">Pendiente</span> <span class="badge r9">R-9</span> <strong>La pantalla le dice a quien teclea una dirección si esa dirección tiene cuenta.</strong> Es una filtración, y va al pase de seguridad. Dos cosas la sitúan: la aplicación <strong>ya</strong> dice exactamente eso en <code>/signup</code> ("There's already an account with that email"), que es igual de anónimo y <strong>no tiene ningún límite de peticiones</strong>, mientras que esta pantalla está detrás de la cookie de reclamante y del límite de diez reclamaciones por IP. Medido, probar una dirección por aquí cuesta unas doscientas veces más y deja una reclamación en el escritorio cada vez. La decisión de política debería tomarse para las dos a la vez, no solo para esta.</li>
+  <li><span class="badge r9">R-9</span> <strong>Lo que Doug dijo y no se construyó: exigir sesión para presentar.</strong> No se hizo porque contradice dos documentos que escribió él mismo el día anterior (<code>SPEC-v3</code> §1, "No login to file", y el explicativo de la tienda, "no account, no login") y porque hoy es imposible: el middleware saca de la portada a cualquiera con sesión iniciada, así que después de entrar no hay dónde presentar. Abrir ese camino es otro requisito, no un detalle de este.</li>
+  <li><span class="badge pen">Pendiente</span> <span class="badge r9">R-9</span> <strong>Reconocer por teléfono es R-10 y no está.</strong> La columna <code>profiles.phone</code> existe en el esquema y <strong>nunca se escribe</strong>: solo se lee. Reconocer por móvil exige antes decidir de dónde sale ese número y cómo se mantiene al día, que es una pregunta de datos antes que de pantalla.</li>
+  <li><strong>Los commits no están subidos.</strong> Están en <code>main</code>, <strong>dieciocho</strong> por delante de <code>origin/main</code>.</li>
 </ul>
 
 </main>
