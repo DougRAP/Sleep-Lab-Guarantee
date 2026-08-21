@@ -1,6 +1,6 @@
 # Handoff R-7 — Write-back endpoint for the TTC claim number
 
-**For:** Maker 1 · **From:** master agent · **Punch list:** `misc/PUNCH-LIST-08-19.html` (R-7) · **State:** `main` at `519b0f5`. R-1 to R-6 and R-8 built, tested, committed, unpushed.
+**For:** Maker 1 · **From:** master agent · **Punch list:** `misc/PUNCH-LIST-08-19.html` (R-7) · **State:** `main` at `2b6776a`. R-1 to R-6 and R-8 built, tested, committed, unpushed.
 
 **Hard rules:** design locked (`DESIGN.md`). Data through the repository layer. Rules in pure functions under `lib/` with a `.test.ts` beside them. Do not commit or push. Done = `npx tsc --noEmit` + `npm test` + `npm run build` + `npm run test:e2e` (both suites), real output pasted.
 
