@@ -734,6 +734,15 @@ export class MemoryRepository implements GuaranteeRepository {
       .sort(byMostRecent);
   }
 
+  async accountExistsForEmail(_email: string): Promise<boolean> {
+    // Always no, and that is the truth rather than a stub. Accounts live in
+    // Supabase Auth: with the in-memory backend there is no sign-up, no
+    // sign-in and no profiles table, so nobody CAN have one to be recognised
+    // by. isAuthConfigured() is false in this configuration too, so the
+    // confirmation screen shows no invitation at all either way.
+    return false;
+  }
+
   async linkClaimToUser(claimId: string, userId: string): Promise<Claim | null> {
     const uid = (userId ?? "").trim();
     if (!uid) return null;

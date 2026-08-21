@@ -7,7 +7,7 @@
 //
 // Dos actos, para que cada uno se pueda mirar entero sin cansarse:
 //
-//   1. EL CLIENTE   R-1, R-8, R-2, R-3 y R-4. Anónimo de principio a fin,
+//   1. EL CLIENTE   R-1, R-8, R-2, R-3, R-9 y R-4. Anónimo de principio a fin,
 //                   hasta que entra a su cuenta y la solicitud le sigue.
 //   2. LA CUENTA    R-6, R-5 y R-7. Lo que ve alguien con sesión.
 //
@@ -111,7 +111,7 @@ async function mirar(page: Page, ms = 1600) {
   await page.waitForTimeout(ms);
 }
 
-test("acto 1 · el cliente: R-1, R-8, R-2, R-3 y R-4", async ({ page }) => {
+test("acto 1 · el cliente: R-1, R-8, R-2, R-3, R-9 y R-4", async ({ page }) => {
   test.setTimeout(300_000);
 
   await test.step("Preparación · la cuenta tiene que existir ANTES", async () => {
@@ -281,9 +281,24 @@ test("acto 1 · el cliente: R-1, R-8, R-2, R-3 y R-4", async ({ page }) => {
     await mirar(page, 3500);
   });
 
+  await test.step("R-9 · la pantalla ya sabe quién es", async () => {
+    // La queja de Doug, literal: "it doesn't recognize that I already have an
+    // account... it let me in as if I didn't have an account". La cuenta se
+    // creó en el primer paso con este mismo correo, así que aquí la app tiene
+    // que decirlo en vez de ofrecerle crear otra.
+    //
+    // Este acto es el ÚNICO sitio donde esto se puede ver: las dos suites de
+    // CI vacían las claves de Supabase a propósito, así que allí no hay
+    // cuentas que reconocer y la invitación no se pinta en absoluto.
+    await expect(
+      page.getByText(/There's already an account with this email/)
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: /Create an account/ })).toHaveCount(0);
+    await mirar(page, 3000);
+  });
+
   await test.step("R-4 · entrar trae la solicitud sola", async () => {
-    // Lo que Doug pidió: "It doesn't recognize that I already have an account."
-    await page.getByRole("link", { name: /Create an account or log in/ }).click();
+    await page.getByRole("link", { name: "Log in", exact: true }).click();
     await page.waitForURL("**/login");
     await mirar(page, 1800);
 

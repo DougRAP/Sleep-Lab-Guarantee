@@ -264,6 +264,85 @@ export function validatePurchaseDates(
 }
 
 /* -------------------------------------------------------------------------- */
+/* R-9 - recognising a customer we already have an account for                */
+/* -------------------------------------------------------------------------- */
+
+/** What the confirmation screen offers once the CG number exists. */
+export type ClaimInvitation =
+  | { show: false }
+  | {
+      // Deliberately no `recognised` flag: which branch this is shows in the
+      // words, and a second copy of the answer is a second thing to keep true.
+      show: true;
+      lead: string;
+      linkLabel: string;
+      tail: string;
+    };
+
+/**
+ * R-9: stop telling somebody with an account to create one.
+ *
+ * Doug, about himself: "it doesn't recognize that I already have an account… I
+ * created one yesterday, but it let me in as if I didn't have an account."
+ * Then, later: "it should force me to use my account, right? … No, do not
+ * create another account. Or if you're creating a new claim, you need to be
+ * logged in."
+ *
+ * That sentence is NOT about closing the anonymous door. Filing stays
+ * anonymous for someone we have never seen, exactly as docs/SPEC-v3 §1 ("No
+ * login to file") and Doug's own retailer guide ("no account, no login, no
+ * receipt hunting required to get started") both promise, and both of those he
+ * wrote the day before the call. It is about a customer we already know being
+ * taken to their own account instead of treated as a stranger.
+ *
+ * Three states, and the first two are exactly today's behaviour byte for byte:
+ * with no Supabase there are no accounts to have, so no invitation renders at
+ * all, and a stranger reads what they always read.
+ *
+ * The recognised sentence must not overreach, and there are three separate ways
+ * to overreach that review found in the first cut of it.
+ *
+ * It must not say the request is already on their account: it is not until they
+ * log in and R-4 attaches it. It must not PROMISE that attach either, because
+ * R-4 wants the claimant cookie on this browser, the same address, and 48 hours
+ * (ATTACH_WINDOW_HOURS); log in from the laptop that evening and the request is
+ * not there. And it must not presume a history: "with the rest" is addressed to
+ * somebody who may have made the account yesterday and never filed, whom
+ * /requests then greets with "Nothing here yet."
+ *
+ * So it attributes the fact to the ADDRESS, not to the reader, in the app's own
+ * words for it (lib/actions/auth.ts, sign-up): the same address can be a shared
+ * mailbox, a forgotten account, or a typo onto a stranger's, and nothing here
+ * was verified — nobody checked a mailbox.
+ *
+ * The copy is here rather than in the component for the reason entryCopy is:
+ * vitest only collects tests under lib/, and a sentence that branches on a
+ * condition is exactly what a later edit breaks in silence.
+ */
+export function claimInvitation(input: {
+  authConfigured: boolean;
+  recognised: boolean;
+}): ClaimInvitation {
+  if (!input.authConfigured) return { show: false };
+
+  if (input.recognised) {
+    return {
+      show: true,
+      lead: "There's already an account with this email. ",
+      linkLabel: "Log in",
+      tail: " to track this request.",
+    };
+  }
+
+  return {
+    show: true,
+    lead: "Want to follow along? ",
+    linkLabel: "Create an account or log in",
+    tail: " to track your request.",
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /* R-8 - the customer's own account of the problem                            */
 /* -------------------------------------------------------------------------- */
 

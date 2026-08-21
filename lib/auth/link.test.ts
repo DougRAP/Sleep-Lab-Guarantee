@@ -9,6 +9,7 @@ import {
   ATTACH_WINDOW_HOURS,
   attachIntakeClaim,
   canDisarmForStaff,
+  claimantHasAccount,
   linkPurchase,
   type AttachIntakeInput,
 } from "./link";
@@ -610,5 +611,112 @@ describe("canDisarmForStaff — what a staff sign-in may delete", () => {
   it("has nothing to disarm when the cookie names a claim that is gone", () => {
     expect(canDisarmForStaff(null)).toBe(false);
     expect(canDisarmForStaff(undefined)).toBe(false);
+  });
+});
+
+describe("claimantHasAccount — who the confirmation screen recognises", () => {
+  const HOUR = 3_600_000;
+
+  /** A repository that says yes to everyone, so only the GATES are on trial. */
+  function repoSayingYes(seen: string[] = []): {
+    accountExistsForEmail: (email: string) => Promise<boolean>;
+    asked: string[];
+  } {
+    return {
+      asked: seen,
+      accountExistsForEmail: async (email: string) => {
+        seen.push(email);
+        return true;
+      },
+    };
+  }
+
+  function submitted(overrides: Partial<Claim> = {}): Claim {
+    return {
+      ...({} as Claim),
+      id: "claim-1",
+      status: "submitted",
+      contactEmail: "terri@rapqa.com",
+      submittedAt: new Date().toISOString(),
+      ...overrides,
+    };
+  }
+
+  it("recognises a submitted claim whose email has an account", async () => {
+    const repo = repoSayingYes();
+    expect(
+      await claimantHasAccount(repo as never, submitted(), { authConfigured: true })
+    ).toBe(true);
+    expect(repo.asked).toEqual(["terri@rapqa.com"]);
+  });
+
+  it("never asks when there is no auth to have an account in", async () => {
+    // Same fail-closed shape as the rest of lib/auth: no Supabase, no accounts,
+    // and claimInvitation renders nothing at all in that configuration anyway.
+    const repo = repoSayingYes();
+    expect(
+      await claimantHasAccount(repo as never, submitted(), { authConfigured: false })
+    ).toBe(false);
+    expect(repo.asked).toEqual([]);
+  });
+
+  it("never asks about a draft", async () => {
+    const repo = repoSayingYes();
+    expect(
+      await claimantHasAccount(repo as never, submitted({ status: "draft" }), {
+        authConfigured: true,
+      })
+    ).toBe(false);
+    expect(repo.asked).toEqual([]);
+  });
+
+  it("never asks when the claim carries no email", async () => {
+    const repo = repoSayingYes();
+    for (const contactEmail of [null, "", "   "]) {
+      expect(
+        await claimantHasAccount(repo as never, submitted({ contactEmail }), {
+          authConfigured: true,
+        })
+      ).toBe(false);
+    }
+    expect(repo.asked).toEqual([]);
+  });
+
+  it("stops recognising once the attach window has closed", async () => {
+    // THE POINT OF THIS GATE. The claimant cookie lives seven days and /claim
+    // re-renders the confirmation screen for all of them, but attachIntakeClaim
+    // only attaches within ATTACH_WINDOW_HOURS. Past that, inviting them to log
+    // in "to track this request" invites them to a screen that will not have it.
+    const repo = repoSayingYes();
+    const now = new Date();
+    const inside = new Date(now.getTime() - (ATTACH_WINDOW_HOURS - 1) * HOUR);
+    const outside = new Date(now.getTime() - (ATTACH_WINDOW_HOURS + 1) * HOUR);
+
+    expect(
+      await claimantHasAccount(repo as never, submitted({ submittedAt: inside.toISOString() }), {
+        authConfigured: true,
+        now,
+      })
+    ).toBe(true);
+
+    expect(
+      await claimantHasAccount(repo as never, submitted({ submittedAt: outside.toISOString() }), {
+        authConfigured: true,
+        now,
+      })
+    ).toBe(false);
+  });
+
+  it("says no rather than throwing when the lookup fails", async () => {
+    // This runs while the screen holding the CG number renders. A courtesy must
+    // never be the reason somebody who has already filed cannot read it.
+    const repo = {
+      accountExistsForEmail: async () => {
+        throw new Error("PostgREST is having a day");
+      },
+    };
+    expect(
+      await claimantHasAccount(repo as never, submitted(), { authConfigured: true })
+    ).toBe(false);
   });
 });

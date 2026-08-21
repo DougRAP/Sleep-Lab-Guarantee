@@ -18,6 +18,7 @@ import type {
   DealerLocation,
   Guarantee,
   InitialImpressionRecord,
+  Role,
   Journey,
   LinkVia,
   Tip,
@@ -28,7 +29,9 @@ import { couponExpiresAt, generateCouponCode, isCouponExpired } from "../coupon"
 import { MAX_ITEMS, normalizeConfirmations } from "../fitting";
 import { selectTip, type TipQuery } from "../tips";
 import { createServiceClient } from "../supabase/server";
+import { isStaff } from "../auth/routing";
 import {
+  likeLiteral,
   type AddClaimLinkInput,
   type AddClaimNoteInput,
   type ClaimItemInput,
@@ -65,6 +68,19 @@ import {
   todayIso,
 } from "./repository";
 import { DEFAULT_DEALER_LOCATION_ID } from "./seed";
+
+/**
+ * R-9's account lookup, bounded twice.
+ *
+ * A few rows rather than one: the row we want is a CUSTOMER, and a staff
+ * profile sharing the address must not be the only thing we see and mistake
+ * for "no account". A handful is plenty — one address, and duplicates are
+ * refused at sign-up.
+ *
+ * The budget is short on purpose. See accountExistsForEmail.
+ */
+const ACCOUNT_LOOKUP_ROWS = 5;
+const ACCOUNT_LOOKUP_TIMEOUT_MS = 1_500;
 
 /** The day after a plain YYYY-MM-DD date — the exclusive upper bound that makes
  *  an inclusive plain-date filter correct over a timestamptz column. */
@@ -796,6 +812,36 @@ export class SupabaseRepository implements GuaranteeRepository {
       .eq("consumer_id", needle)
       .order("updated_at", { ascending: false });
     return (data ?? []).map(toClaim).sort(byMostRecent);
+  }
+
+  async accountExistsForEmail(email: string): Promise<boolean> {
+    const address = (email ?? "").trim().toLowerCase();
+    if (!address) return false;
+
+    // ilike, not eq: profiles.email is plain text with no citext and no lower()
+    // index, so a row stored as "Terri@rapqa.com" would miss an exact match and
+    // we would treat somebody we know as a stranger. likeLiteral is what keeps
+    // ilike an EQUALITY here — without it the address is a pattern.
+    //
+    // The timeout matters more than it looks: this runs while the confirmation
+    // screen renders, and that screen is the only place the CG number appears.
+    // supabase-js sets no fetch timeout, and a try/catch catches throws, not
+    // hangs. Losing the recognition is a shrug; withholding the claim number
+    // from somebody who has already filed is not.
+    const { data, error } = await this.db
+      .from("profiles")
+      .select("role")
+      .ilike("email", likeLiteral(address))
+      .limit(ACCOUNT_LOOKUP_ROWS)
+      .abortSignal(AbortSignal.timeout(ACCOUNT_LOOKUP_TIMEOUT_MS));
+
+    // Fail closed, and say so out loud. Swallowing this silently made a broken
+    // query indistinguishable from "no account" in the logs.
+    if (error) {
+      console.warn("[accountExistsForEmail] lookup failed, treating as no", error.message);
+      return false;
+    }
+    return (data ?? []).some((row) => !isStaff((row as { role: Role | null }).role));
   }
 
   async linkClaimToUser(claimId: string, userId: string): Promise<Claim | null> {

@@ -348,6 +348,27 @@ export function claimNumberQuery(value: string): string | null {
   return CLAIM_NUMBER_BODY_RE.test(body) ? `${CLAIM_NUMBER_PREFIX}${body}` : null;
 }
 
+/**
+ * An email address as a LIKE/ILIKE literal.
+ *
+ * `%` and `_` are wildcards to Postgres and `looksLikeEmail` accepts both, so
+ * an address arriving from the anonymous entry form is a pattern unless this
+ * runs. Unescaped, `a%@%.%` stops asking "does this address have an account"
+ * and starts listing the ones that do, and the honest case breaks too:
+ * `john_doe@x.com` would match a stored `johnXdoe@x.com` and we would greet the
+ * wrong person by name.
+ *
+ * The backslash goes first. Escaping it last would double-escape what the two
+ * rules after it just wrote, turning an escaped wildcard back into a literal
+ * backslash followed by a LIVE one, which is the bug this exists to stop.
+ */
+export function likeLiteral(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
+}
+
 /** The self-reported identity an anonymous claim carries into auto-match. */
 export interface MatchGuaranteeInput {
   lastName: string;
@@ -674,6 +695,21 @@ export interface GuaranteeRepository {
    * for the same user.
    */
   linkClaimToUser(claimId: string, userId: string): Promise<Claim | null>;
+  // --- v3 (R-9): recognising a customer we already have ---
+  /**
+   * Does a CUSTOMER account already exist for this email address?
+   *
+   * A boolean and nothing else, deliberately. The argument is an unverified
+   * string from an anonymous form, so this must not become a way to read a
+   * profile: no id, no name, no row, nothing that could be echoed back to
+   * whoever typed the address.
+   *
+   * Customer, not staff: attachIntakeClaim refuses to hand a request to a
+   * rap_admin or dealer (lib/auth/link.ts), so saying "we know you, log in and
+   * track it" to an agent's address is a promise the app will not keep — and
+   * the agent testing with their own address is exactly who hits it first.
+   */
+  accountExistsForEmail(email: string): Promise<boolean>;
   /**
    * The unique guarantee the two-key rule lands on — (sales order # + last
    * name) or (ZIP + last name), see matchGuarantee — or null (no match or

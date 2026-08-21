@@ -250,6 +250,54 @@ export async function attachIntakeClaim(
 }
 
 /**
+ * R-9: does the person who just filed already have an account here?
+ *
+ * The confirmation screen asks this so it can stop telling somebody with an
+ * account to create one — Doug's own complaint, twice over: "it doesn't
+ * recognize that I already have an account", and later "No, do not create
+ * another account."
+ *
+ * It is the SAME question attachIntakeClaim answers a minute later, so it is
+ * gated the same way and deliberately lives beside it. Three of the four gates
+ * exist to stop the screen promising something the attach will then refuse:
+ *
+ *   - no auth configured, so there are no accounts to have;
+ *   - a draft, which is not a filed request and has no CG number;
+ *   - no email, so nothing to recognise and nothing for R-4 to match on;
+ *   - past ATTACH_WINDOW_HOURS. This is the one that is easy to miss. The
+ *     claimant cookie lives seven days and /claim re-renders this screen for
+ *     all of them, but the attach expires in 48 hours. Between the two, an
+ *     invitation to "log in to track this request" leads to a screen that says
+ *     "Nothing here yet."
+ *
+ * Staff are filtered inside accountExistsForEmail, for the same reason: an
+ * agent's own address is an account, and attachIntakeClaim will not hand them a
+ * customer's request.
+ *
+ * It never throws. This runs while the only screen that shows the CG number
+ * renders; a courtesy must not be why somebody who has already filed cannot
+ * read their number.
+ */
+export async function claimantHasAccount(
+  repo: GuaranteeRepository,
+  claim: Claim | null | undefined,
+  options: { authConfigured: boolean; now?: Date }
+): Promise<boolean> {
+  if (!options.authConfigured) return false;
+  if (!claim || claim.status === "draft") return false;
+  if (!withinAttachWindow(claim.submittedAt, options.now ?? new Date())) return false;
+
+  const address = normalisedEmail(claim.contactEmail);
+  if (!address) return false;
+
+  try {
+    return await repo.accountExistsForEmail(address);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * May a staff sign-in delete the claimant cookie sitting on this browser?
  *
  * An agent's machine should not carry a customer's claim around for the rest of
@@ -268,11 +316,22 @@ export function canDisarmForStaff(claim: Claim | null | undefined): boolean {
   return Boolean(claim) && claim!.status !== "draft";
 }
 
+/**
+ * One address, comparable, or nothing.
+ *
+ * The single normalizing rule for an email in this app. R-9 needed a third
+ * user of it (looking an account up by the address typed into the claim form),
+ * and three copies of trim-and-lowercase agreeing by luck is not agreement.
+ */
+export function normalisedEmail(value: string | null | undefined): string | null {
+  const address = (value ?? "").trim().toLowerCase();
+  return address.length > 0 ? address : null;
+}
+
 /** Both present and equal, ignoring case and surrounding space. */
 function sameEmail(a: string | null | undefined, b: string | null | undefined): boolean {
-  const left = (a ?? "").trim().toLowerCase();
-  const right = (b ?? "").trim().toLowerCase();
-  return left.length > 0 && left === right;
+  const left = normalisedEmail(a);
+  return left !== null && left === normalisedEmail(b);
 }
 
 /**

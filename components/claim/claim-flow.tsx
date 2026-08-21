@@ -30,6 +30,7 @@ import {
   submitAnonymousClaim,
 } from "../../lib/actions/claim";
 import {
+  claimInvitation,
   dayCountMessage,
   earlyPreferenceRequired,
   MAX_STORY_CHARS,
@@ -47,6 +48,12 @@ export interface ClaimFlowProps {
   initialStage: ClaimStage;
   storageConfigured: boolean;
   authConfigured: boolean;
+  /**
+   * R-9: this claim's contact email already has an account here. Resolved on
+   * the server (lib/auth/user.ts), never asked of the browser, and only ever
+   * read once the CG number exists.
+   */
+  recognisedAccount: boolean;
   details: {
     modelNumber: string;
     purchaseDate: string;
@@ -71,6 +78,11 @@ export function ClaimFlow(props: ClaimFlowProps) {
     props.claimNumber ? "done" : props.initialStage
   );
   const [claimNumber, setClaimNumber] = useState<string | null>(props.claimNumber);
+  // Seeded from the server for the reload path, replaced by the submit's own
+  // answer on the live path. See SubmittedClaim in lib/actions/claim.ts: this
+  // render happened while the claim was still a draft, so the prop is false
+  // there no matter who is filing.
+  const [recognised, setRecognised] = useState(props.recognisedAccount);
   const [pending, startTransition] = useTransition();
 
   /**
@@ -141,7 +153,13 @@ export function ClaimFlow(props: ClaimFlowProps) {
     : "Back to your details";
 
   if (stage === "done" && claimNumber) {
-    return <DoneScreen claimNumber={claimNumber} authConfigured={props.authConfigured} />;
+    return (
+      <DoneScreen
+        claimNumber={claimNumber}
+        authConfigured={props.authConfigured}
+        recognisedAccount={recognised}
+      />
+    );
   }
 
   // No `key` on any step. Every stage returns a different component type, so
@@ -192,8 +210,9 @@ export function ClaimFlow(props: ClaimFlowProps) {
       return (
         <ProcessStep
           onBack={onBack}
-          onSubmitted={(cg) => {
+          onSubmitted={(cg, recognised) => {
             setClaimNumber(cg);
+            setRecognised(recognised);
             setStage("done");
           }}
         />
@@ -586,7 +605,7 @@ function ProcessStep({
   onSubmitted,
 }: {
   onBack?: () => void;
-  onSubmitted: (claimNumber: string) => void;
+  onSubmitted: (claimNumber: string, recognisedAccount: boolean) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -602,7 +621,7 @@ function ProcessStep({
     if (pending) return;
     startTransition(async () => {
       const res = await submitAnonymousClaim();
-      if (res.ok) onSubmitted(res.data.claimNumber);
+      if (res.ok) onSubmitted(res.data.claimNumber, res.data.recognisedAccount);
       else setError(res.error);
     });
   }
@@ -642,10 +661,18 @@ function ProcessStep({
 function DoneScreen({
   claimNumber,
   authConfigured,
+  recognisedAccount,
 }: {
   claimNumber: string;
   authConfigured: boolean;
+  recognisedAccount: boolean;
 }) {
+  // R-9: what this offers depends on whether we already know them. The rule
+  // and every word it puts on screen live in lib/claim-flow.ts.
+  const invitation = claimInvitation({
+    authConfigured,
+    recognised: recognisedAccount,
+  });
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -684,16 +711,23 @@ function DoneScreen({
           We&apos;ll review your request and reach out by the contact you gave
           us. Nothing else is needed from you right now.
         </p>
-        {authConfigured && (
+        {invitation.show && (
           <p className="text-[13px] leading-relaxed text-mist">
-            Want to follow along?{" "}
+            {invitation.lead}
+            {/*
+              nowrap: "Log in" is two words and the ONLY control on this screen.
+              Measured, it splits across lines at 368 to 376 CSS px (iPhone
+              SE2/SE3, 6/7/8, X, 11 Pro, 12 mini), leaving a 10px "in" hanging
+              under "Log". Any later edit to these words re-rolls that dice, so
+              the rule lives with the link rather than with the sentence.
+            */}
             <Link
               href="/login"
-              className="text-dawn underline-offset-4 transition-colors hover:underline"
+              className="whitespace-nowrap text-dawn underline-offset-4 transition-colors hover:underline"
             >
-              Create an account or log in
-            </Link>{" "}
-            to track your request.
+              {invitation.linkLabel}
+            </Link>
+            {invitation.tail}
           </p>
         )}
         <p className="text-[13px] leading-relaxed text-mist">

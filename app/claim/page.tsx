@@ -6,6 +6,7 @@ import { stageForStep } from "../../lib/claim-flow";
 import { getClaimSession } from "../../lib/claim-session";
 import { getRepository } from "../../lib/data";
 import { isAuthConfigured } from "../../lib/auth/config";
+import { claimantHasAccount } from "../../lib/auth/link";
 import { claimPhotoThumbs, isPhotoStorageConfigured } from "../../lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,18 @@ export default async function ClaimPage() {
   const photoThumbs = await claimPhotoThumbs(photos);
   const submitted = claim.status !== "draft";
 
+  // R-9, and this is the RELOAD path only: coming back to /claim with the
+  // claimant cookie still armed. On the live submit the wizard moves to the
+  // confirmation screen client-side, so this render already happened while the
+  // claim was still a draft — submitAnonymousClaim carries the answer instead.
+  // Both call the same gate, so the two paths cannot drift.
+  //
+  // claimantHasAccount is what makes this cheap: it returns before touching the
+  // backend for a draft, and every wizard step is a draft.
+  const recognisedAccount = await claimantHasAccount(repo, claim, {
+    authConfigured: isAuthConfigured(),
+  });
+
   return (
     <>
       <LivingSky day={0} />
@@ -57,6 +70,7 @@ export default async function ClaimPage() {
             initialStage={stageForStep(claim.step ?? "intake")}
             storageConfigured={isPhotoStorageConfigured()}
             authConfigured={isAuthConfigured()}
+            recognisedAccount={recognisedAccount}
             details={{
               modelNumber: claim.modelNumber ?? "",
               purchaseDate: claim.purchaseDate ?? "",

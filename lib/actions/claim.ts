@@ -33,6 +33,8 @@ import { journeyDay } from "../eligibility";
 import { CLAIM_PHOTO_TARGETS, CONFIRMATION_TERMS, normalizeConfirmations } from "../fitting";
 import { photoUploadIssue, uploadClaimPhoto } from "../storage";
 import { enforceRateLimit } from "../rate-limit";
+import { claimantHasAccount } from "../auth/link";
+import { isAuthConfigured } from "../auth/config";
 import type { ActionResult } from "./fitting";
 import type { ClaimStage } from "../claim-flow";
 import type { Claim, ConfirmationKey, EarlyPreference, PhotoAngle } from "../types";
@@ -377,6 +379,8 @@ export async function finishClaimPhotos(): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 export interface SubmittedClaim {
+  /** R-9: this email already has an account here. See claimantHasAccount. */
+  recognisedAccount: boolean;
   claimNumber: string;
 }
 
@@ -398,7 +402,17 @@ export async function submitAnonymousClaim(): Promise<ActionResult<SubmittedClai
       : null;
 
   const result = await ctx.repo.submitClaim(ctx.claim.id, { earlyPreference });
-  return { ok: true, data: { claimNumber: result.claimNumber } };
+
+  // R-9 travels back with the claim number, and it has to. The wizard shows the
+  // confirmation screen client-side (setStage("done")), and this action
+  // revalidates nothing, so the props the client is holding were resolved while
+  // the claim was still a draft. Computed only here, the recognition would
+  // never appear on the one path that matters: filing.
+  const recognisedAccount = await claimantHasAccount(ctx.repo, result.claim, {
+    authConfigured: isAuthConfigured(),
+  });
+
+  return { ok: true, data: { claimNumber: result.claimNumber, recognisedAccount } };
 }
 
 /** Leave the flow cleanly (the confirmation screen's "start another"). */

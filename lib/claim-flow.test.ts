@@ -9,6 +9,7 @@ import {
   claimReadyToSubmit,
   dayCountMessage,
   dayCountState,
+  claimInvitation,
   earlyPreferenceRequired,
   inTheirWords,
   MAX_STORY_CHARS,
@@ -512,5 +513,100 @@ My partner is fine with it.`;
     // is policy and belongs with the flows, the trim is what "recorded" means.
     const long = "x".repeat(MAX_STORY_CHARS + 3000);
     expect(inTheirWords(long)).toBe(long);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* R-9 — recognising a customer we already have an account for                */
+/* -------------------------------------------------------------------------- */
+
+// Doug, twice on the call, about himself: "it doesn't recognize that I already
+// have an account… I created one yesterday, but it let me in as if I didn't
+// have an account." And later, "it should force me to use my account, right? …
+// No, do not create another account. Or if you're creating a new claim, you
+// need to be logged in."
+//
+// He is NOT closing the anonymous door. Filing stays anonymous for someone we
+// have never seen, exactly as spec §1 and the retailer guide both promise.
+// What changes is that we stop inviting somebody to "create an account" when
+// they plainly have one.
+//
+// The copy lives here rather than in the component for the same reason
+// entryCopy does: vitest only collects tests under lib/, and a sentence that
+// branches is exactly what a later edit breaks in silence.
+
+describe("claimInvitation — what the confirmation screen offers", () => {
+  it("offers nothing at all when there are no accounts to have", () => {
+    // No Supabase means no sign-up anywhere, so inviting them would be a door
+    // that does not exist. This is today's behaviour and it must not change.
+    expect(claimInvitation({ authConfigured: false, recognised: false })).toEqual({
+      show: false,
+    });
+    expect(claimInvitation({ authConfigured: false, recognised: true })).toEqual({
+      show: false,
+    });
+  });
+
+  it("invites a stranger to create an account, word for word as before", () => {
+    const invitation = claimInvitation({ authConfigured: true, recognised: false });
+    expect(invitation).toEqual({
+      show: true,
+      lead: "Want to follow along? ",
+      linkLabel: "Create an account or log in",
+      tail: " to track your request.",
+    });
+  });
+
+  it("stops telling somebody with an account to create one", () => {
+    const invitation = claimInvitation({ authConfigured: true, recognised: true });
+    expect(invitation.show).toBe(true);
+    if (!invitation.show) return;
+    expect(invitation.linkLabel).toBe("Log in");
+    expect(invitation.linkLabel).not.toMatch(/create/i);
+    expect(`${invitation.lead}${invitation.tail}`).not.toMatch(/create/i);
+  });
+
+  it("names why we know them, without promising or presuming", () => {
+    // They have proved nothing at this moment: the email was typed into an
+    // anonymous form. Everything below is a thing the sentence must NOT do,
+    // rather than one phrasing pinned in place, because each one was a real
+    // defect in the first cut and each has a different cause.
+    const invitation = claimInvitation({ authConfigured: true, recognised: true });
+    if (!invitation.show) throw new Error("expected an invitation");
+    const whole = `${invitation.lead}${invitation.linkLabel}${invitation.tail}`;
+
+    // The fact belongs to the ADDRESS, not to the reader. The same address can
+    // be a shared mailbox, an account made months ago and forgotten, or a typo
+    // that landed on a stranger's. "You already have" is wrong-footed in all
+    // three; the app's own sign-up says "There's already an account with that
+    // email" for exactly this fact (lib/actions/auth.ts).
+    expect(invitation.lead).toMatch(/there(?:'|’)s already an account/i);
+    expect(invitation.lead).not.toMatch(/you already have/i);
+
+    // Nothing is theirs until they log in and R-4 attaches it.
+    expect(whole).not.toMatch(/is (already )?(on|in) your account/i);
+
+    // And it must not promise the attach either. R-4 requires the claimant
+    // cookie on THIS browser, the same address, and submission within
+    // ATTACH_WINDOW_HOURS. Log in from the laptop that evening, or three days
+    // later, and the request is not there. An offer survives those limits; a
+    // guarantee does not.
+    expect(whole).not.toMatch(/will be waiting|waiting there/i);
+
+    // "with the rest" presumes a history. Doug's own case is an account made
+    // yesterday that has never filed, and /requests greets that person with
+    // "Nothing here yet." The invitation and its destination must not disagree.
+    expect(whole).not.toMatch(/the rest|the others/i);
+  });
+
+  it("reads as one voice with the stranger's, one word apart", () => {
+    // Both branches end the same way, so the screen does not change register
+    // depending on something the customer cannot see. "this" rather than
+    // "your" because they are holding a specific CG number as they read it.
+    const known = claimInvitation({ authConfigured: true, recognised: true });
+    const stranger = claimInvitation({ authConfigured: true, recognised: false });
+    if (!known.show || !stranger.show) throw new Error("expected both");
+    expect(stranger.tail).toBe(" to track your request.");
+    expect(known.tail).toBe(" to track this request.");
   });
 });
