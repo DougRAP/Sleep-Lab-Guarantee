@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guía de prueba · R-1 a R-5</title>
+<title>Guía de prueba · R-1 a R-8</title>
 <style>
   body{background:#fff;color:#1b1b1b;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
        font-size:15px;line-height:1.6;margin:0;padding:32px 20px 80px}
@@ -34,6 +34,9 @@
   .badge.r3{background:#f6eef8;border-color:#d6bade;color:#5c2f6b}
   .badge.r4{background:#fdf0ea;border-color:#e6c3ad;color:#8a4a1f}
   .badge.r5{background:#eaf1f1;border-color:#aecccc;color:#1f5c5c}
+  .badge.r6{background:#f2f0e8;border-color:#ccc5a8;color:#5c5220}
+  .badge.r7{background:#eeeaf4;border-color:#c3b8dd;color:#4a3a72}
+  .badge.r8{background:#fbeef0;border-color:#e0b6bf;color:#7a2438}
   .box{border:1px solid #ddd;border-left:3px solid #999;padding:12px 14px;margin:14px 0;background:#fafafa}
   .box.warn{border-left-color:#c9a227;background:#fdfaf0}
   .box.crit{border-left-color:#b03a2e;background:#fdf3f2}
@@ -46,11 +49,12 @@
 <body>
 <main>
 
-<h1>Guía de prueba: R-1 a R-5, con los datos exactos</h1>
+<h1>Guía de prueba: R-1 a R-8, con los datos exactos</h1>
 <p class="sub">
   Proyecto: <strong>RAP Sleep Lab</strong> (<code>SleepLabComfortGuarantee</code>) ·
   Rama: <code>main</code> · Commits: <code>ccfeec1</code> (R-1), <code>bb9796e</code> y
-  <code>2920290</code> (R-2), <code>8771edb</code> (R-3), <code>de85d43</code> (R-4), <code>R-5</code> ·
+  <code>2920290</code> (R-2), <code>8771edb</code> (R-3), <code>de85d43</code> (R-4), <code>9e19d95</code> (R-5), <code>7fbb646</code> (R-8),
+  <code>fb3c77e</code> (R-6), <code>86140a7</code> (R-7) ·
   Base: <code>097256d</code> ·
   Actualizada el 20 de agosto de 2026
 </p>
@@ -62,6 +66,9 @@
   <li><span class="badge r3">R-3</span> Dos fechas que no pueden ser ciertas a la vez no pasan del paso de detalles. Es un guardián de erratas: <strong>ningún envío se bloquea nunca</strong>.</li>
   <li><span class="badge r4">R-4</span> Al <strong>entrar</strong> a una cuenta que ya existe, la reclamación presentada desde ese navegador se engancha sola, sin teclear el número. Requiere Supabase configurado.</li>
   <li><span class="badge r5">R-5</span> Un cliente con sesión que abre el cambio ya no se encuentra la app decidiendo por él: se le pregunta si es una solicitud nueva o una que ya tenía.</li>
+  <li><span class="badge r8">R-8</span> El cliente cuenta <strong>con sus palabras</strong> qué le pasa, y el agente que decide el caso por fin lee algo más que casillas marcadas. Es lo último de la hoja de Emy.</li>
+  <li><span class="badge r6">R-6</span> Guarantee y Shop <strong>funcionan sin compra vinculada</strong>. Antes rebotaban a Requests y por eso R-1 escondía las dos pestañas.</li>
+  <li><span class="badge r7">R-7</span> El endpoint por el que TTC escribe su número de reclamación sobre el nuestro. <strong>Nace apagado</strong>: sin secreto configurado responde 501 y no toca nada.</li>
 </ul>
 
 <div class="box warn">
@@ -309,19 +316,19 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
 <h4>Caso que funciona: la cuenta ya existe</h4>
 <table>
   <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
-  <tr><td class="n">47</td><td>Abrir <code>/</code>.</td>
+  <tr><td class="n">37</td><td>Abrir <code>/</code>.</td>
       <td>Arriba se ve el enlace <strong>Log in</strong>. Si no aparece, falta <code>.env.local</code> y este bloque no se puede probar.</td><td class="st">☐</td></tr>
-  <tr><td class="n">48</td><td>Abrir <code>/signup</code> y crear la <strong>cuenta A</strong> con <code>qa.smith@rapqa.com</code>.</td>
+  <tr><td class="n">38</td><td>Abrir <code>/signup</code> y crear la <strong>cuenta A</strong> con <code>qa.smith@rapqa.com</code>.</td>
       <td>Aterriza en <code>/requests</code> con la lista vacía. <strong>Se ve el bloque "Have a claim number? Add it here"</strong>.</td><td class="st">☐</td></tr>
-  <tr><td class="n">49</td><td>Abrir una <strong>ventana privada</strong> y volver a <code>http://localhost:3000</code>.</td>
+  <tr><td class="n">39</td><td>Abrir una <strong>ventana privada</strong> y volver a <code>http://localhost:3000</code>.</td>
       <td>Sos anónimo otra vez: la portada muestra el formulario de reclamación.</td><td class="st">☐</td></tr>
-  <tr><td class="n">50</td><td>Presentar una reclamación completa (perfil A del bloque 2), poniendo en <strong>Email</strong> exactamente <code>qa.smith@rapqa.com</code>.</td>
+  <tr><td class="n">40</td><td>Presentar una reclamación completa (perfil A del bloque 2), poniendo en <strong>Email</strong> exactamente <code>qa.smith@rapqa.com</code>.</td>
       <td>Sale el <code>CG######</code>. Anotalo aquí: ____________</td><td class="st">☐</td></tr>
-  <tr><td class="n">51</td><td>En esa misma pantalla, pulsar <em>Create an account or log in</em> y <strong>entrar</strong> con la cuenta A.</td>
+  <tr><td class="n">41</td><td>En esa misma pantalla, pulsar <em>Create an account or log in</em> y <strong>entrar</strong> con la cuenta A.</td>
       <td><strong>La prueba clave.</strong> Aterriza en <code>/requests</code> y <strong>la fila con ese <code>CG</code> ya está ahí</strong>, sin haber tecleado el número en ningún momento.</td><td class="st">☐</td></tr>
-  <tr><td class="n">52</td><td>Escribir <code>/claim</code> en la barra de direcciones.</td>
+  <tr><td class="n">42</td><td>Escribir <code>/claim</code> en la barra de direcciones.</td>
       <td>Rebota a <code>/</code>: la cookie de reclamante se gastó al enganchar. Es lo esperado.</td><td class="st">☐</td></tr>
-  <tr><td class="n">53</td><td>Borrar las cookies, entrar otra vez con la cuenta A y mirar <code>/requests</code>.</td>
+  <tr><td class="n">43</td><td>Borrar las cookies, entrar otra vez con la cuenta A y mirar <code>/requests</code>.</td>
       <td><strong>Una sola fila</strong>, la misma. No se duplica ni cambia de dueño.</td><td class="st">☐</td></tr>
 </table>
 
@@ -329,13 +336,13 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
 <p>Esto <strong>no es un fallo</strong>. Es el segundo requisito: la dirección de la cuenta tiene que ser la misma que se puso en el formulario.</p>
 <table>
   <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
-  <tr><td class="n">54</td><td>Ventana privada nueva. Presentar otra reclamación con <strong>Email</strong> <code>qa.other@rapqa.com</code>. Anotar el <code>CG</code>: ____________</td>
+  <tr><td class="n">44</td><td>Ventana privada nueva. Presentar otra reclamación con <strong>Email</strong> <code>qa.other@rapqa.com</code>. Anotar el <code>CG</code>: ____________</td>
       <td>Sale el número normalmente.</td><td class="st">☐</td></tr>
-  <tr><td class="n">55</td><td>Entrar con la <strong>cuenta A</strong> (<code>qa.smith@rapqa.com</code>), que no coincide.</td>
+  <tr><td class="n">45</td><td>Entrar con la <strong>cuenta A</strong> (<code>qa.smith@rapqa.com</code>), que no coincide.</td>
       <td>Aterriza en <code>/requests</code> y <strong>no aparece nada nuevo</strong>, en silencio.</td><td class="st">☐</td></tr>
-  <tr><td class="n">56</td><td>Usar el bloque "Have a claim number? Add it here" con ese <code>CG</code> y el apellido del formulario.</td>
+  <tr><td class="n">46</td><td>Usar el bloque "Have a claim number? Add it here" con ese <code>CG</code> y el apellido del formulario.</td>
       <td>La fila aparece. Esa es la salida para todos los casos que no enganchan solos.</td><td class="st">☐</td></tr>
-  <tr><td class="n">57</td><td>Con una cuenta que tenga una <strong>compra vinculada</strong>, abrir <code>/requests</code>.</td>
+  <tr><td class="n">47</td><td>Con una cuenta que tenga una <strong>compra vinculada</strong>, abrir <code>/requests</code>.</td>
       <td>El bloque del número de reclamación <strong>se ve igual que sin compra vinculada</strong>. Antes de R-4 no se pintaba, y esa cuenta no tenía ninguna forma de añadir un <code>CG</code>.</td><td class="st">☐</td></tr>
 </table>
 
@@ -359,51 +366,119 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
 
 <table>
   <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
-  <tr><td class="n">62</td><td>Entrar como <strong>Mendez</strong>, poner el día de demo en <strong>31</strong> y abrir <code>/fitting</code>.</td>
+  <tr><td class="n">48</td><td>Entrar como <strong>Mendez</strong>, poner el día de demo en <strong>31</strong> y abrir <code>/fitting</code>.</td>
       <td><strong>Ninguna pregunta.</strong> Aterriza directo en "Your experience". A quien no tiene nada, preguntarle por su historial es ruido.</td><td class="st">☐</td></tr>
-  <tr><td class="n">63</td><td>Entrar como <strong>Fleming</strong>, día 31, abrir <code>/fitting</code> y rellenar "Your experience" y "What you'd rather have". Avanzar un paso.</td>
+  <tr><td class="n">49</td><td>Entrar como <strong>Fleming</strong>, día 31, abrir <code>/fitting</code> y rellenar "Your experience" y "What you'd rather have". Avanzar un paso.</td>
       <td>Llega al paso del modelo. Queda un borrador con contenido de verdad.</td><td class="st">☐</td></tr>
-  <tr><td class="n">64</td><td><strong>Abrir una ventana privada</strong> y volver a entrar como Fleming, día 31, <code>/fitting</code>.</td>
+  <tr><td class="n">50</td><td><strong>Abrir una ventana privada</strong> y volver a entrar como Fleming, día 31, <code>/fitting</code>.</td>
       <td>Sale la tarjeta: <em>"You already have a request under way for this purchase. Shall we pick it up where you left off?"</em> y debajo, en gris, <em>"We keep one request going at a time…"</em>. <strong>No aterriza en el formulario.</strong></td><td class="st">☐</td></tr>
-  <tr><td class="n">65</td><td>Mirar las dos opciones.</td>
+  <tr><td class="n">51</td><td>Mirar las dos opciones.</td>
       <td><strong>Pick it up where I left off</strong> y <strong>Not now, see my requests</strong>. La segunda es una respuesta al "shall we", no solo un destino. <strong>No hay "empezar una nueva"</strong>, y la línea gris dice por qué: una sola solicitud en curso a la vez.</td><td class="st">☐</td></tr>
-  <tr><td class="n">66</td><td>Pulsar <em>Pick it up where I left off</em>.</td>
+  <tr><td class="n">52</td><td>Pulsar <em>Pick it up where I left off</em>.</td>
       <td>Aterriza en el paso del modelo, con lo escrito intacto. Exactamente donde caía antes de R-5, pero habiéndolo dicho.</td><td class="st">☐</td></tr>
-  <tr><td class="n">67</td><td><strong>Recargar con F5.</strong></td>
+  <tr><td class="n">53</td><td><strong>Recargar con F5.</strong></td>
       <td><strong>La pregunta NO vuelve.</strong> Sigue en el paso del modelo. Es lo que pasa al volver de la cámara en un móvil, y volver a preguntar ahí sería la app no escuchando.</td><td class="st">☐</td></tr>
-  <tr><td class="n">68</td><td>Entrar como <strong>Boyd</strong> y abrir <code>/fitting</code>.</td>
+  <tr><td class="n">54</td><td>Entrar como <strong>Boyd</strong> y abrir <code>/fitting</code>.</td>
       <td>La otra pregunta: <em>"You've sent us a request before. Is this a new one, or are you here about that one?"</em>, con <strong>This is a new request</strong> y <strong>See my requests</strong>. Este es el caso que describió Doug.</td><td class="st">☐</td></tr>
-  <tr><td class="n">69</td><td>Sin tocar nada más, ir a <code>/requests</code>.</td>
+  <tr><td class="n">55</td><td>Sin tocar nada más, ir a <code>/requests</code>.</td>
       <td><strong>No aparece ninguna fila "Not yet submitted".</strong> Que te pregunten no crea nada: el borrador nace en la primera acción de servidor, no al mirar la pantalla.</td><td class="st">☐</td></tr>
-  <tr><td class="n">70</td><td>Volver a <code>/fitting</code> y pulsar <em>This is a new request</em>.</td>
+  <tr><td class="n">56</td><td>Volver a <code>/fitting</code> y pulsar <em>This is a new request</em>.</td>
       <td>Entra al formulario en blanco. Una solicitud ya enviada no bloquea otra: eso lo decidió B-29 y sigue igual.</td><td class="st">☐</td></tr>
+</table>
+
+
+<h3>Bloque 8 · Tus propias palabras <span class="badge r8">R-8</span></h3>
+
+<div class="box warn">
+  <p><strong>El hallazgo de Emy.</strong> Su captura de una reclamación real mostraba <em>"IN YOUR WORDS / Nothing recorded here"</em>: las dos pantallas de detalle pintaban el relato del cliente y nada lo rellenaba nunca, así que el agente que decide el caso recibía casillas marcadas y ni una línea sobre el colchón.</p>
+  <p>Los dos campos son <strong>opcionales</strong> y van ahora <strong>arriba del todo</strong> del paso de detalles, encima del número de modelo. Es lo que el cliente viene a decir, y es lo único que no necesita el recibo ni una linterna al pie de la cama.</p>
+</div>
+
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">57</td><td>Presentar una reclamación desde <code>/</code> y llegar al paso 1 de <code>/claim</code>.</td>
+      <td>Debajo de la tarjeta del guía, un rótulo en mayúsculas: <strong>"In your own words, if you'd like — both optional"</strong>, y bajo él <strong>Your experience</strong> y <strong>What you'd rather have</strong>. <strong>Encima</strong> del modelo y las fechas.</td><td class="st">☐</td></tr>
+  <tr><td class="n">58</td><td>Dejar los dos vacíos y rellenar modelo y fechas del perfil A.</td>
+      <td>El botón de avanzar se habilita igual. <strong>Nada de esto es obligatorio.</strong></td><td class="st">☐</td></tr>
+  <tr><td class="n">59</td><td>Poner el par imposible de Emy en las fechas (<code>08/04/2026</code> y <code>07/29/2026</code>) y escribir en "Your experience".</td>
+      <td>Sale la corrección de fechas y el botón de avanzar se cierra, <strong>pero el campo de texto sigue usable</strong>. Corregir una errata no puede costarte la frase que estabas escribiendo.</td><td class="st">☐</td></tr>
+  <tr><td class="n">60</td><td>Corregir las fechas, escribir dos párrafos en "Your experience", avanzar a las casillas y pulsar <em>‹ Back</em>.</td>
+      <td><strong>Los dos párrafos siguen ahí</strong>, con sus saltos de línea. Es lo más largo que hay en esa pantalla para perder.</td><td class="st">☐</td></tr>
+  <tr><td class="n">61</td><td>Pegar más de 2000 caracteres en "Your experience".</td>
+      <td>La caja <strong>deja de aceptar</strong> al llegar al límite. Lo que se ve es lo que se guarda: antes se cortaba en el servidor y la pantalla seguía mostrando el texto entero.</td><td class="st">☐</td></tr>
+  <tr><td class="n">62</td><td>Enviar y, si tenés acceso al escritorio de personal, abrir esa reclamación en <code>/admin</code>.</td>
+      <td>La sección <strong>"In their words"</strong> muestra el texto, <strong>con los párrafos separados</strong>. Ya no dice "Nothing recorded here".</td><td class="st">☐</td></tr>
+</table>
+
+<h3>Bloque 9 · Guarantee y Shop sin compra vinculada <span class="badge r6">R-6</span></h3>
+
+<div class="box warn">
+  <p><strong>Necesita Supabase y una cuenta sin compra vinculada.</strong> Emy lo anotó así: <em>"logged in as customer, stuck on request page, would not go to guarantee nor shop"</em>. Con las claves de <code>.env.local</code>, creá una cuenta nueva en <code>/signup</code> y <strong>no</strong> vincules ninguna compra.</p>
+</div>
+
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">63</td><td>Con esa cuenta, mirar la barra inferior.</td>
+      <td><strong>Tres pestañas</strong>: Guarantee, Requests y Shop. Antes solo se veía Requests, porque las otras dos rebotaban.</td><td class="st">☐</td></tr>
+  <tr><td class="n">64</td><td>Pulsar <strong>Guarantee</strong>.</td>
+      <td>La página carga. Los esenciales, el enlace al documento completo y la salida a "Something else?". <strong>Sin conteo de noches y sin botón de solicitar cambio</strong>: no hay compra que cambiar, y un botón gris bajo un mensaje de elegibilidad sería inventar un estado.</td><td class="st">☐</td></tr>
+  <tr><td class="n">65</td><td>Bajar hasta el final y pulsar <em>Something else? (e.g. a damaged mattress)</em>.</td>
+      <td><strong>La prueba clave.</strong> Esa página carga y da el teléfono y el correo de RAP. Si te devuelve a Requests, es el defecto que se corrigió: la queja de Emy reproducida un nivel más abajo.</td><td class="st">☐</td></tr>
+  <tr><td class="n">66</td><td>Pulsar <strong>Shop</strong>.</td>
+      <td>El catálogo entero. <strong>Sin cupón y sin ofrecer uno</strong>, con una línea que explica que se emite contra una compra. Sin conteo de noches.</td><td class="st">☐</td></tr>
+  <tr><td class="n">67</td><td>Leer las notas de los tres artículos.</td>
+      <td>Dicen <em>"your dealer coupon, <strong>once you have one</strong>, applies at checkout"</em>. Antes afirmaban un cupón que la línea de arriba acababa de negar.</td><td class="st">☐</td></tr>
+  <tr><td class="n">68</td><td>Vincular una compra y volver a las dos páginas.</td>
+      <td>Todo como antes de R-6: conteo de noches, botón de cambio si estás en ventana, y la tarjeta del cupón.</td><td class="st">☐</td></tr>
+</table>
+
+<h3>Bloque 10 · El endpoint de TTC <span class="badge r7">R-7</span></h3>
+
+<div class="box crit">
+  <p><strong>Lo único que hay que comprobar aquí es que NO existe.</strong> Doug pidió el endpoint y dijo en la misma frase <em>"we need to talk about the communication"</em>. Esa conversación con Daniel no ha ocurrido, así que nace apagado. El contrato completo, para enviárselo a él, está en <code>docs/TTC-WRITE-BACK.md</code>.</p>
+  <p>No pongas <code>TTC_WRITEBACK_SECRET</code> en tu <code>.env.local</code> para probar: las dos configuraciones de Playwright la vacían, pero el servidor de desarrollo la leería y estos pasos dejarían de medir lo que dicen medir.</p>
+</div>
+
+<table>
+  <tr><th class="n">#</th><th>Acción</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
+  <tr><td class="n">69</td><td>Con <code>npm run dev</code> levantado, en PowerShell:
+      <pre>$cuerpo = '{"claimNumber":"CG7MKQ42","ttcClaim":"TTC-9912"}'
+curl.exe -s -w "`n%{http_code}`n" -X POST http://localhost:3000/api/ttc `
+  -H "Content-Type: application/json" -d $cuerpo</pre></td>
+      <td><strong>501</strong> y el cuerpo <code>{"ok":false,"code":"feature_off","error":"TTC write-back is not switched on"}</code>. <strong>501 y no 503</strong>: 503 significa "vuelve luego" y el reintento de Daniel lo martillearía eternamente.</td><td class="st">☐</td></tr>
+  <tr><td class="n">70</td><td>Repetir añadiendo <code>-H "Authorization: Bearer loquesea"</code>.</td>
+      <td><strong>El mismo 501.</strong> Un despliegue que no lo tiene encendido responde igual a todo el mundo.</td><td class="st">☐</td></tr>
+  <tr><td class="n">71</td><td>Repetir cambiando el verbo: <code>-X GET</code>, <code>-X PUT</code>, <code>-X DELETE</code>.</td>
+      <td><strong>405</strong> en los tres. Un endpoint, una dirección: de aquí no se lee nada.</td><td class="st">☐</td></tr>
+  <tr><td class="n">72</td><td>Abrir <code>.env.example</code> y buscar <code>TTC_WRITEBACK_SECRET</code>.</td>
+      <td>Está documentada, con la advertencia de Netlify: las variables valen para <strong>todos</strong> los contextos por defecto, así que dejarla global pondría una copia viva y con secreto de este endpoint en cada URL de vista previa.</td><td class="st">☐</td></tr>
 </table>
 
 <h2>Escenarios negativos</h2>
 <table>
   <tr><th class="n">#</th><th>Caso</th><th>Resultado esperado</th><th class="st">Estado</th></tr>
-  <tr><td class="n">37</td><td>En <code>/</code>, pulsar <em>Get started</em> con todo vacío.</td><td>"Please share your first and last name."</td><td class="st">☐</td></tr>
-  <tr><td class="n">38</td><td>Poner nombre y apellido, y dejar pedido y código postal vacíos.</td><td>"Please add your sales order number or the ZIP code…"</td><td class="st">☐</td></tr>
-  <tr><td class="n">39</td><td>Poner código postal <code>142</code>.</td><td>"That ZIP code doesn't look quite right — five digits is all we need."</td><td class="st">☐</td></tr>
-  <tr><td class="n">40</td><td>Poner correo <code>adrian@rapqa</code> (sin punto ni TLD).</td><td>"That email doesn't look quite right…"</td><td class="st">☐</td></tr>
-  <tr><td class="n">41</td><td>Dejar correo y móvil vacíos.</td><td>"Please add an email or a mobile number…"</td><td class="st">☐</td></tr>
-  <tr><td class="n">42</td><td>Pulsar <em>‹ Back</em> tres veces muy rápido.</td><td>Un paso por pulsación como máximo. Las que llegan durante la escritura se ignoran.</td><td class="st">☐</td></tr>
-  <tr><td class="n">43</td><td>Ir y volver varias veces entre el paso 1 y la portada.</td><td>Sigue habiendo <strong>una sola</strong> reclamación. Si tenés acceso al dashboard, comprobalo ahí.</td><td class="st">☐</td></tr>
-  <tr><td class="n">44</td><td>Abrir <code>/logins</code> o <code>/admins-choice</code> (rutas inventadas que empiezan igual).</td><td>404 con barra. La regla compara segmentos completos.</td><td class="st">☐</td></tr>
-  <tr><td class="n">45</td><td>Recorrer el formulario con el teclado (Tab) hasta el <em>‹ Back</em> y pulsar Enter.</td><td>Foco visible y funciona. El lector de pantalla anuncia "Back to the previous step", no el símbolo <code>‹</code>. En el primer paso anuncia "Back to your details".</td><td class="st">☐</td></tr>
-  <tr><td class="n">46</td><td>Emulador de móvil con muesca, en los dos modos.</td><td>La barra respeta el área segura inferior y no tapa el par de botones.</td><td class="st">☐</td></tr>
-  <tr><td class="n">58</td><td><span class="badge r4">R-4</span> Presentar una reclamación con <code>qa.new@rapqa.com</code> y <strong>crear</strong> la cuenta con ese mismo correo desde la pantalla del <code>CG</code>.</td><td><strong>No se engancha</strong>, a propósito. Hay que usar el formulario del número. El alta no ata mientras la confirmación de correo esté apagada.</td><td class="st">☐</td></tr>
-  <tr><td class="n">59</td><td><span class="badge r4">R-4</span> Una reclamación presentada hace <strong>más de 48 horas</strong>, y entrar con el correo que sí coincide.</td><td>No se engancha. La ventana se mide desde el envío, no desde la cookie. Formulario del número.</td><td class="st">☐</td></tr>
-  <tr><td class="n">60</td><td><span class="badge r4">R-4</span> Con una reclamación <strong>ya presentada</strong> en el navegador, entrar con una cuenta de personal (<code>rap_admin</code> o <code>dealer</code>).</td><td>No se engancha, y la cookie se desarma: al volver a <code>/claim</code> rebota a <code>/</code>. Un agente no se queda con la solicitud de un cliente.</td><td class="st">☐</td></tr>
-  <tr><td class="n">61</td><td><span class="badge r4">R-4</span> <strong>El caso que se rompió y se arregló.</strong> Con un <strong>borrador a medias</strong> (empezado pero sin enviar, todavía sin <code>CG</code>), entrar con una cuenta de personal en ese mismo navegador. Después volver a <code>/claim</code>.</td><td><strong>El borrador sigue ahí, con todo lo escrito.</strong> Si te lleva a un formulario en blanco, es la regresión: reportalo. Un borrador no tiene número ni dueño, así que borrar su cookie lo pierde para siempre.</td><td class="st">☐</td></tr>
+  <tr><td class="n">73</td><td>En <code>/</code>, pulsar <em>Get started</em> con todo vacío.</td><td>"Please share your first and last name."</td><td class="st">☐</td></tr>
+  <tr><td class="n">74</td><td>Poner nombre y apellido, y dejar pedido y código postal vacíos.</td><td>"Please add your sales order number or the ZIP code…"</td><td class="st">☐</td></tr>
+  <tr><td class="n">75</td><td>Poner código postal <code>142</code>.</td><td>"That ZIP code doesn't look quite right — five digits is all we need."</td><td class="st">☐</td></tr>
+  <tr><td class="n">76</td><td>Poner correo <code>adrian@rapqa</code> (sin punto ni TLD).</td><td>"That email doesn't look quite right…"</td><td class="st">☐</td></tr>
+  <tr><td class="n">77</td><td>Dejar correo y móvil vacíos.</td><td>"Please add an email or a mobile number…"</td><td class="st">☐</td></tr>
+  <tr><td class="n">78</td><td>Pulsar <em>‹ Back</em> tres veces muy rápido.</td><td>Un paso por pulsación como máximo. Las que llegan durante la escritura se ignoran.</td><td class="st">☐</td></tr>
+  <tr><td class="n">79</td><td>Ir y volver varias veces entre el paso 1 y la portada.</td><td>Sigue habiendo <strong>una sola</strong> reclamación. Si tenés acceso al dashboard, comprobalo ahí.</td><td class="st">☐</td></tr>
+  <tr><td class="n">80</td><td>Abrir <code>/logins</code> o <code>/admins-choice</code> (rutas inventadas que empiezan igual).</td><td>404 con barra. La regla compara segmentos completos.</td><td class="st">☐</td></tr>
+  <tr><td class="n">81</td><td>Recorrer el formulario con el teclado (Tab) hasta el <em>‹ Back</em> y pulsar Enter.</td><td>Foco visible y funciona. El lector de pantalla anuncia "Back to the previous step", no el símbolo <code>‹</code>. En el primer paso anuncia "Back to your details".</td><td class="st">☐</td></tr>
+  <tr><td class="n">82</td><td>Emulador de móvil con muesca, en los dos modos.</td><td>La barra respeta el área segura inferior y no tapa el par de botones.</td><td class="st">☐</td></tr>
+  <tr><td class="n">83</td><td><span class="badge r4">R-4</span> Presentar una reclamación con <code>qa.new@rapqa.com</code> y <strong>crear</strong> la cuenta con ese mismo correo desde la pantalla del <code>CG</code>.</td><td><strong>No se engancha</strong>, a propósito. Hay que usar el formulario del número. El alta no ata mientras la confirmación de correo esté apagada.</td><td class="st">☐</td></tr>
+  <tr><td class="n">84</td><td><span class="badge r4">R-4</span> Una reclamación presentada hace <strong>más de 48 horas</strong>, y entrar con el correo que sí coincide.</td><td>No se engancha. La ventana se mide desde el envío, no desde la cookie. Formulario del número.</td><td class="st">☐</td></tr>
+  <tr><td class="n">85</td><td><span class="badge r4">R-4</span> Con una reclamación <strong>ya presentada</strong> en el navegador, entrar con una cuenta de personal (<code>rap_admin</code> o <code>dealer</code>).</td><td>No se engancha, y la cookie se desarma: al volver a <code>/claim</code> rebota a <code>/</code>. Un agente no se queda con la solicitud de un cliente.</td><td class="st">☐</td></tr>
+  <tr><td class="n">86</td><td><span class="badge r4">R-4</span> <strong>El caso que se rompió y se arregló.</strong> Con un <strong>borrador a medias</strong> (empezado pero sin enviar, todavía sin <code>CG</code>), entrar con una cuenta de personal en ese mismo navegador. Después volver a <code>/claim</code>.</td><td><strong>El borrador sigue ahí, con todo lo escrito.</strong> Si te lleva a un formulario en blanco, es la regresión: reportalo. Un borrador no tiene número ni dueño, así que borrar su cookie lo pierde para siempre.</td><td class="st">☐</td></tr>
 </table>
 
 <h2>Checklist final</h2>
 <ul class="chk">
   <li><code>npx tsc --noEmit</code> limpio.</li>
-  <li><code>npm test</code> en verde con 653 casos.</li>
+  <li><code>npx tsc --noEmit</code> limpio y <code>npm test</code> en verde con <strong>695 casos</strong> en 58 ficheros.</li>
   <li><code>npm run build</code> en verde.</li>
-  <li><code>npm run test:e2e</code>: 18 compañero y 16 claims.</li>
+  <li><code>npm run test:e2e</code>: <strong>18 compañero y 23 claims</strong>.</li>
   <li>La barra aparece en <code>/</code> y en <code>/claim</code>, que antes no la tenían.</li>
   <li>El visitante anónimo no recibe ninguna pestaña, solo teléfono y correo.</li>
   <li><strong>La barra inferior no lleva Atrás en ninguna pantalla.</strong></li>
@@ -429,6 +504,13 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
   <li>Con una solicitud ya enviada, pregunta si esta es nueva o si viene por aquella.</li>
   <li><strong>La pregunta no vuelve al recargar</strong>, que es lo que pasa al volver de la cámara.</li>
   <li>Que te pregunten no crea ningún borrador.</li>
+  <li><strong>Los dos campos de "tus propias palabras" están arriba, son opcionales y no bloquean nada</strong>, ni siquiera con las fechas en conflicto.</li>
+  <li>Volver atrás conserva los párrafos escritos, y el agente los ve separados en el escritorio.</li>
+  <li>La caja deja de aceptar en el límite: lo que se ve es lo que se guarda.</li>
+  <li><strong>Una cuenta sin compra vinculada ve tres pestañas y las tres llevan a alguna parte</strong>, incluida "Something else?".</li>
+  <li>La tienda muestra el catálogo sin cupón, y sus notas no afirman uno que no existe.</li>
+  <li>Vincular una compra devuelve las dos páginas a como estaban.</li>
+  <li><strong>El endpoint de TTC responde 501 y no toca nada</strong>, con secreto o sin él, y 405 a cualquier otro verbo.</li>
   <li>El modo compañero se comporta igual que antes de R-1.</li>
 </ul>
 
@@ -447,7 +529,11 @@ $env:NEXT_PUBLIC_CLAIMS_MODE="false"; npm run dev</pre>
   <li><span class="badge r5">R-5</span> <strong>El caso literal de Doug, el de dos colchones, no tiene cobertura automática y no puede tenerla.</strong> Las dos suites de Playwright vacían las claves de Supabase, así que la sesión no lleva usuario y la lista de reclamaciones <em>de la cuenta</em> nunca se consulta: solo se ve la de la compra activa. Lo cubren las pruebas unitarias. En una demo local pasa lo mismo, así que la pregunta entre dos compras solo se ve con Supabase configurado.</li>
   <li><span class="badge pen">Pendiente</span> <strong>Un borrador a medias en OTRA compra no cuenta.</strong> Juzgar si tiene contenido cuesta una consulta por reclamación y la copia no tiene una tercera forma para ese caso, así que <code>/requests</code> muestra esa fila y la pregunta no la menciona. Las cuentas con varias compras son del conmutador de B-28.</li>
   <li><span class="badge pen">Pendiente</span> <strong>La fila de un borrador en <code>/requests</code> se titula "TRACKING / Not yet submitted"</strong>, que es lenguaje de tique en una pantalla a la que R-5 ahora manda gente, y <code>DESIGN.md</code> lo desaconseja. Anterior a R-5.</li>
-  <li><strong>Los commits no están subidos.</strong> Están en <code>main</code>, nueve por delante de <code>origin/main</code>.</li>
+  <li><span class="badge r7">R-7</span> <strong>El contrato con TTC no está acordado y el endpoint lo dice.</strong> Doug pidió el endpoint y dijo en la misma frase "we need to talk about the communication". Lo que hay que enviarle a Daniel es <code>docs/TTC-WRITE-BACK.md</code>, que incluye ocho preguntas abiertas que NO están construidas, empezando por la suya propia: "the same way they currently do" apunta a una integración que TTC ya tiene y que nadie ha mirado.</li>
+  <li><span class="badge pen">Pendiente</span> <strong>La escritura de TTC no deja rastro de ninguna clase.</strong> Toda otra escritura de la aplicación deja una nota firmada; esta no, porque haría falta un tercer tipo de autor y con él una migración del esquema. Sin eso, un secreto filtrado sobrescribe el número real sin que nada registre que cambió. Va al pase de seguridad, junto con el límite de peticiones (que existe y no está conectado a nada), la lista de IP permitidas, y que los números <code>CG</code> se acuñan con <code>Math.random</code>.</li>
+  <li><span class="badge pen">Pendiente</span> <span class="badge r6">R-6</span> <strong>Dónde aterriza una cuenta sin compra vinculada se movió sin querer.</strong> El middleware manda a <code>/guarantee</code> desde la raíz, y eso antes encadenaba a <code>/requests</code> porque la página rebotaba. Requests queda a una pestaña, así que nadie se pierde, pero la aplicación tiene dos casas para el mismo visitante. Y el personal con compra vinculada perdió el acceso a esas dos páginas: más estricto, pero nadie lo pidió.</li>
+  <li><span class="badge pen">Pendiente</span> <span class="badge r6">R-6</span> <strong>La página de la garantía no dice en qué noche estás</strong> aunque la reclamación lleve su propia fecha de entrega y <code>/requests/[id]</code> ya calcule ese número con ella. Derivarlo aquí es una decisión de producto, no un arreglo, y quedó fuera a propósito.</li>
+  <li><strong>Los commits no están subidos.</strong> Están en <code>main</code>, doce por delante de <code>origin/main</code>.</li>
 </ul>
 
 </main>
