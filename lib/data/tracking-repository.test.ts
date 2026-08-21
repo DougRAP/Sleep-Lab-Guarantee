@@ -100,3 +100,94 @@ describe("findGuaranteeForLink", () => {
     expect(await r.getGuaranteeForUser(USER)).toBeNull();
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* R-7 — the production system writes its claim number back onto ours          */
+/* -------------------------------------------------------------------------- */
+
+describe("recordTtcClaim", () => {
+  /** A claim with a CG number of its own, which is the key TTC will send. */
+  async function submitted(r: MemoryRepository) {
+    const claim = await r.createAnonymousClaim({
+      firstName: "Terri",
+      lastName: "Osborne",
+      deliveryZip: "28105",
+    });
+    const { claimNumber } = await r.submitClaim(claim.id);
+    return claimNumber;
+  }
+
+  it("writes the number onto the claim that carries ours", async () => {
+    const r = new MemoryRepository();
+    const cg = await submitted(r);
+
+    const updated = await r.recordTtcClaim(cg, "TTC-9912");
+
+    expect(updated?.ttcClaim).toBe("TTC-9912");
+    expect((await r.getClaimByNumber(cg))?.ttcClaim).toBe("TTC-9912");
+  });
+
+  it("finds the claim however TTC types the number", async () => {
+    // Same forgiving rule getClaimByNumber uses (claimNumberQuery): case-blind
+    // and the CG prefix optional, so an integration does not fail on casing.
+    const r = new MemoryRepository();
+    const cg = await submitted(r);
+
+    expect((await r.recordTtcClaim(cg.toLowerCase(), "T1"))?.ttcClaim).toBe("T1");
+    expect((await r.recordTtcClaim(cg.replace(/^CG/i, ""), "T2"))?.ttcClaim).toBe("T2");
+  });
+
+  it("last write wins", async () => {
+    // Doug asked for an API that "writes the record". Refusing to overwrite is
+    // a rule nobody stated, and a retry after a timeout is the ordinary case.
+    const r = new MemoryRepository();
+    const cg = await submitted(r);
+
+    await r.recordTtcClaim(cg, "TTC-1");
+    await r.recordTtcClaim(cg, "TTC-2");
+
+    expect((await r.getClaimByNumber(cg))?.ttcClaim).toBe("TTC-2");
+  });
+
+  it("a retry carrying what we already hold is not a write", async () => {
+    // The admin board sorts on updated_at, so bumping it on every retry lets an
+    // ordinary dead-letter replay reorder the agents' queue.
+    const r = new MemoryRepository();
+    const cg = await submitted(r);
+    await r.recordTtcClaim(cg, "TTC-9912");
+    const first = (await r.getClaimByNumber(cg))!;
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const again = (await r.recordTtcClaim(cg, "TTC-9912"))!;
+
+    expect(again.ttcClaim).toBe("TTC-9912");
+    expect(again.updatedAt).toBe(first.updatedAt);
+  });
+
+  it("returns null when nothing carries that number", async () => {
+    const r = new MemoryRepository();
+    expect(await r.recordTtcClaim("CG000000", "TTC-9912")).toBeNull();
+  });
+
+  it("refuses an empty number on either side", async () => {
+    const r = new MemoryRepository();
+    const cg = await submitted(r);
+
+    expect(await r.recordTtcClaim("", "TTC-9912")).toBeNull();
+    expect(await r.recordTtcClaim(cg, "   ")).toBeNull();
+    expect((await r.getClaimByNumber(cg))?.ttcClaim ?? null).toBeNull();
+  });
+
+  it("touches nothing else on the claim", async () => {
+    const r = new MemoryRepository();
+    const cg = await submitted(r);
+    const before = (await r.getClaimByNumber(cg))!;
+
+    const after = (await r.recordTtcClaim(cg, "TTC-9912"))!;
+
+    expect(after.status).toBe(before.status);
+    expect(after.claimNumber).toBe(before.claimNumber);
+    expect(after.consumerId ?? null).toBe(before.consumerId ?? null);
+    expect(after.submittedAt).toBe(before.submittedAt);
+  });
+});

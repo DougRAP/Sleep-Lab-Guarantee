@@ -717,6 +717,39 @@ export class SupabaseRepository implements GuaranteeRepository {
     return data ? toClaim(data) : null;
   }
 
+  async recordTtcClaim(claimNumber: string, ttcClaim: string): Promise<Claim | null> {
+    const needle = claimNumberQuery(claimNumber);
+    const ttc = (ttcClaim ?? "").trim();
+    if (!needle || !ttc) return null;
+    // Idempotent by value: a retry that carries what we already hold is not a
+    // write. Without this, every retry bumps updated_at, and the admin board
+    // sorts on it — so an ordinary dead-letter replay silently reorders the
+    // agents' queue.
+    const current = await this.getClaimByNumber(needle);
+    if (!current) return null;
+    if (current.ttcClaim === ttc) return current;
+
+    // One statement: match on the unique claim_number and return the row, so
+    // "does it exist" and "write it" cannot disagree between two round trips.
+    // updated_at is left to the claims_set_updated_at trigger, the same way
+    // updateClaimStatus does it further down this file.
+    //
+    // THE ERROR IS NOT DISCARDED HERE, unlike every read above. Everywhere else
+    // a dropped error degrades into an empty screen a person sees. Here it
+    // would be reported to another company's automation as 404 "no claim with
+    // that number", which reads as an authoritative denial: they would stop
+    // retrying and flag the claim as unknown to us, because our database had a
+    // bad minute.
+    const { data, error } = await this.db
+      .from("claims")
+      .update({ ttc_claim: ttc })
+      .eq("claim_number", needle)
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(`recordTtcClaim failed for ${needle}`);
+    return data ? toClaim(data) : null;
+  }
+
   /**
    * Guarantee rows either two-key half could match, merged — matchGuarantee
    * applies the shared exact-ish rules over them. ilike with escaped

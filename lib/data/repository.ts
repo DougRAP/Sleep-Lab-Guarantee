@@ -642,6 +642,18 @@ export interface GuaranteeRepository {
    */
   getClaimByNumber(claimNumber: string): Promise<Claim | null>;
   /**
+   * R-7: the production system writing its own claim number back onto ours.
+   *
+   * Keyed by OUR claim number, forgivingly, so the caller never needs an
+   * internal id. Returns the updated claim, or null when nothing carries that
+   * number. Last write wins: Doug asked for an API that "writes the record",
+   * and refusing to overwrite is a rule nobody stated.
+   *
+   * The only write in this app that happens with no session behind it. See
+   * app/api/ttc/route.ts, which is inert unless a secret is configured.
+   */
+  recordTtcClaim(claimNumber: string, ttcClaim: string): Promise<Claim | null>;
+  /**
    * Auto-match an anonymous claim to a registered guarantee — (sales order # +
    * last name) or (delivery ZIP + last name), see matchGuarantee — and link it
    * when the match is unique. NEVER throws on no-match: the claim is returned

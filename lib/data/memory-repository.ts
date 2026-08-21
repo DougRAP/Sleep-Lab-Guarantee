@@ -368,6 +368,23 @@ export class MemoryRepository implements GuaranteeRepository {
     return found ? { ...found } : null;
   }
 
+  async recordTtcClaim(claimNumber: string, ttcClaim: string): Promise<Claim | null> {
+    const needle = claimNumberQuery(claimNumber);
+    const ttc = (ttcClaim ?? "").trim();
+    if (!needle || !ttc) return null;
+    const row = this.claims.find(
+      (c) => (c.claimNumber ?? "").trim().toUpperCase() === needle
+    );
+    if (!row) return null;
+    // Idempotent by value, mirroring the Supabase side: a retry carrying what
+    // we already hold must not bump updatedAt, because the admin board sorts
+    // on it and a dead-letter replay would reorder the agents' queue.
+    if (row.ttcClaim === ttc) return { ...row };
+    row.ttcClaim = ttc;
+    row.updatedAt = new Date().toISOString();
+    return { ...row };
+  }
+
   async linkClaimToGuaranteeIfMatched(claimId: string): Promise<Claim> {
     const row = this.claims.find((c) => c.id === claimId);
     if (!row) throw new Error(`No claim ${claimId}`);

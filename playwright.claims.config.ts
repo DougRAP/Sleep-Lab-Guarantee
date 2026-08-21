@@ -40,6 +40,10 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
       SUPABASE_SERVICE_ROLE_KEY: "",
       ANTHROPIC_API_KEY: "",
+      // Explicit rather than unset: next dev reads .env.local, so a developer
+      // who has switched the TTC write-back on locally would otherwise flip
+      // e2e/claims/ttc.spec.ts from 501 to 401 with no obvious cause.
+      TTC_WRITEBACK_SECRET: "",
       NEXT_PUBLIC_DEMO_MODE: "true",
       // Clear of a developer's own `npm run dev`, which owns .next/trace.
       NEXT_DIST_DIR: ".next-e2e",
