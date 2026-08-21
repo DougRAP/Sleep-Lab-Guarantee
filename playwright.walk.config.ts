@@ -1,4 +1,32 @@
+import fs from "fs";
 import { defineConfig, devices } from "@playwright/test";
+
+/**
+ * next dev reads .env.local by itself; the TEST process does not. The walk
+ * needs the service key in here too, because it fabricates its own guarantee
+ * for R-5 and takes it away again afterwards — something the app deliberately
+ * cannot do (there is no unlink anywhere in it), and the reason each run does
+ * not have to spend one of the seeded purchases forever.
+ *
+ * Walk-only. Neither real suite does this: both blank these keys on purpose.
+ */
+for (const line of readEnvLocal()) {
+  const at = line.indexOf("=");
+  if (at < 1 || line.trimStart().startsWith("#")) continue;
+  const key = line.slice(0, at).trim();
+  if (process.env[key]) continue;
+  process.env[key] = line.slice(at + 1).trim();
+}
+
+function readEnvLocal(): string[] {
+  try {
+    return fs.readFileSync(".env.local", "utf8").split(/\r?\n/);
+  } catch {
+    // No .env.local: the walk will fail its own precondition check with a
+    // sentence, rather than here with a stack trace.
+    return [];
+  }
+}
 
 /**
  * Para mirar el recorrido de la guía en vivo, no para CI.

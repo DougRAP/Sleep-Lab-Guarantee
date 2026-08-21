@@ -1,21 +1,43 @@
 # Recorrido en vivo (`e2e/walk/`)
 
 Una corrida de Playwright **con la ventana visible y a cámara lenta**, que camina
-la guía `test-guide.html` de principio a fin, R-1 a R-4: la cuenta de QA, la
-barra sin pestañas, el Atrás junto al Next, el par de fechas imposible de Emy,
-el envío con su número `CG######`, y el inicio de sesión que trae la solicitud
-sola.
+la guía `test-guide.html` de principio a fin. **Dos actos**, para que cada uno se
+pueda mirar entero sin cansarse:
+
+| | Acto | Qué se ve |
+|---|---|---|
+| 1 | **el cliente** | R-1 la barra sin pestañas · R-8 sus propias palabras, lo primero que se pide · R-2 el Atrás junto al Next y lo tecleado intacto al volver · R-3 el par imposible de Emy y una entrega de mañana · el envío con su `CG######` · R-4 entrar y que la solicitud le siga |
+| 2 | **la cuenta** | R-6 las tres pestañas y las dos páginas que antes rebotaban, incluida la salida del final · R-7 el endpoint de TTC respondiendo 501 · R-5 la pregunta de nueva o existente |
+
+Se corre uno solo:
+
+```powershell
+npx playwright test -c playwright.walk.config.ts -g "el cliente"
+npx playwright test -c playwright.walk.config.ts -g "la cuenta"
+```
 
 Sirve para mirar el flujo, para enseñárselo a alguien, o para dejar una
 reclamación de prueba en el dashboard sin teclearla a mano.
 
 > **Escribe en el Supabase de verdad.** A diferencia de las dos suites reales,
-> esta configuración **no** vacía las claves: R-4 es entrar a una cuenta, y sin
-> autenticación real no existe. Cada corrida deja una cuenta y una reclamación
-> en el proyecto. De ahí la convención de QA. Requiere además que la
-> confirmación de correo de Supabase esté **apagada**, que es como está hoy;
-> si se enciende, el alta se queda esperando un buzón que Playwright no puede
-> abrir, y hay que pasarle una cuenta ya confirmada con `QA_EMAIL`.
+> esta configuración **no** vacía las claves: media lista es "entrar a una
+> cuenta", y sin autenticación real no existe. Cada corrida deja una cuenta y
+> una reclamación en el proyecto. De ahí la convención de QA. Requiere además
+> que la confirmación de correo de Supabase esté **apagada**, que es como está
+> hoy; si se enciende, el alta se queda esperando un buzón que Playwright no
+> puede abrir, y hay que pasarle una cuenta ya confirmada con `QA_EMAIL`.
+
+> **El acto 2 se fabrica su propia compra y se la lleva.** Para ver R-5 hace
+> falta una compra vinculada, y **la aplicación no sabe desvincular**: no existe
+> ningún desvincular en todo el repositorio, así que tomar prestada una garantía
+> de la semilla la gastaría para siempre, una corrida cada vez. Con la clave de
+> servicio, `e2e/walk/support.ts` crea una garantía `QA-XXXXXX` entregada hace
+> 45 noches y la borra al terminar, incluso si el acto se cae a mitad. La
+> cascada de `claims` sobre `guarantees` se lleva la solicitud con ella, así que
+> **no se acumula nada**. Comprobado: cero filas `QA-` después de correr.
+>
+> Por eso `playwright.walk.config.ts` lee `.env.local` también para el proceso
+> de pruebas, cosa que ninguna de las dos suites reales hace.
 
 **No es parte de ninguna suite.** `npm run test:e2e` no la ejecuta, y no corre en
 CI. Vive aparte a propósito: usa su propio puerto (3102) y su propia
@@ -27,8 +49,9 @@ configuración, `playwright.walk.config.ts`.
 npx playwright test -c playwright.walk.config.ts
 ```
 
-Tarda algo menos de dos minutos. Al final imprime el correo, la contraseña, el
-teléfono y el número de reclamación que salieron.
+Los dos actos juntos tardan unos tres minutos. Cada uno imprime al final lo que
+usó: el correo, la contraseña, el teléfono, el número de reclamación, y en el
+acto 2 el pedido de la compra de prueba que creó y borró.
 
 ## Datos de contacto
 
