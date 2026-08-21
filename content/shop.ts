@@ -28,7 +28,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     blurb:
       "A waterproof protector keeps the set clean and sanitary — and your Comfort Guarantee intact.",
     url: "https://www.citymattress.com/collections/pads-protectors",
-    note: "Recommended from night one. Your dealer coupon applies at checkout.",
+    note: "Recommended from night one. Your dealer coupon, once you have one, applies at checkout.",
     image: "/shop/protector.webp",
   },
   {
@@ -37,7 +37,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     blurb:
       "The right pillow does half the work while your body settles into a new surface.",
     url: "https://www.citymattress.com/collections/pillows",
-    note: "Add one to your order and use your dealer coupon at checkout.",
+    note: "Add one to your order, and use your dealer coupon at checkout once you have one.",
     image: "/shop/pillows.webp",
   },
   {
@@ -46,7 +46,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     blurb:
       "Bases, frames, and the rest of the room — a calm foundation for better sleep.",
     url: "https://www.citymattress.com/collections/bedroom-furniture",
-    note: "Your dealer coupon applies at checkout.",
+    note: "Your dealer coupon, once you have one, applies at checkout.",
     image: "/shop/furn.webp",
   },
 ];

@@ -4,8 +4,9 @@ import { AppHeader } from "../../../../components/app-header";
 import { DayCount } from "../../../../components/day-count";
 import { ConciergeCard } from "../../../../components/concierge-card";
 import { FrostedCard } from "../../../../components/ui/frosted-card";
-import { requireGuarantee } from "../../../../lib/auth/app-session";
+import { requireSignedInAllowUnlinked } from "../../../../lib/auth/app-session";
 import { getRepository } from "../../../../lib/data";
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../../../content/support";
 
 // Dealer triage (v2 #4). For non-comfort issues — damage, defects, anything
 // outside the Comfort Guarantee — the customer is routed to their dealer, who
@@ -13,7 +14,14 @@ import { getRepository } from "../../../../lib/data";
 // dealer_locations (via the session's guarantee), with a calm fallback if none
 // is on file.
 export default async function GuaranteeHelpPage() {
-  const { session, guarantee } = await requireGuarantee();
+  // R-6: the unlinked Guarantee page links here, so demanding a purchase would
+  // reproduce Emy's complaint one level down: a door that closes. Without a
+  // purchase we do not know which dealer sold the mattress, but RAP is still
+  // reachable, which is more than a redirect gives them.
+  const { session, guarantee, viewer } = await requireSignedInAllowUnlinked();
+  const email = session?.email ?? viewer?.email ?? null;
+  if (!guarantee) return <UnlinkedHelp email={email} />;
+
   const repo = getRepository();
 
   const journey = await repo.getJourney(guarantee.id);
@@ -28,7 +36,7 @@ export default async function GuaranteeHelpPage() {
         id="main"
         className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <AppHeader email={session.email} />
+        <AppHeader email={email} />
 
         <Link
           href="/guarantee"
@@ -99,6 +107,87 @@ export default async function GuaranteeHelpPage() {
               )}
             </div>
           </FrostedCard>
+
+          <p className="text-[13px] leading-relaxed text-mist">
+            Manufacturing defects and warranty matters are handled by your dealer
+            or the manufacturer, separately from the 90-Night Comfort Guarantee.
+          </p>
+        </div>
+      </main>
+    </>
+  );
+}
+
+/**
+ * R-6: the same page for an account with no purchase on file.
+ *
+ * This page exists to hand the customer their DEALER, which comes off the
+ * guarantee. With none linked we cannot name one, so it says that plainly and
+ * gives them RAP, from the one place those contacts live (content/support.ts).
+ */
+function UnlinkedHelp({ email }: { email: string | null }) {
+  return (
+    <>
+      <LivingSky day={0} />
+      <main
+        id="main"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
+      >
+        <AppHeader email={email} />
+
+        <Link
+          href="/guarantee"
+          className="mt-3 inline-block font-mono text-[11px] uppercase tracking-[0.12em] text-mist transition-colors hover:text-cloud"
+        >
+          &lsaquo; Guarantee
+        </Link>
+
+        <div className="mt-8 space-y-6">
+          <h1 className="font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
+            Something other than comfort
+          </h1>
+
+          <ConciergeCard>
+            The Comfort Guarantee is for when a mattress simply doesn&apos;t feel
+            right. For damage, a defect, or anything else, the store that sold it
+            to you handles it directly. Link your purchase and I&apos;ll show you
+            who that is, or reach us and we&apos;ll point you their way.
+          </ConciergeCard>
+
+          <FrostedCard className="space-y-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-mist">
+              Reach us
+            </p>
+            <div className="space-y-3 pt-1">
+              <ContactRow label="Phone">
+                <a
+                  href={`tel:${SUPPORT_PHONE.replace(/[^0-9+]/g, "")}`}
+                  className="text-[15px] text-dawn underline-offset-4 hover:underline"
+                >
+                  {SUPPORT_PHONE}
+                </a>
+              </ContactRow>
+              <ContactRow label="Email">
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="text-[15px] text-dawn underline-offset-4 hover:underline"
+                >
+                  {SUPPORT_EMAIL}
+                </a>
+              </ContactRow>
+            </div>
+          </FrostedCard>
+
+          <p className="text-[13px] leading-relaxed text-mist">
+            Bought a mattress and want your 90 nights here too?{" "}
+            <Link
+              href="/link"
+              className="text-dawn underline-offset-4 transition-colors hover:underline"
+            >
+              Link your purchase
+            </Link>
+            .
+          </p>
 
           <p className="text-[13px] leading-relaxed text-mist">
             Manufacturing defects and warranty matters are handled by your dealer

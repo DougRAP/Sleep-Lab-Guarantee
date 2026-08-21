@@ -114,14 +114,14 @@ export default async function RequestsPage() {
             <AddClaimBlock />
             {!guarantee && <UnlinkedHelp />}
 
-            {guarantee && (
-              <Link
-                href="/guarantee"
-                className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
-              >
-                View your guarantee
-              </Link>
-            )}
+            {/* R-6: the tab works for an unlinked account now, so the in-page
+                button to the same place should not still be hidden from them. */}
+            <Link
+              href="/guarantee"
+              className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
+            >
+              View your guarantee
+            </Link>
           </div>
         ) : (
           <div className="mt-8 space-y-6">

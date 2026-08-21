@@ -167,11 +167,16 @@ describe("footer reachability — never offer a tab that would bounce you", () =
     ]);
   });
 
-  it("withholds Guarantee and Shop from an account with nothing linked (Emy, E-4)", () => {
+  it("offers all three to an account with nothing linked (R-6)", () => {
+    // The inverse of what this asserted until R-6. Emy: "logged in as
+    // customer, stuck on request page, would not go to guarantee nor shop."
+    // Doug: "She says the guarantee button doesn't work there" and "Shop, so
+    // it hid the shop page. When I refactored it, it should keep the shop
+    // page." Withholding the tabs was one honest answer to a page that
+    // bounced; making the pages work is the one they asked for.
     const plan = footerPlan("/requests", SIGNED_IN, true);
-    expect(plan.hrefs).toEqual(["/requests"]);
-    expect(plan.hrefs).not.toContain("/guarantee");
-    expect(plan.hrefs).not.toContain("/shop");
+    expect(plan.hrefs).toEqual(["/guarantee", "/requests", "/shop"]);
+    expect(plan.bare).toBe(false);
   });
 
   it("offers a staff viewer no consumer destinations", () => {
@@ -198,10 +203,14 @@ describe("footer reachability — never offer a tab that would bounce you", () =
 });
 
 describe("footer requirements — the single lever R-6 will pull", () => {
-  it("states what each destination needs, so relaxing one is a one-line change", () => {
+  it("states what each destination needs; R-6 relaxed two of them", () => {
     expect(NAV_REQUIREMENTS["/requests"]).toBe("signed-in");
-    expect(NAV_REQUIREMENTS["/guarantee"]).toBe("linked");
-    expect(NAV_REQUIREMENTS["/shop"]).toBe("linked");
+    expect(NAV_REQUIREMENTS["/guarantee"]).toBe("signed-in");
+    expect(NAV_REQUIREMENTS["/shop"]).toBe("signed-in");
+    // The companion layer keeps its own bar. Both are hidden outright in
+    // claims mode, and neither has anything to show without a purchase.
+    expect(NAV_REQUIREMENTS["/tonight"]).toBe("linked");
+    expect(NAV_REQUIREMENTS["/concierge"]).toBe("linked");
   });
 
   it("covers every destination the nav can offer, in both modes", () => {
@@ -227,13 +236,23 @@ describe("footer — the consensus review's findings (5-agent pass)", () => {
     expect(footerHiddenSurface("/claim")).toBe(false);
   });
 
-  it("falls back to the support bar when the only tab left is where you are", () => {
-    // An unlinked account on /requests: offering a tab to the page you are
-    // already on is the "chrome that does nothing" the bare bar exists to
-    // prevent, and it withheld the phone number from Emy's exact visitor.
-    const plan = footerPlan("/requests", SIGNED_IN, true);
-    expect(plan.hrefs).toEqual(["/requests"]);
+  it("falls back to the support bar when there is nowhere else to go", () => {
+    // The bare bar exists so a visitor with no destination still gets the
+    // phone number instead of empty chrome. Until R-6 the visitor who hit it
+    // was Emy's: an account with nothing linked, holding one tab that pointed
+    // at the page it was already on. That account now has three destinations,
+    // so the rule is left to the visitor it also always covered, the anonymous
+    // one on the claim front door, who is offered no tab at all.
+    const plan = footerPlan("/", ANON, true);
+    expect(plan.hrefs).toEqual([]);
     expect(plan.bare).toBe(true);
+    expect(plan.visible).toBe(true);
+  });
+
+  it("no longer strands the unlinked account it was written for", () => {
+    const plan = footerPlan("/requests", SIGNED_IN, true);
+    expect(plan.bare).toBe(false);
+    expect(plan.hrefs).toContain("/guarantee");
   });
 
   it("still shows the strip when there is somewhere else to go", () => {

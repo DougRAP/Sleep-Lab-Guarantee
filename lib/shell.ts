@@ -88,24 +88,36 @@ export type NavDestination =
   | "/concierge";
 
 /**
- * What each destination needs. This is the single lever: when R-6 teaches
- * /guarantee and /shop to render for an account with nothing linked, those two
- * entries relax to "signed-in" and NOTHING in this file changes.
+ * What each destination needs. This is the single lever, and R-6 pulled it:
+ * /guarantee and /shop relaxed to "signed-in" and nothing else in this file
+ * moved. The work was elsewhere, as predicted — both pages off
+ * requireGuarantee(), a real unlinked design for each, and the header email
+ * taken from the viewer rather than the session.
  *
- * R-6 is one line HERE, not one line overall: it also has to move both pages
- * off requireGuarantee(), give each a real unlinked design (both dereference a
- * guarantee for the day count, the dealer and the coupon), take the header
- * email from the viewer instead of the session, and settle where an unlinked
- * account should land after auth. The lever is this table; the work is there.
+ * ONE PIECE OF R-6 WAS DELIBERATELY NOT DONE: where a signed-in account with
+ * nothing linked should LAND. middleware.ts sends any signed-in visitor at "/"
+ * to CLAIMS_REDIRECT_PATH, and until R-6 that chained onward to /requests
+ * because /guarantee bounced them. It no longer bounces, so the app now has two
+ * homes for that visitor: routeAfterAuth still says /requests, the front door
+ * says /guarantee. Requests is one tab away either way, so nobody is stranded,
+ * but which one is home is a product decision nobody has made.
  *
  * Typed by NavDestination on purpose: adding a tab without a requirement is a
  * compile error, not a silent grant.
  */
 export const NAV_REQUIREMENTS: Readonly<Record<NavDestination, NavRequirement>> = {
   "/tonight": "linked",
-  "/guarantee": "linked",
+  // R-6 (Emy, via Doug): "logged in as customer, stuck on request page, would
+  // not go to guarantee nor shop." Both pages used to demand a linked purchase
+  // and bounce, so R-1 withheld the tabs rather than offer a door that closes.
+  // The pages now render without one, showing what needs no purchase, so the
+  // tabs can be offered. This line is the whole of the visibility change:
+  // nothing mirrors it in a component.
+  "/guarantee": "signed-in",
   "/requests": "signed-in",
-  "/shop": "linked",
+  "/shop": "signed-in",
+  // The companion layer keeps the stricter rule. Both are hidden outright in
+  // claims mode, and neither has anything to show without a purchase.
   "/concierge": "linked",
 };
 
@@ -198,6 +210,12 @@ export function footerPlan(
   // "Somewhere else to go" is the test, not "any tab at all": a lone tab
   // pointing at the page you are already on is chrome that does nothing, and
   // withholding the phone number from that visitor was exactly backwards.
+  //
+  // Since R-6 no visitor shape produces a single tab — it is none, or the
+  // whole set — so this filter is a no-op today and `bare` is reached only by
+  // the anonymous visitor. It stays because it is the correct statement of the
+  // rule, and because tightening any requirement brings the case straight
+  // back. Said out loud so nobody reads the line as covered.
   const elsewhere = hrefs.filter((href) => !isUnder(pathname, href));
   const bare = elsewhere.length === 0 && !coach;
 

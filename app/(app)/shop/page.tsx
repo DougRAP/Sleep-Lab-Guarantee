@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LivingSky } from "../../../components/living-sky";
 import { AppHeader } from "../../../components/app-header";
 import { DayCount } from "../../../components/day-count";
@@ -5,11 +6,12 @@ import { ConciergeCard } from "../../../components/concierge-card";
 import { FrostedCard } from "../../../components/ui/frosted-card";
 import { buttonVariants } from "../../../components/ui/button";
 import { GetCouponButton } from "../../../components/shop/get-coupon-button";
-import { requireGuarantee } from "../../../lib/auth/app-session";
+import { requireSignedInAllowUnlinked } from "../../../lib/auth/app-session";
 import { getRepository } from "../../../lib/data";
 import { formatDayMonth } from "../../../lib/dates";
 import { cn } from "../../../lib/utils";
 import { SHOP_ITEMS } from "../../../content/shop";
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../../../content/support";
 import type { Coupon, DealerLocation } from "../../../lib/types";
 
 /** The dealer's terms travel with the code, wherever it is shown. */
@@ -20,15 +22,28 @@ const COUPON_TERMS = "Subject to dealer conditions and rules of acceptance.";
 // each item links out to the dealer/store, and the dealer coupon (from
 // dealer_locations) applies at their checkout. No cart, no Stripe.
 export default async function ShopPage() {
-  const { session, guarantee } = await requireGuarantee();
+  // R-6 (Doug: "Shop, so it hid the shop page. When I refactored it, it should
+  // keep the shop page"). This used to demand a linked purchase and bounce, so
+  // the tab was offered and led nowhere. The catalogue is a static file and
+  // needs no purchase; only the day count and the dealer coupon do.
+  //
+  // The unlinked branches below have NO integration coverage and cannot: both
+  // Playwright configs blank the Supabase env, so the light-verify path always
+  // resolves a guarantee. Checked by hand (test-guide.html).
+  const { session, guarantee, viewer } = await requireSignedInAllowUnlinked();
+  const email = session?.email ?? viewer?.email ?? null;
   const repo = getRepository();
 
-  const journey = await repo.getJourney(guarantee.id);
+  const journey = guarantee ? await repo.getJourney(guarantee.id) : null;
   const day = journey?.currentDay ?? 0;
-  const dealer = await repo.getDealerLocationForGuarantee(guarantee.id);
+  const dealer = guarantee
+    ? await repo.getDealerLocationForGuarantee(guarantee.id)
+    : null;
   // Issued on request, never always-on (PRD #6) — so the card either offers one
-  // or shows the code the customer already holds.
-  const coupon = await repo.getActiveCoupon(guarantee.id);
+  // or shows the code the customer already holds. It is issued AGAINST a
+  // guarantee, so an account with nothing linked is told where it comes from
+  // rather than offered one it cannot be given.
+  const coupon = guarantee ? await repo.getActiveCoupon(guarantee.id) : null;
 
   return (
     <>
@@ -37,11 +52,19 @@ export default async function ShopPage() {
         id="main"
         className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-28"
       >
-        <AppHeader email={session.email} />
+        <AppHeader email={email} />
 
         <div className="mt-8 space-y-6">
-          <DayCount day={day} className="block" />
-          <h1 className="!mt-2 font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud">
+          {guarantee && <DayCount day={day} className="block" />}
+          <h1
+            className={cn(
+              // !mt-2 tightens the heading under the day-count eyebrow. With no
+              // eyebrow it would force 8px onto the first child and leave this
+              // page sitting differently from its sibling.
+              guarantee && "!mt-2",
+              "font-serif text-[26px] leading-[1.2] tracking-[-0.01em] text-cloud"
+            )}
+          >
             A few things for better sleep
           </h1>
 
@@ -51,7 +74,18 @@ export default async function ShopPage() {
             guarantee intact.
           </ConciergeCard>
 
-          {coupon ? (
+          {!guarantee ? (
+            <p className="text-[13px] leading-relaxed text-mist">
+              The dealer coupon is issued against a purchase.{" "}
+              <Link
+                href="/link"
+                className="text-dawn underline-offset-4 transition-colors hover:underline"
+              >
+                Link your purchase
+              </Link>{" "}
+              and I&apos;ll offer you one here.
+            </p>
+          ) : coupon ? (
             <ActiveCoupon coupon={coupon} />
           ) : (
             dealer?.couponCode && <CouponOffer dealer={dealer} />
@@ -84,6 +118,7 @@ export default async function ShopPage() {
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label={`View ${item.name} at the store`}
                   className={cn(buttonVariants({ variant: "ghost", size: "md" }))}
                 >
                   View at the store
@@ -93,9 +128,25 @@ export default async function ShopPage() {
           </div>
 
           <p className="text-[13px] leading-relaxed text-mist">
-            These links open your dealer&apos;s store in a new tab. Purchases are
-            made there, not in the app.
+            These links open the store in a new tab. Purchases are made there,
+            not in the app.
           </p>
+
+          {/* R-6: this account no longer trips the bare support bar, because it
+              now has three tabs. Without this the page it just gained would
+              have no route to a person on it at all. */}
+          {!guarantee && (
+            <p className="text-[13px] leading-relaxed text-mist">
+              Anytime, you can call us at {SUPPORT_PHONE} or email{" "}
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="text-dawn underline-offset-4 transition-colors hover:underline"
+              >
+                {SUPPORT_EMAIL}
+              </a>
+              .
+            </p>
+          )}
         </div>
       </main>
     </>

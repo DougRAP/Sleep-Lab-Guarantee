@@ -35,11 +35,30 @@ const consumer = V({ authenticated: true, role: "consumer", linked: true });
 const dealer = V({ authenticated: true, role: "dealer" });
 const admin = V({ authenticated: true, role: "rap_admin" });
 
-describe("access matrix — consumer app routes (/tonight, /guarantee, ...)", () => {
+// R-6 CORRECTION, read this before trusting the rows below.
+//
+// guardAppRoute has NO callers outside these tests: middleware.ts answers only
+// "is anyone signed in?", and each page calls its own guard from
+// lib/auth/app-session.ts. So this block is a statement of intent, not a
+// tripwire, and R-6 loosened /guarantee and /shop without breaking a row here.
+//
+// After R-6 the six surfaces this block names no longer share one rule:
+//   /guarantee, /shop      requireSignedInAllowUnlinked — an unlinked account
+//                          RENDERS; staff go to /admin whether or not linked
+//   /guarantee/help        the same, since the unlinked guarantee links to it
+//   /tonight, /concierge   requireGuarantee — unlinked still bounces
+//   /fitting               requireGuarantee — unlinked still bounces
+//
+// The rows below describe the requireGuarantee rule, which is now the minority.
+// Left standing because it is still exactly right for /tonight, /concierge and
+// /fitting, and because misc/b13-security-guide.html mirrors it.
+describe("access matrix — the requireGuarantee rule (/tonight, /concierge, /fitting)", () => {
   it("anonymous is sent to login", () => {
     expect(guardAppRoute(anon)).toBe("/login");
   });
   it("authenticated-but-unlinked consumer is sent to the tracking list (v3 M-S5)", () => {
+    // Still true of the surfaces this block now names. NOT true of /guarantee
+    // or /shop since R-6: see the note above.
     expect(guardAppRoute(authUnlinked)).toBe("/requests");
   });
   it("linked consumer is allowed", () => {
